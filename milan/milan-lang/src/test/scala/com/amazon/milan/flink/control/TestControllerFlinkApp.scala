@@ -1,12 +1,12 @@
-package com.amazon.milan.control
+package com.amazon.milan.flink.control
 
 import java.io.{InputStream, OutputStream}
 import java.nio.file.Path
 import java.time.Duration
 
 import com.amazon.milan.control.client.StreamApplicationControllerClient
+import com.amazon.milan.control.{ApplicationControllerMessageEnvelope, ApplicationControllerState, StartApplicationMessage}
 import com.amazon.milan.flink.application.sinks.SingletonMemorySinkFunction
-import com.amazon.milan.flink.control.{ApplicationController, ApplicationControllerDiagnostic, ApplicationControllerMessageHandler, CommandLineFlinkClient, ControllerFlinkApp}
 import com.amazon.milan.flink.testutil.SingletonMemorySource
 import com.amazon.milan.manage.PackageRepository
 import com.amazon.milan.testing.Concurrent

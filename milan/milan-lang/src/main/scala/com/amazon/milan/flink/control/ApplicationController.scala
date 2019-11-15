@@ -17,18 +17,18 @@ object ApplicationController {
 
 class ApplicationController(packageRepository: PackageRepository,
                             flinkClient: FlinkClient,
-                            packageCachePath: Path,
+                            packageCachePath: String,
                             region: String,
-                            cloudFormationCachePath: Path) extends Serializable {
+                            cloudFormationCachePath: String) extends Serializable {
 
   @transient private lazy val logger = Logger(LoggerFactory.getLogger(getClass))
 
   def this(packageRepository: PackageRepository,
            flinkClient: FlinkClient,
-           packageCachePath: String,
+           packageCachePath: Path,
            region: String,
-           cloudFormationCachePath: String) {
-    this(packageRepository, flinkClient, Paths.get(packageCachePath), region, Paths.get(cloudFormationCachePath))
+           cloudFormationCachePath: Path) {
+    this(packageRepository, flinkClient, packageCachePath.toString, region, cloudFormationCachePath.toString)
   }
 
   /**
@@ -40,7 +40,7 @@ class ApplicationController(packageRepository: PackageRepository,
    * @return An ID that identifies the running application instance.
    */
   def startApplicationPackage(applicationPackageId: String, snapshotPath: Option[String] = None, createDashboard: Boolean = false): String = {
-    val jarPath = this.packageCachePath.resolve(applicationPackageId + ".jar")
+    val jarPath = Paths.get(this.packageCachePath).resolve(applicationPackageId + ".jar")
 
     if (jarPath.toFile.exists()) {
       this.logger.info(s"Package '$jarPath' already exists, using cached version.")
@@ -87,7 +87,7 @@ class ApplicationController(packageRepository: PackageRepository,
       throw new StartApplicationException(s"Process completed with exit code ${output.exitCode}. \n${output.getFullErrorOutput}")
     }
 
-    val templatePath = this.cloudFormationCachePath.resolve(s"dashboard-$flinkApplicationId.json")
+    val templatePath = Paths.get(this.cloudFormationCachePath).resolve(s"dashboard-$flinkApplicationId.json")
     this.logger.info(s"Created Cloudformation template at ${templatePath.toString}")
     val stackName = this.getDashboardStackName(flinkApplicationId)
 

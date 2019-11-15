@@ -1,8 +1,7 @@
-package com.amazon.milan.control
+package com.amazon.milan.flink.control
 
 import java.time.Duration
 
-import com.amazon.milan.flink.control.{ApplicationController, ApplicationControllerDiagnostic, ApplicationControllerMessageHandler, ApplicationControllerProcessFunction, CommandLineFlinkClient}
 import com.amazon.milan.manage.{LocalPackageRepository, ProcessCommandExecutor}
 import com.amazon.milan.serialization.ObjectSerialization
 import org.apache.flink.api.scala._
