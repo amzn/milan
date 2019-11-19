@@ -11,7 +11,7 @@ The Milan language is similar in look and feel to other JVM-based streaming fram
 
 Examples of the Milan language are available in [the samples](milan/milan-samples).
 
-Some of the language features are described in [the docs](milan/doc).
+Some of the language features are described in [the docs](doc).
 
 ### Runtime
 Currently Milan has a single compiler and runtime, based on [Apache Flink](https://flink.apache.org).
