@@ -2,7 +2,7 @@ package com.amazon.milan.flink.compiler.internal
 
 import com.amazon.milan.program._
 import com.amazon.milan.test.{IntRecord, KeyValueRecord, StringRecord}
-import com.amazon.milan.typeutil.{TupleTypeDescriptor, TypeDescriptor, types}
+import com.amazon.milan.typeutil.{TypeDescriptor, types}
 import org.junit.Assert._
 import org.junit.Test
 

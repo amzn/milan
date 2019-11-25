@@ -2,7 +2,7 @@ package com.amazon.milan.flink.compiler.internal
 
 import com.amazon.milan.flink.components.{EveryElementTrigger, KeyFunctionKeySelector}
 import com.amazon.milan.flink.{FlinkTypeNames, RuntimeEvaluator, TypeUtil}
-import com.amazon.milan.program.{GroupingExpression, SlidingWindow, TimeWindowExpression, TumblingWindow}
+import com.amazon.milan.program.{GroupBy, SlidingWindow, TimeWindowExpression, TumblingWindow}
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.streaming.api.datastream._
 import org.apache.flink.streaming.api.windowing.assigners.{GlobalWindows, SlidingEventTimeWindows, TumblingEventTimeWindows, WindowAssigner}
@@ -11,15 +11,21 @@ import org.apache.flink.streaming.api.windowing.windows.{GlobalWindow, TimeWindo
 import scala.reflect.ClassTag
 
 
+/**
+ * Methods for applying grouping operations (GroupBy, SlidingWindow, TumblingWindow) to Flink data streams.
+ */
 object FlinkWindowedStreamFactory {
   val typeName: String = getClass.getTypeName.stripSuffix("$")
 
-  case class ApplyGroupByWindowResult[T, TKey, TWindow <: Window](windowedStream: WindowedStream[T, TKey, TWindow], windowTypeName: String)
+  trait ApplyWindowResult
 
-  case class ApplyTimeWindowResult[T](windowedStream: AllWindowedStream[T, TimeWindow])
+  case class ApplyKeyedWindowResult[T, TKey, TWindow <: Window](windowedStream: WindowedStream[T, TKey, TWindow],
+                                                                windowTypeName: String) extends ApplyWindowResult
 
-  def applyGroupByWindow(groupExpr: GroupingExpression,
-                         inputDataStream: SingleOutputStreamOperator[_]): ApplyGroupByWindowResult[_, _, _ <: Window] = {
+  case class ApplyUnkeyedWindowResult[T](windowedStream: AllWindowedStream[T, TimeWindow]) extends ApplyWindowResult
+
+  def applyGroupByWindow(groupExpr: GroupBy,
+                         inputDataStream: SingleOutputStreamOperator[_]): ApplyKeyedWindowResult[_, _, _ <: Window] = {
     val inputTypeName = TypeUtil.getTypeName(inputDataStream.getType)
 
     val eval = RuntimeEvaluator.instance
@@ -27,9 +33,9 @@ object FlinkWindowedStreamFactory {
     val keyTypeName = groupExpr.expr.tpe.getTypeName
     val keyTypeInformation = eval.createTypeInformation(groupExpr.expr.tpe)
 
-    eval.evalFunction[GroupingExpression, DataStream[_], TypeInformation[_], ApplyGroupByWindowResult[_, _, _ <: Window]](
+    eval.evalFunction[GroupBy, DataStream[_], TypeInformation[_], ApplyKeyedWindowResult[_, _, _ <: Window]](
       "groupExpr",
-      eval.getClassName[GroupingExpression],
+      eval.getClassName[GroupBy],
       "inputDataStream",
       FlinkTypeNames.dataStream(inputTypeName),
       "keyTypeInformation",
@@ -40,9 +46,9 @@ object FlinkWindowedStreamFactory {
       keyTypeInformation)
   }
 
-  def applyGroupByWindowImpl[T, TKey: ClassTag](groupExpr: GroupingExpression,
+  def applyGroupByWindowImpl[T, TKey: ClassTag](groupExpr: GroupBy,
                                                 inputDataStream: DataStream[T],
-                                                keyTypeInformation: TypeInformation[TKey]): ApplyGroupByWindowResult[T, TKey, GlobalWindow] = {
+                                                keyTypeInformation: TypeInformation[TKey]): ApplyKeyedWindowResult[T, TKey, GlobalWindow] = {
     val keySelector = new KeyFunctionKeySelector[T, TKey](groupExpr.getInputRecordType, groupExpr.expr)
 
     val windowedStream =
@@ -51,15 +57,15 @@ object FlinkWindowedStreamFactory {
         .window(GlobalWindows.create().asInstanceOf[WindowAssigner[Any, GlobalWindow]])
         .trigger(new EveryElementTrigger[T, GlobalWindow])
 
-    ApplyGroupByWindowResult(windowedStream, FlinkTypeNames.globalWindow)
+    ApplyKeyedWindowResult(windowedStream, FlinkTypeNames.globalWindow)
   }
 
   def applyTimeWindow(windowExpr: TimeWindowExpression,
-                      inputDataStream: SingleOutputStreamOperator[_]): ApplyTimeWindowResult[_] = {
+                      inputDataStream: SingleOutputStreamOperator[_]): ApplyUnkeyedWindowResult[_] = {
     val inputTypeName = TypeUtil.getTypeName(inputDataStream.getType)
     val eval = RuntimeEvaluator.instance
 
-    eval.evalFunction[TimeWindowExpression, DataStream[_], ApplyTimeWindowResult[_]](
+    eval.evalFunction[TimeWindowExpression, DataStream[_], ApplyUnkeyedWindowResult[_]](
       "windowExpr",
       eval.getClassName[TimeWindowExpression],
       "inputDataStream",
@@ -70,7 +76,7 @@ object FlinkWindowedStreamFactory {
   }
 
   def applyTimeWindowImpl[T](windowExpr: TimeWindowExpression,
-                             inputDataStream: SingleOutputStreamOperator[T]): ApplyTimeWindowResult[T] = {
+                             inputDataStream: SingleOutputStreamOperator[T]): ApplyUnkeyedWindowResult[T] = {
     val eventTimeStream = this.applyEventTimeImpl(windowExpr, inputDataStream)
 
     val windowAssigner = windowExpr match {
@@ -93,28 +99,28 @@ object FlinkWindowedStreamFactory {
         .windowAll(windowAssigner)
         .trigger(new EveryElementTrigger[T, TimeWindow])
 
-    ApplyTimeWindowResult(windowedStream)
+    ApplyUnkeyedWindowResult(windowedStream)
   }
 
   def applyTimeWindow(windowExpr: TimeWindowExpression,
-                      inputKeyedStream: KeyedStream[_, _]): ApplyGroupByWindowResult[_, _, TimeWindow] = {
+                      inputKeyedStream: KeyedStream[_, _]): ApplyKeyedWindowResult[_, _, TimeWindow] = {
     val inputTypeName = TypeUtil.getTypeName(inputKeyedStream.getType)
     val keyTypeName = TypeUtil.getTypeName(inputKeyedStream.getKeyType)
 
     val eval = RuntimeEvaluator.instance
 
-    eval.evalFunction[TimeWindowExpression, KeyedStream[_, _], ApplyGroupByWindowResult[_, _, TimeWindow]](
+    eval.evalFunction[TimeWindowExpression, KeyedStream[_, _], ApplyKeyedWindowResult[_, _, TimeWindow]](
       "windowExpr",
       eval.getClassName[TimeWindowExpression],
       "inputKeyedStream",
       FlinkTypeNames.keyedStream(inputTypeName, keyTypeName),
-      s"${this.typeName}.applyTimeWindowImpl[$inputTypeName, $keyTypeName](windowExpr, inputKeyedStream)",
+      s"${this.typeName}.applyKeyedTimeWindowImpl[$inputTypeName, $keyTypeName](windowExpr, inputKeyedStream)",
       windowExpr,
       inputKeyedStream)
   }
 
-  def applyTimeWindowImpl[T, TKey](windowExpr: TimeWindowExpression,
-                                   inputKeyedStream: KeyedStream[T, TKey]): ApplyGroupByWindowResult[T, TKey, TimeWindow] = {
+  def applyKeyedTimeWindowImpl[T, TKey](windowExpr: TimeWindowExpression,
+                                        inputKeyedStream: KeyedStream[T, TKey]): ApplyKeyedWindowResult[T, TKey, TimeWindow] = {
     val windowAssigner = windowExpr match {
       case TumblingWindow(_, _, period, offset) =>
         TumblingEventTimeWindows.of(
@@ -135,7 +141,7 @@ object FlinkWindowedStreamFactory {
         .window(windowAssigner)
         .trigger(new EveryElementTrigger[T, TimeWindow])
 
-    ApplyGroupByWindowResult(windowedStream, FlinkTypeNames.timeWindow)
+    ApplyKeyedWindowResult(windowedStream, FlinkTypeNames.timeWindow)
   }
 
   def applyEventTime(windowExpr: TimeWindowExpression,

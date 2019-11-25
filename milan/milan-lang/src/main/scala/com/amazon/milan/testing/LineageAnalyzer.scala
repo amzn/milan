@@ -3,8 +3,6 @@ package com.amazon.milan.testing
 import com.amazon.milan.stream.unfold
 import com.amazon.milan.types.LineageRecord
 
-import scala.collection.mutable
-
 
 /**
  * A utility for analyzing lineage records.

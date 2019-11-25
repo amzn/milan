@@ -3,14 +3,22 @@ package com.amazon.milan.flink
 import java.time.Duration
 import java.util.concurrent.TimeoutException
 
+import com.amazon.milan.Id
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
+import com.amazon.milan.flink.application.FlinkApplicationConfiguration
+import com.amazon.milan.flink.application.sinks.FlinkSingletonMemorySink
+import com.amazon.milan.flink.application.sources.{FlinkListDataSource, SourceFunctionDataSource}
 import com.amazon.milan.flink.compiler.FlinkCompiler
-import com.amazon.milan.lang.StreamGraph
+import com.amazon.milan.flink.testing.SingletonMemorySource
+import com.amazon.milan.lang.{Stream, StreamGraph}
 import com.amazon.milan.serialization.ScalaObjectMapper
 import com.amazon.milan.testing.Concurrent
+import com.amazon.milan.types.LineageRecord
+import com.amazon.milan.typeutil.TypeDescriptor
+import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, Future, blocking}
 import scala.language.implicitConversions
 
 
@@ -34,6 +42,12 @@ package object testing {
     val json = ScalaObjectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(instance)
     FlinkCompiler.defaultCompiler.compileFromInstanceJson(json, targetEnvironment)
   }
+
+  implicit def extendApplicationConfiguration(data: FlinkApplicationConfiguration): FlinkApplicationConfigurationExtensions =
+    new FlinkApplicationConfigurationExtensions(data)
+
+  implicit def extendFuture[T](future: Future[T]): FutureExtensions[T] =
+    new FutureExtensions[T](future)
 }
 
 
@@ -45,6 +59,10 @@ class StreamExecutionEnvironmentExtensions(env: StreamExecutionEnvironment) {
       Duration.ofSeconds(secondsToWait))) {
       throw new TimeoutException("Timed out waiting for stop condition.")
     }
+  }
+
+  def executeAsync(maxSeconds: Int): Future[Boolean] = {
+    Concurrent.executeAsync(() => env.execute(), () => true, Duration.ofSeconds(maxSeconds))
   }
 
   def executeUntilAsync(predicate: () => Boolean, secondsToWait: Int): Future[Unit] = {
@@ -68,6 +86,70 @@ class StreamExecutionEnvironmentExtensions(env: StreamExecutionEnvironment) {
       () => true,
       Duration.ofSeconds(maxSeconds))) {
       throw new TimeoutException("Timed out waiting for stop condition.")
+    }
+  }
+}
+
+
+class FlinkApplicationConfigurationExtensions(data: FlinkApplicationConfiguration) {
+  def setListSource[T: TypeInformation](stream: Stream[T, _], values: T*): Unit = {
+    this.data.setSource(stream, FlinkListDataSource.create[T](values.toList))
+  }
+
+  def setMemorySource[T: TypeInformation](stream: Stream[T, _],
+                                          stopRunningWhenEmpty: Boolean,
+                                          sourceId: String): SingletonMemorySource[T] =
+    this.setMemorySource(stream, List(), stopRunningWhenEmpty, Some(sourceId))
+
+  def setMemorySource[T: TypeInformation](stream: Stream[T, _],
+                                          stopRunningWhenEmpty: Boolean): SingletonMemorySource[T] =
+    this.setMemorySource(stream, List(), stopRunningWhenEmpty, None)
+
+  def setMemorySource[T: TypeInformation](stream: Stream[T, _],
+                                          items: Seq[T],
+                                          stopRunningWhenEmpty: Boolean,
+                                          sourceId: String): SingletonMemorySource[T] =
+    this.setMemorySource(stream, items, stopRunningWhenEmpty, Some(sourceId))
+
+  def setMemorySource[T: TypeInformation](stream: Stream[T, _],
+                                          items: Seq[T],
+                                          stopRunningWhenEmpty: Boolean): SingletonMemorySource[T] =
+    this.setMemorySource(stream, items, stopRunningWhenEmpty, None)
+
+  def addMemorySink[T: TypeDescriptor](stream: Stream[T, _], sinkid: String): FlinkSingletonMemorySink[T] = {
+    val sink = FlinkSingletonMemorySink.create[T](sinkid)
+    this.data.addSink(stream, sink)
+    sink
+  }
+
+  def addMemorySink[T: TypeDescriptor](stream: Stream[T, _]): FlinkSingletonMemorySink[T] =
+    this.addMemorySink(stream, Id.newId())
+
+  def addMemoryLineageSink(): FlinkSingletonMemorySink[LineageRecord] = {
+    val sink = FlinkSingletonMemorySink.create[LineageRecord]
+    this.data.addLineageSink(sink)
+    sink
+  }
+
+  private def setMemorySource[T: TypeInformation](stream: Stream[T, _],
+                                                  items: Seq[T],
+                                                  stopRunningWhenEmpty: Boolean,
+                                                  sourceId: Option[String]): SingletonMemorySource[T] = {
+    val source = new SingletonMemorySource[T](items, stopRunningWhenEmpty, sourceId)
+    this.data.setSource(stream, new SourceFunctionDataSource[T](source))
+    source
+  }
+}
+
+
+class FutureExtensions[T](future: Future[T]) {
+  def thenWaitFor(duration: Duration)(implicit context: ExecutionContext): Future[T] = {
+    Future {
+      blocking {
+        val result = Await.result(this.future, scala.concurrent.duration.Duration.Inf)
+        Thread.sleep(duration.toMillis)
+        result
+      }
     }
   }
 }

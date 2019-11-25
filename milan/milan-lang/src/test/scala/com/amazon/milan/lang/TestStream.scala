@@ -1,7 +1,7 @@
 package com.amazon.milan.lang
 
-import com.amazon.milan.program.ExternalStream
-import com.amazon.milan.test.{IntStringRecord, Tuple3Record}
+import com.amazon.milan.program.{ExternalStream, FunctionDef, LatestBy, Ref, SelectField, SelectTerm}
+import com.amazon.milan.test.{DateKeyValueRecord, IntStringRecord, Tuple3Record}
 import org.junit.Assert._
 import org.junit.Test
 
@@ -22,5 +22,15 @@ class TestStream {
 
     val ExternalStream(_, _, streamType) = input.node
     assertEquals(3, streamType.recordType.genericArguments.length)
+  }
+
+  @Test
+  def test_Stream_LatestBy_ReturnsWindowedStreamWithExpectedExpressions(): Unit = {
+    val input = Stream.of[DateKeyValueRecord].withId("input")
+    val windowed = input.latestBy(r => r.dateTime, r => r.key)
+
+    val LatestBy(Ref("input"), dateFunc, keyFunc) = windowed.node.getExpression
+    val FunctionDef(List("r"), SelectField(SelectTerm("r"), "dateTime")) = dateFunc
+    val FunctionDef(List("r"), SelectField(SelectTerm("r"), "key")) = keyFunc
   }
 }

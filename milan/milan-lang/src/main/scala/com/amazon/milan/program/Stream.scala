@@ -20,9 +20,19 @@ trait Stream extends GraphNode {
 
   override def isStream: Boolean = true
 
-  def withName(name: String): Stream
+  def withName(name: String): Stream =
+    this.withNameAndId(name, this.nodeId)
 
-  def withId(id: String): Stream
+  def withId(id: String): Stream = {
+    if (this.nodeId == this.name) {
+      this.withNameAndId(id, id)
+    }
+    else {
+      this.withNameAndId(this.name, id)
+    }
+  }
+
+  protected def withNameAndId(name: String, id: String): Stream
 }
 
 
@@ -40,11 +50,8 @@ case class ExternalStream(nodeId: String, name: String, streamType: StreamTypeDe
     expr
   }
 
-  override def withName(name: String): Stream =
-    ExternalStream(this.nodeId, name, this.streamType)
-
-  override def withId(id: String): Stream =
-    ExternalStream(id, this.name, this.streamType)
+  override def withNameAndId(name: String, id: String): Stream =
+    ExternalStream(id, name, this.streamType)
 }
 
 
@@ -72,9 +79,6 @@ case class ComputedStream(nodeId: String, name: String, definition: StreamExpres
 
   override def getStreamExpression: StreamExpression = this.definition
 
-  override def withName(name: String): Stream =
-    ComputedStream(this.nodeId, name, this.definition.withName(name).asInstanceOf[StreamExpression])
-
-  override def withId(id: String): Stream =
-    ComputedStream(id, this.name, this.definition.withId(id).asInstanceOf[StreamExpression])
+  override def withNameAndId(name: String, id: String): Stream =
+    ComputedStream(id, name, this.definition.withNameAndId(name, id).asInstanceOf[StreamExpression])
 }

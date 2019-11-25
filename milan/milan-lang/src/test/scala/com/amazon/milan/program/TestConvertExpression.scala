@@ -4,6 +4,10 @@ import com.amazon.milan.test.{IntRecord, KeyValueRecord}
 import com.amazon.milan.typeutil.{TypeDescriptor, types}
 import org.junit.Test
 
+object TestConvertExpression {
+  val ConstantValue: String = "ConstantValue"
+}
+
 
 @Test
 class TestConvertExpression {
@@ -72,5 +76,11 @@ class TestConvertExpression {
 
     val tree = getTree(5)
     val FunctionDef(List("i"), GreaterThan(SelectTerm("i"), ConstantValue(5, types.Int))) = tree
+  }
+
+  @Test
+  def test_ConvertExpression_WithConstantVal_ConvertsValueIntoConstant(): Unit = {
+    val tree = Tree.fromExpression(TestConvertExpression.ConstantValue)
+    val ConstantValue("ConstantValue", types.String) = tree
   }
 }

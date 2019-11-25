@@ -1,8 +1,5 @@
 package com.amazon.milan.typeutil
 
-import java.nio.file.StandardOpenOption
-
-import scala.collection.JavaConverters._
 import scala.reflect.macros.whitebox
 
 

@@ -3,7 +3,7 @@ package com.amazon.milan.flink.compiler.internal
 import com.amazon.milan.program._
 import com.amazon.milan.test.IntRecord
 import com.amazon.milan.types.RecordIdFieldName
-import com.amazon.milan.typeutil.{TupleTypeDescriptor, TypeDescriptor, createTypeDescriptor, types}
+import com.amazon.milan.typeutil.{TypeDescriptor, createTypeDescriptor, types}
 import org.junit.Assert._
 import org.junit.Test
 

@@ -20,6 +20,8 @@ trait GraphNodeExpression extends Tree {
   def withId(id: String): GraphNodeExpression = this.withNameAndId(this.nodeName, id)
 
   def withNameAndId(name: String, id: String): GraphNodeExpression
+
+  override def hashCode(): Int = HashCodeBuilder.reflectionHashCode(this)
 }
 
 
@@ -269,8 +271,6 @@ class LeftJoin(val left: StreamExpression,
 
   override def toString: String = s"${this.expressionType}(${this.left}, ${this.right}, ${this.joinCondition})"
 
-  override def hashCode(): Int = HashCodeBuilder.reflectionHashCode(this)
-
   override def equals(obj: Any): Boolean = obj match {
     case LeftJoin(l, r, j) => this.left.equals(l) && this.right.equals(r) && this.joinCondition.equals(j)
     case _ => false
@@ -325,8 +325,6 @@ class FullJoin(val left: StreamExpression,
 
   override def toString: String = s"${this.expressionType}(${this.left}, ${this.right}, ${this.joinCondition})"
 
-  override def hashCode(): Int = HashCodeBuilder.reflectionHashCode(this)
-
   override def equals(obj: Any): Boolean = obj match {
     case FullJoin(l, r, j) => this.left.equals(l) && this.right.equals(r) && this.joinCondition.equals(j)
     case _ => false
@@ -339,6 +337,55 @@ object FullJoin {
 
   def unapply(arg: FullJoin): Option[(StreamExpression, StreamExpression, FunctionDef)] =
     Some((arg.left, arg.right, arg.joinCondition))
+}
+
+
+/**
+ * Represents a left join between two windowed streams.
+ *
+ * @param left  The left stream.
+ * @param right The right windowed stream.
+ */
+class WindowedLeftJoin(val left: StreamExpression,
+                       val right: WindowExpression,
+                       val nodeId: String = "",
+                       val nodeName: String = "") extends GraphNodeExpression {
+  def this(left: StreamExpression,
+           right: WindowExpression,
+           nodeId: String,
+           nodeName: String,
+           resultType: TypeDescriptor[_]) {
+    this(left, right, nodeId, nodeName)
+    this.tpe = resultType
+  }
+
+  override def withNameAndId(name: String, id: String): GraphNodeExpression =
+    new WindowedLeftJoin(this.left, this.right, id, name, this.tpe)
+
+  override def getChildren: Iterable[Tree] = Seq(this.left, this.right)
+
+  override def replaceChildren(children: List[Tree]): Tree =
+    new WindowedLeftJoin(
+      children(0).asInstanceOf[StreamExpression],
+      children(1).asInstanceOf[WindowExpression],
+      this.nodeId,
+      this.nodeName,
+      this.tpe)
+
+  override def toString: String = s"${this.expressionType}(${this.left}, ${this.right})"
+
+  override def equals(obj: Any): Boolean = obj match {
+    case WindowedLeftJoin(l, r) => this.left.equals(l) && this.right.equals(r)
+    case _ => false
+  }
+}
+
+object WindowedLeftJoin {
+  def apply(left: StreamExpression, right: WindowExpression): WindowedLeftJoin =
+    new WindowedLeftJoin(left, right)
+
+  def unapply(arg: WindowedLeftJoin): Option[(StreamExpression, WindowExpression)] =
+    Some((arg.left, arg.right))
 }
 
 
@@ -404,7 +451,7 @@ trait GroupingExpression extends GraphNodeExpression with SingleInputGraphNodeEx
   def getInputRecordType: TypeDescriptor[_] = {
     source match {
       case g: GroupingExpression => g.getInputRecordType
-      case s: StreamExpression => s.tpe.asStream.recordType
+      case s: StreamExpression => s.recordType
       case _ => throw new InvalidProgramException("The source of a grouping expression must be another grouping expression or a data stream.")
     }
   }
@@ -450,8 +497,6 @@ class GroupBy(val source: StreamExpression,
 
   override def toString: String = s"${this.expressionType}(${this.source}, ${this.expr})"
 
-  override def hashCode(): Int = HashCodeBuilder.reflectionHashCode(this)
-
   override def equals(obj: Any): Boolean = obj match {
     case GroupBy(s, e) => this.source.equals(s) && this.expr.equals(e)
     case _ => false
@@ -465,7 +510,14 @@ object GroupBy {
 }
 
 
-trait TimeWindowExpression extends GroupingExpression {
+trait WindowExpression extends GroupingExpression
+
+object WindowExpression {
+  def unapply(arg: WindowExpression): Option[(GraphNodeExpression, FunctionDef)] = Some((arg.source, arg.expr))
+}
+
+
+trait TimeWindowExpression extends WindowExpression {
   val size: Duration
   val offset: Duration
 }
@@ -520,8 +572,6 @@ class TumblingWindow(val source: GraphNodeExpression,
       this.tpe)
 
   override def toString: String = s"${this.expressionType}(${this.source}, ${this.dateExtractor}, ${this.period}, ${this.offset})"
-
-  override def hashCode(): Int = HashCodeBuilder.reflectionHashCode(this)
 
   override def equals(obj: Any): Boolean = obj match {
     case TumblingWindow(s, e, p, o) => this.source.equals(s) && this.dateExtractor.equals(e) && this.period.equals(p) && this.offset.equals(o)
@@ -587,8 +637,6 @@ class SlidingWindow(val source: GraphNodeExpression,
 
   override def toString: String = s"${this.expressionType}(${this.source}, ${this.dateExtractor}, ${this.size}, ${this.slide}, ${this.offset})"
 
-  override def hashCode(): Int = HashCodeBuilder.reflectionHashCode(this)
-
   override def equals(obj: Any): Boolean = obj match {
     case SlidingWindow(so, de, sz, sl, of) =>
       this.source.equals(so) &&
@@ -608,6 +656,62 @@ object SlidingWindow {
 
   def unapply(arg: SlidingWindow): Option[(GraphNodeExpression, FunctionDef, Duration, Duration, Duration)] =
     Some((arg.source, arg.dateExtractor, arg.size, arg.slide, arg.offset))
+}
+
+
+/**
+ * An expression representing an operation that produces a window containing the latest record for every value of a key.
+ *
+ * @param source        The input to the operation.
+ * @param dateExtractor A function that extracts timestamps from input records.
+ * @param keyFunc       A function that extracts keys from input records.
+ */
+class LatestBy(val source: StreamExpression,
+               val dateExtractor: FunctionDef,
+               val keyFunc: FunctionDef,
+               val nodeId: String = "",
+               val nodeName: String = "") extends WindowExpression {
+
+  val expr: FunctionDef = keyFunc
+
+  def this(source: StreamExpression,
+           dateExtractor: FunctionDef,
+           keyFunc: FunctionDef,
+           nodeId: String,
+           nodeName: String,
+           resultType: TypeDescriptor[_]) {
+    this(source, dateExtractor, keyFunc, nodeId, nodeName)
+    this.tpe = resultType
+  }
+
+  override def withNameAndId(name: String, id: String): GraphNodeExpression =
+    new LatestBy(this.source, this.dateExtractor, this.keyFunc, id, name, this.tpe)
+
+  override def getChildren: Iterable[Tree] = Seq(this.source, this.dateExtractor, this.keyFunc)
+
+  override def replaceChildren(children: List[Tree]): Tree =
+    new LatestBy(
+      children(0).asInstanceOf[StreamExpression],
+      children(1).asInstanceOf[FunctionDef],
+      children(2).asInstanceOf[FunctionDef],
+      this.nodeId,
+      this.nodeName,
+      this.tpe)
+
+  override def toString: String = s"${this.expressionType}(${this.source}, ${this.dateExtractor}, ${this.keyFunc})"
+
+  override def equals(obj: Any): Boolean = obj match {
+    case LatestBy(s, d, k) => this.source.equals(s) && this.dateExtractor.equals(d) && this.keyFunc.equals(k)
+    case _ => false
+  }
+}
+
+object LatestBy {
+  def apply(source: StreamExpression, dateExtractor: FunctionDef, keyFunc: FunctionDef): LatestBy =
+    new LatestBy(source, dateExtractor, keyFunc)
+
+  def unapply(arg: LatestBy): Option[(StreamExpression, FunctionDef, FunctionDef)] =
+    Some((arg.source, arg.dateExtractor, arg.keyFunc))
 }
 
 

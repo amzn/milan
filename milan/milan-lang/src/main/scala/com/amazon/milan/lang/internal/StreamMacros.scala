@@ -4,8 +4,9 @@ import java.time.{Duration, Instant}
 
 import com.amazon.milan.lang.{FieldStatement, GroupedStream, ObjectStream, Stream, TupleStream, WindowedStream}
 import com.amazon.milan.program.internal.LiftableImpls
-import com.amazon.milan.program.{ComputedGraphNode, ExternalStream, GroupBy, SlidingWindow, TumblingWindow}
+import com.amazon.milan.program.{ComputedGraphNode, ExternalStream, FunctionDef, GroupBy, LatestBy, SlidingWindow, TumblingWindow}
 import com.amazon.milan.types.Record
+import com.amazon.milan.typeutil.GroupedStreamTypeDescriptor
 import com.amazon.milan.{Id, program}
 
 import scala.reflect.macros.whitebox
@@ -120,6 +121,25 @@ class StreamMacros(val c: whitebox.Context)
   }
 
   /**
+   * Defines a stream of a single window that always contains the latest record to arrive for every value of a key.
+   */
+  def latestBy[T: c.WeakTypeTag, TKey: c.WeakTypeTag, TStream <: Stream[T, _] : c.WeakTypeTag](dateExtractor: c.Expr[T => Instant],
+                                                                                               keyFunc: c.Expr[T => TKey]): c.Expr[WindowedStream[T, TStream]] = {
+    val dateExtractorExpr = getMilanFunction(dateExtractor.tree)
+    val keyFuncExpr = getMilanFunction(keyFunc.tree)
+
+    val inputStreamVal = TermName(c.freshName())
+
+    val tree =
+      q"""
+          val $inputStreamVal = ${c.prefix}
+          com.amazon.milan.lang.internal.StreamMacroUtil.latestBy[${c.weakTypeOf[T]}, ${c.weakTypeOf[TKey]}, ${c.weakTypeOf[TStream]}]($inputStreamVal, $dateExtractorExpr, $keyFuncExpr)
+       """
+
+    c.Expr[WindowedStream[T, TStream]](tree)
+  }
+
+  /**
    * Creates a [[WindowedStream]] from a stream given window parameters.
    */
   def tumblingWindow[T: c.WeakTypeTag, TStream <: Stream[T, _] : c.WeakTypeTag](dateExtractor: c.Expr[T => Instant],
@@ -181,5 +201,20 @@ class StreamMacros(val c: whitebox.Context)
 
   private def getDuration(duration: c.Expr[Duration]): c.Expr[program.Duration] = {
     c.Expr[program.Duration](q"new ${typeOf[program.Duration]}($duration.toMillis)")
+  }
+}
+
+
+object StreamMacroUtil {
+  def latestBy[T, TKey, TStream <: Stream[T, _]](inputStream: Stream[T, TStream],
+                                                 dateExtractor: FunctionDef,
+                                                 keyFunc: FunctionDef): WindowedStream[T, TStream] = {
+    val nodeId = Id.newId()
+    val inputRecordType = inputStream.getRecordType
+    val outputStreamType = new GroupedStreamTypeDescriptor(inputRecordType)
+    val latestExpr = new LatestBy(inputStream.node.getStreamExpression, dateExtractor, keyFunc, nodeId, nodeId, outputStreamType)
+
+    val node = ComputedGraphNode(nodeId, latestExpr)
+    new WindowedStream[T, TStream](node)
   }
 }

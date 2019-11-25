@@ -77,6 +77,7 @@ abstract class FullJoinCoProcessFunction[TLeft <: Record, TRight <: Record, TOut
   override def processElement1(leftValue: TLeft,
                                context: CoProcessFunction[TLeft, TRight, RecordWithLineage[TOut]]#Context,
                                collector: Collector[RecordWithLineage[TOut]]): Unit = {
+    this.logger.info("Got left value.")
     this.leftInputRecordsCounter.increment()
 
     this.lastLeftValue.update(leftValue)
@@ -94,6 +95,7 @@ abstract class FullJoinCoProcessFunction[TLeft <: Record, TRight <: Record, TOut
   override def processElement2(rightValue: TRight,
                                context: CoProcessFunction[TLeft, TRight, RecordWithLineage[TOut]]#Context,
                                collector: Collector[RecordWithLineage[TOut]]): Unit = {
+    this.logger.info("Got right value.")
     this.rightInputRecordsCounter.increment()
 
     this.lastRightValue.update(rightValue)

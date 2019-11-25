@@ -6,6 +6,7 @@ import com.amazon.milan.application
 import com.amazon.milan.flink.application.FlinkApplicationConfiguration
 import com.amazon.milan.flink.application.sinks.FlinkSingletonMemorySink
 import com.amazon.milan.flink.application.sources.FlinkListDataSource
+import com.amazon.milan.flink.testing._
 import com.amazon.milan.flink.testutil._
 import com.amazon.milan.lang.{Stream, StreamGraph}
 import com.amazon.milan.test.IntRecord

@@ -110,6 +110,8 @@ class IntKeyValueRecord(var recordId: String, var key: Int, var value: Int) exte
 
   override def getRecordId: String = this.recordId
 
+  override def toString: String = s"IntKeyValueRecord(${this.key}, ${this.value})"
+
   override def equals(obj: Any): Boolean = {
     obj match {
       case o: IntKeyValueRecord => this.key == o.key && this.value == o.value

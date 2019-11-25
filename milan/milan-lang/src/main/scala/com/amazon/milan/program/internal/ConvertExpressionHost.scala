@@ -153,8 +153,8 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
         case Ident(TermName(name)) =>
           this.getConstantValueFromTerm(body.asInstanceOf[Ident])
 
-        case Select(qualifier, TermName(field)) =>
-          ConvertSelect(qualifier, field)
+        case s: Select =>
+          convertSelect(context, s)
 
         case a: Apply =>
           this.getApplyFunctionExpressionTree(context, a)
@@ -179,23 +179,45 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
   }
 
   /**
-   * Converts a qualifier expression and field name into a [[SelectExpression]] node.
+   * Converts a select expression a Milan expression.
    *
-   * @param qualifier The qualifier expression. This must be an Ident or a supported Select expression.
-   * @param field     The name of the field to select from the qualifier.
-   * @return A [[SelectExpression]] representing selecting the field from the qualifier.
+   * @param select The select expression. This must be an Ident or a supported Select expression.
+   * @return A tree that evaluates to a Milan expression representing the select.
    */
-  private def ConvertSelect(qualifier: c.universe.Tree, field: String): c.universe.Tree = {
+  private def convertSelect(context: ExpressionContext,
+                            select: Select): c.universe.Tree = {
+    val selectResult =
+      select match {
+        case Select(qualifier, TermName(name)) =>
+          this.tryConvertSelect(context, qualifier, name)
+
+        case invalid =>
+          throw new InvalidProgramException(s"Can't create Milan expression from ${showRaw(invalid)}")
+      }
+
+    selectResult.fold(this.getConstantValueFromSelect(select))(tree => tree)
+  }
+
+  private def tryConvertSelect(context: ExpressionContext,
+                               qualifier: Tree,
+                               field: String): Option[c.universe.Tree] = {
     qualifier match {
-      case Ident(TermName(name)) =>
-        q"${SelectField(SelectTerm(name), field)}"
+      case Ident(TermName(name)) if context.isArgument(name) =>
+        Some(q"${SelectField(SelectTerm(name), field)}")
 
       case Select(innerQualifier, TermName(innerField)) =>
-        q"new ${typeOf[SelectField]}(${ConvertSelect(innerQualifier, innerField)}, $field)"
+        this.tryConvertSelect(context, innerQualifier, innerField).map(innerSelect =>
+          q"new ${typeOf[SelectField]}($innerSelect, $field)"
+        )
 
-      case invalid =>
-        throw new InvalidProgramException(s"Can't create Milan Select expression from ${showRaw(invalid)}")
+      case _ =>
+        None
     }
+  }
+
+  private def getConstantValueFromSelect(select: ConvertExpressionHost.this.c.universe.Select): c.universe.Tree = {
+    val outType = this.createTypeInfo[Any](select.tpe).toTypeDescriptor
+    q"new ${typeOf[ConstantValue]}($select, $outType)"
   }
 
   /**

@@ -2,6 +2,7 @@ package com.amazon.milan.application.sinks
 
 import java.time.{Duration, Instant}
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
+import java.util.function
 
 import com.amazon.milan.Id
 import com.amazon.milan.application.DataSink
@@ -9,19 +10,21 @@ import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.TimeoutException
 
 
 object SingletonMemorySink {
-  private val values = new ConcurrentHashMap[String, ConcurrentLinkedQueue[Object]]()
+  private val values = new ConcurrentHashMap[String, ArrayBuffer[MemorySinkRecord[_]]]()
   private val nextSeqNum = new mutable.HashMap[String, Int]()
   private val locks = new ConcurrentHashMap[String, Object]()
 
-  private val createQueueFunction = new java.util.function.Function[String, ConcurrentLinkedQueue[Object]] {
-    override def apply(v1: String): ConcurrentLinkedQueue[Object] = new ConcurrentLinkedQueue[Object]()
-  }
+  private def makeCreateBufferFunction[T]: java.util.function.Function[String, ArrayBuffer[MemorySinkRecord[_]]] =
+    new function.Function[String, ArrayBuffer[MemorySinkRecord[_]]] {
+      override def apply(t: String): ArrayBuffer[MemorySinkRecord[_]] =
+        (new ArrayBuffer[MemorySinkRecord[T]]()).asInstanceOf[ArrayBuffer[MemorySinkRecord[_]]]
+    }
 
   private val createLocker = new java.util.function.Function[String, Object] {
     override def apply(t: String): AnyRef = new Object()
@@ -43,7 +46,7 @@ object SingletonMemorySink {
       val seqNum = this.nextSeqNum.getOrElseUpdate(sinkId, 1)
 
       val record = new MemorySinkRecord[T](seqNum.toString, Instant.now(), item)
-      getValues(sinkId).add(record)
+      getBuffer(sinkId).append(record)
 
       this.nextSeqNum.put(sinkId, seqNum + 1)
     }
@@ -55,8 +58,8 @@ object SingletonMemorySink {
    * @param sinkId The sink ID.
    * @return The [[ConcurrentLinkedQueue]] used for collecting the sink values.
    */
-  def getValues(sinkId: String): ConcurrentLinkedQueue[Object] = {
-    this.values.computeIfAbsent(sinkId, createQueueFunction)
+  def getBuffer[T](sinkId: String): ArrayBuffer[MemorySinkRecord[T]] = {
+    this.values.computeIfAbsent(sinkId, makeCreateBufferFunction[T]).asInstanceOf[ArrayBuffer[MemorySinkRecord[T]]]
   }
 }
 
@@ -68,7 +71,7 @@ object SingletonMemorySink {
  */
 @JsonSerialize
 @JsonDeserialize
-class SingletonMemorySink[T: TypeDescriptor](val id: String) extends DataSink[T] {
+class SingletonMemorySink[T: TypeDescriptor](val sinkId: String) extends DataSink[T] {
   private var recordTypeDescriptor = implicitly[TypeDescriptor[T]]
 
   override def getGenericArguments: List[TypeDescriptor[_]] = List(this.recordTypeDescriptor)
@@ -87,7 +90,7 @@ class SingletonMemorySink[T: TypeDescriptor](val id: String) extends DataSink[T]
    * @return True if any values have been sent to the sink, otherwise false.
    */
   @JsonIgnore
-  def hasValues: Boolean = !SingletonMemorySink.getValues(this.id).isEmpty
+  def hasValues: Boolean = SingletonMemorySink.getBuffer(this.sinkId).nonEmpty
 
   /**
    * Gets the number of records that have been sent to the sink.
@@ -95,22 +98,22 @@ class SingletonMemorySink[T: TypeDescriptor](val id: String) extends DataSink[T]
    * @return The record count.
    */
   @JsonIgnore
-  def getRecordCount: Int = SingletonMemorySink.getValues(this.id).size()
+  def getRecordCount: Int = SingletonMemorySink.getBuffer(this.sinkId).size
 
   @JsonIgnore
   def getValues: List[T] = {
-    SingletonMemorySink.getValues(this.id).asScala.map(_.asInstanceOf[MemorySinkRecord[T]].value).toList
+    SingletonMemorySink.getBuffer[T](this.sinkId).map(_.value).toList
   }
 
   @JsonIgnore
   def getRecords: List[MemorySinkRecord[T]] = {
-    SingletonMemorySink.getValues(this.id).asScala.map(_.asInstanceOf[MemorySinkRecord[T]]).toList
+    SingletonMemorySink.getBuffer[T](this.sinkId).toList
   }
 
   def waitForItems(itemCount: Int, timeout: Duration = null): Unit = {
     val endTime = if (timeout == null) Instant.MAX else Instant.now().plus(timeout)
 
-    while (SingletonMemorySink.getValues(this.id).size < itemCount) {
+    while (SingletonMemorySink.getBuffer(this.sinkId).size < itemCount) {
       if (Instant.now().isAfter(endTime)) {
         throw new TimeoutException()
       }
@@ -122,7 +125,7 @@ class SingletonMemorySink[T: TypeDescriptor](val id: String) extends DataSink[T]
   override def equals(obj: Any): Boolean = {
     obj match {
       case o: SingletonMemorySink[_] =>
-        this.id.equals(o.id)
+        this.sinkId.equals(o.sinkId)
 
       case _ =>
         false

@@ -7,7 +7,7 @@ import com.amazon.milan.application.metrics.HistogramDefinition
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
 import com.amazon.milan.aws.metrics.CompiledMetric
 import com.amazon.milan.flink.application.{FlinkApplicationConfiguration, FlinkApplicationInstance, FlinkDataSink}
-import com.amazon.milan.flink.compiler.internal.FlinkWindowedStreamFactory.{ApplyGroupByWindowResult, ApplyTimeWindowResult}
+import com.amazon.milan.flink.compiler.internal.FlinkWindowedStreamFactory.{ApplyKeyedWindowResult, ApplyUnkeyedWindowResult, ApplyWindowResult}
 import com.amazon.milan.flink.compiler.internal._
 import com.amazon.milan.flink.metrics.OperatorMetricFactory
 import com.amazon.milan.flink.{FlinkTypeNames, RuntimeEvaluator}
@@ -20,7 +20,6 @@ import org.apache.flink.streaming.api.datastream.{WindowedStream => _, _}
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.streaming.api.functions.co.CoProcessFunction
 import org.apache.flink.streaming.api.functions.sink.SinkFunction
-import org.apache.flink.streaming.api.windowing.windows.{TimeWindow, Window}
 import org.slf4j.LoggerFactory
 
 import scala.annotation.tailrec
@@ -199,7 +198,7 @@ class FlinkCompiler(classLoader: ClassLoader) {
    *
    * @param env       The compilation environment.
    * @param groupExpr The expression whose compiled [[ApplyWindowResult]] will be returned.
-   * @return An [[ApplyGroupByWindowResult]] containing the compiled [[ApplyWindowResult]] corresponding to the graph node.
+   * @return An [[ApplyKeyedWindowResult]] containing the compiled [[ApplyWindowResult]] corresponding to the graph node.
    */
   private def getOrCompileWindowedStream(env: CompilationEnvironment,
                                          groupExpr: GroupingExpression): ApplyWindowResult = {
@@ -282,7 +281,8 @@ class FlinkCompiler(classLoader: ClassLoader) {
     this.logger.info(s"Compiling ExternalStream '${streamExpr.nodeName}'.")
     val source = env.config.getSource(streamExpr.nodeId)
 
-    source.addDataSource(env.streamEnvironment).name(streamExpr.nodeName)
+    val uid = s"Source for ${streamExpr.nodeId}"
+    source.addDataSource(env.streamEnvironment).name(streamExpr.nodeName).uid(uid)
   }
 
   /**
@@ -313,8 +313,42 @@ class FlinkCompiler(classLoader: ClassLoader) {
       case _: GroupingExpression =>
         compileGroupSelect(env, expr)
 
+      case _: WindowedLeftJoin =>
+        compileWindowedJoin(env, expr)
+
       case _ =>
         compileMappedDataStream(env, expr)
+    }
+  }
+
+  /**
+   * Compiles a mapped stream that is the result of a windowed join followed by an apply statement.
+   */
+  private def compileWindowedJoin(env: CompilationEnvironment, mapExpr: MapNodeExpression): SingleOutputStreamOperator[_] = {
+    mapExpr match {
+      case MapRecord(WindowedLeftJoin(left, LatestBy(right, _, _)), _) =>
+
+        val rightDataStream = this.getOrCompileDataStream(env, right)
+        val leftDataStream = this.getOrCompileDataStream(env, left)
+
+        val lineageRecordFactory = new ComponentJoinLineageRecordFactory(
+          left.nodeId,
+          right.nodeId,
+          env.applicationInstanceId,
+          mapExpr.nodeId,
+          mapExpr.nodeId,
+          SemanticVersion.ZERO)
+
+        val outputWithLineage = FlinkWindowedJoinFactory.applyLatestByThenApply(
+          mapExpr.asInstanceOf[MapRecord],
+          leftDataStream,
+          rightDataStream,
+          lineageRecordFactory)
+
+        this.splitDataAndLineageStreams(env, outputWithLineage)
+
+      case unsupported =>
+        throw new FlinkCompilationException(s"Cannot compile windowed join for expression '$unsupported'.")
     }
   }
 
@@ -326,23 +360,17 @@ class FlinkCompiler(classLoader: ClassLoader) {
     val windowResult = this.getOrCompileWindowedStream(env, mapExpr.source.asInstanceOf[GroupingExpression])
 
     windowResult match {
-      case GroupByWindowResult(result) =>
+      case ApplyKeyedWindowResult(windowedStream, windowTypeName) =>
         FlinkAggregateFunctionFactory.applySelectToWindowedStream(
           mapExpr,
-          result.windowedStream,
-          result.windowTypeName)
+          windowedStream,
+          windowTypeName)
 
-      case UnkeyedTimeWindowResult(result) =>
+      case ApplyUnkeyedWindowResult(windowedStream) =>
         FlinkAggregateFunctionFactory.applySelectToAllWindowedStream(
           mapExpr,
-          result.windowedStream,
+          windowedStream,
           FlinkTypeNames.timeWindow)
-
-      case KeyedTimeWindowResult(result) =>
-        FlinkAggregateFunctionFactory.applySelectToWindowedStream(
-          mapExpr,
-          result.windowedStream,
-          result.windowTypeName)
     }
   }
 
@@ -368,23 +396,17 @@ class FlinkCompiler(classLoader: ClassLoader) {
     val windowResult = this.getOrCompileWindowedStream(env, mapExpr.source.asInstanceOf[GroupingExpression])
 
     windowResult match {
-      case GroupByWindowResult(result) =>
+      case ApplyKeyedWindowResult(windowedStream, windowTypeName) =>
         FlinkAggregateUniqueFunctionFactory.applySelectToWindowedStream(
           mapExpr,
-          result.windowedStream,
-          result.windowTypeName)
+          windowedStream,
+          windowTypeName)
 
-      case UnkeyedTimeWindowResult(result) =>
+      case ApplyUnkeyedWindowResult(windowedStream) =>
         FlinkAggregateUniqueFunctionFactory.applySelectToAllWindowedStream(
           mapExpr,
-          result.windowedStream,
+          windowedStream,
           FlinkTypeNames.timeWindow)
-
-      case KeyedTimeWindowResult(result) =>
-        FlinkAggregateUniqueFunctionFactory.applySelectToWindowedStream(
-          mapExpr,
-          result.windowedStream,
-          result.windowTypeName)
     }
   }
 
@@ -396,17 +418,17 @@ class FlinkCompiler(classLoader: ClassLoader) {
     streamExpr match {
       case g: GroupBy =>
         val inputStream = this.getOrCompileDataStream(env, g.source)
-        GroupByWindowResult(FlinkWindowedStreamFactory.applyGroupByWindow(g, inputStream))
+        FlinkWindowedStreamFactory.applyGroupByWindow(g, inputStream)
 
       case w: TimeWindowExpression =>
         w.source match {
           case g: GroupBy =>
             val keyedStream = this.compileKeyedStreamForTimeWindow(env, g, w)
-            KeyedTimeWindowResult(FlinkWindowedStreamFactory.applyTimeWindow(w, keyedStream))
+            FlinkWindowedStreamFactory.applyTimeWindow(w, keyedStream)
 
           case s: StreamExpression =>
             val inputStream = this.getOrCompileDataStream(env, s)
-            UnkeyedTimeWindowResult(FlinkWindowedStreamFactory.applyTimeWindow(w, inputStream))
+            FlinkWindowedStreamFactory.applyTimeWindow(w, inputStream)
         }
 
       case UniqueBy(source, _) =>
@@ -566,6 +588,9 @@ class FlinkCompiler(classLoader: ClassLoader) {
       case FullJoin(left, right, _) =>
         n"FullEnrichmentJoin [$left] with [$right]"
 
+      case LatestBy(source, _, _) =>
+        n"LatestBy [$source]"
+
       case LeftJoin(left, right, _) =>
         n"LeftEnrichmentJoin [$left] with [$right]"
 
@@ -577,6 +602,9 @@ class FlinkCompiler(classLoader: ClassLoader) {
 
       case UniqueBy(source, _) =>
         n"UniqueBy [$source]"
+
+      case WindowedLeftJoin(left, right) =>
+        n"WindowedLeftJoin [$left] with [$right]"
 
       case _ =>
         throw new IllegalArgumentException(s"Unsupported stream expression: $expr")
@@ -593,13 +621,5 @@ class FlinkCompiler(classLoader: ClassLoader) {
     val lineageStreams = new mutable.MutableList[DataStream[LineageRecord]]()
     val compiledMetrics = new mutable.MutableList[CompiledMetric]()
   }
-
-  private trait ApplyWindowResult
-
-  private case class UnkeyedTimeWindowResult(result: ApplyTimeWindowResult[_]) extends ApplyWindowResult
-
-  private case class KeyedTimeWindowResult(result: ApplyGroupByWindowResult[_, _, TimeWindow]) extends ApplyWindowResult
-
-  private case class GroupByWindowResult(result: ApplyGroupByWindowResult[_, _, _ <: Window]) extends ApplyWindowResult
 
 }

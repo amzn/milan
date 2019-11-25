@@ -12,12 +12,10 @@ import com.amazon.milan.test.{IntKeyValueRecord, IntRecord, KeyValueRecord}
 import com.amazon.milan.testing.LineageAnalyzer
 import com.amazon.milan.testing.applications._
 import com.amazon.milan.types.RecordPointer
-import com.typesafe.scalalogging.Logger
 import org.apache.flink.api.scala.createTypeInformation
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.junit.Assert._
 import org.junit.Test
-import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Await, duration}
@@ -103,10 +101,6 @@ class TestLineageCreation {
     // We have to wait for the right source to send its record, then wait a bit longer to make sure the record
     // has been processed by the join operation.
     leftSource.waitFor(rightSource.awaitEmpty.thenWaitFor(Duration.ofMillis(300)), Duration.ofSeconds(10))
-
-    val logger = Logger(LoggerFactory.getLogger(getClass))
-    logger.info(s"Left source ID: ${leftSource.id}.")
-    logger.info(s"Right source ID: ${rightSource.id}.")
 
     val lineageSink = config.addMemoryLineageSink()
 

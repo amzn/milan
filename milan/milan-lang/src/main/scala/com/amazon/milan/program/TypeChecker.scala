@@ -2,11 +2,15 @@ package com.amazon.milan.program
 
 import com.amazon.milan.types.RecordIdFieldName
 import com.amazon.milan.typeutil.{GroupedStreamTypeDescriptor, JoinedStreamsTypeDescriptor, StreamTypeDescriptor, TypeDescriptor, types}
+import com.typesafe.scalalogging.Logger
+import org.slf4j.LoggerFactory
 
 import scala.annotation.tailrec
 
 
 object TypeChecker {
+  private val logger = Logger(LoggerFactory.getLogger(getClass))
+
   /**
    * Apply type checking to a [[FunctionDef]] expression tree.
    * This will modify the tpe property of the tree and any children that have not had a return type assigned.
@@ -61,10 +65,7 @@ object TypeChecker {
    * @param inputNodeTypes A map of node IDs to types of stream nodes that are external to the expression tree.
    */
   def typeCheck(expression: GraphNodeExpression, inputNodeTypes: Map[String, StreamTypeDescriptor]): Unit = {
-    // Don't bother typechecking if the tree already has a type.
-    if (expression.tpe != null) {
-      return
-    }
+    this.logger.debug(s"Type-checking expression '$expression'.")
 
     // Typecheck the input graph nodes first. Any function defs in this node will be functions of these inputs, so we'll
     // need their types to typecheck the function defs.
@@ -82,7 +83,9 @@ object TypeChecker {
         ()
     }
 
-    expression.tpe = this.getTreeType(expression, inputNodeTypes)
+    if (expression.tpe == null) {
+      expression.tpe = this.getTreeType(expression, inputNodeTypes)
+    }
   }
 
   /**
@@ -94,6 +97,8 @@ object TypeChecker {
    * @param expression An expression tree.
    */
   def typeCheckExpression(expression: Tree): Unit = {
+    this.logger.debug(s"Type-checking expression '$expression'.")
+
     expression.getChildren.foreach(child => this.typeCheckExpression(child))
 
     // Short circuit if the tree has already been typechecked.
@@ -132,6 +137,8 @@ object TypeChecker {
    * Type check the body of a [[FunctionDef]] expression tree.
    */
   private def typeCheckFunctionBody(body: Tree, argInfo: List[ArgInfo]): Unit = {
+    this.logger.debug(s"Type-checking expression '$body'.")
+
     val nestedArgInfo = this.getNestedArgInfo(body, argInfo)
     body.getChildren.foreach(child => this.typeCheckFunctionBody(child, nestedArgInfo))
 
@@ -227,7 +234,8 @@ object TypeChecker {
         info.ty
 
       case None =>
-        throw new InvalidProgramException(s"No argument named '$argName'.")
+        val argNames = argInfo.map(_.argName).mkString(", ")
+        throw new InvalidProgramException(s"No argument named '$argName'. Available arguments: ($argNames).")
     }
   }
 
@@ -283,7 +291,10 @@ object TypeChecker {
         List(inputNodeTypes(nodeId).recordType)
 
       case JoinNodeExpression(left, right, _) =>
-        List(left.tpe.asStream.recordType, right.tpe.asStream.recordType)
+        List(left.recordType, right.recordType)
+
+      case WindowedLeftJoin(left, right) =>
+        List(left.recordType, right.getInputRecordType)
 
       case TimeWindowExpression(GroupBy(source, _), _, _, _) =>
         this.getRecordTypes(source.tpe)
@@ -317,6 +328,9 @@ object TypeChecker {
         // This must be treated separately from other GroupingExpression expressions because the key function of
         // UniqueBy returns the unique key, not the group key.
         List(keyFunctionDef.tpe) ++ this.getMapSourceRecordTypes(groupSource, inputNodeTypes)
+
+      case LatestBy(source, _, _) =>
+        List(source.recordType)
 
       case GroupingExpression(groupSource, keyFunctionDef) =>
         // Map functions that map the output of a group-by or window have the group key as one of the inputs.
@@ -382,7 +396,10 @@ object TypeChecker {
         types.groupedStream(g.getInputRecordType)
 
       case JoinNodeExpression(left, right, _) =>
-        types.joinedStreams(left.tpe.asStream.recordType, right.tpe.asStream.recordType)
+        types.joinedStreams(left.recordType, right.recordType)
+
+      case WindowedLeftJoin(left, right) =>
+        types.joinedStreams(left.recordType, right.getInputRecordType)
     }
   }
 

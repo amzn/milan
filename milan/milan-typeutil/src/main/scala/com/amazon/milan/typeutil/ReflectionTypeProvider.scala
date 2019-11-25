@@ -1,6 +1,6 @@
 package com.amazon.milan.typeutil
 
-import java.time.Instant
+import java.time.{Duration, Instant}
 
 import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
@@ -16,6 +16,7 @@ class ReflectionTypeProvider(classLoader: ClassLoader) extends TypeProvider {
     classOf[Float] -> types.Float,
     classOf[Boolean] -> types.Boolean,
     classOf[Instant] -> types.Instant,
+    classOf[Duration] -> types.Duration,
     classOf[String] -> types.String,
     classOf[Nothing] -> types.Nothing
   )
@@ -94,6 +95,8 @@ class ReflectionTypeProvider(classLoader: ClassLoader) extends TypeProvider {
   }
 
   private def generateTypeDescriptor[T](typeName: String, cls: Class[_], genericArguments: List[TypeDescriptor[_]]): TypeDescriptor[T] = {
+    this.logger.debug(s"Generating type descriptor for '$typeName'.")
+
     if (TypeDescriptor.isTupleTypeName(typeName)) {
       new TupleTypeDescriptor[T](typeName, genericArguments, List())
     }
