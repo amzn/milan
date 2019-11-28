@@ -11,7 +11,7 @@ There is no requirement the fields of tuple streams provide a record ID, because
 In the Milan Scala DSL, tuple streams are represented by the `TupleStream[T]` class.
 
 Both record and tuple streams support the same basic operations: `map`, `join`, `groupBy`, and the time windowing operations `tumblingWindow` and `slidingWindow`.
-These operations are declarative in that they define a relationship betweens streams but do not specific the implementation of that relationship.
+These operations are declarative in that they define a relationship between streams but do not specify the implementation of that relationship.
 However, they are different from the declarative relationships we are familiar with from SQL because they have an implicit time-based component.
 
 ### Mappings ###
@@ -28,7 +28,7 @@ Alternatively you can supply one or more functions with an associated field name
 ### Filters ###
 `filter` declares a mapping between two streams where the output stream contains a subset of the input stream records.
 
-A `filter` operation specifies a boolean function that, and only records where the function returns true are present on the output stream.
+A `filter` operation specifies a boolean function, and only records where the function returns true are present on the output stream.
 
 ### Joins ###
 Join operations declare a relationship between two input streams and an output stream.
@@ -40,7 +40,7 @@ Join conditions are specified as a boolean function that takes one record from e
 Join conditions can be a mixture of equality constraints between the streams, constraints on a single stream, and arbitrary constraints that apply across the streams.
 
 For example, consider the join condition in `A.leftJoin(B).where((a, b) => a.value < 3 && a.key == b.key && (a.value > b.value + 1))`
-This has one pre-conditions on stream A: the "value" field must be less than 3.
+This has one pre-condition on stream A: the "value" field must be less than 3.
 Records that fail the pre-condition are filtered before being considered as join candidates. 
 It has one equality constraint, which is that the "key" fields are equal.
 Whenever a record arrives on A or B, it is paired with the latest record from the other stream that has the same key, and any remaining constraints are then applied to this pair of records.
@@ -60,9 +60,8 @@ Note that unless a not-null constraint is applied to both streams in the join co
 Grouping operations declare a relationship between groups of records on an input stream and records on an output data stream.
 
 #### GroupBy ####
-The `groupBy` operation assigns records to groups based on a keys extracted from records.
-Aggregate operations can then be applied to the groups using a `select` statement, which like other `select` and `map` statements
-can produce a record stream or a tuple stream.
+The `groupBy` operation assigns records to groups based on keys extracted from records.
+Aggregate operations can then be applied to the groups using a `select` statement, which like other `select` and `map` statements can produce a record stream or a tuple stream.
 The functions provided to the `select` statement take two arguments:
 the first argument type is the type of the key used for group assignment, and the second argument type is the record type of the input stream.
 In one of these functions, aggregate operations like `sum`, `mean`, and `argmin` can be applied to the record argument, and the result of those can be combined with the group key.
@@ -82,6 +81,5 @@ The group key argument to the `select` functions will be a time stamp that corre
 
 #### Uniqueness ####
 In order to prevent double-counting, a uniqueness constraint can be applied to grouped or windowed streams before aggregating.
-This is done using by using the `unique` operator.
-`unique` takes a function that extracts a value from the input records, and guarantees that when the aggregation is performed
-only the latest record for any given value will be included in the aggregate computation.
+This is done using the `unique` operator.
+`unique` takes a function that extracts a value from the input records, and guarantees that when the aggregation is performed only the latest record for any given value will be included in the aggregate computation.
