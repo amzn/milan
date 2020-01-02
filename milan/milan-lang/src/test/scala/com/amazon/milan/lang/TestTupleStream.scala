@@ -2,7 +2,6 @@ package com.amazon.milan.lang
 
 import com.amazon.milan.program._
 import com.amazon.milan.test.IntStringRecord
-import com.amazon.milan.types.RecordIdFieldName
 import com.amazon.milan.typeutil._
 import org.junit.Assert._
 import org.junit.Test
@@ -18,7 +17,9 @@ class TestTupleStream {
     val tuple = input.map(
       ((r: IntStringRecord) => r.i) as "i",
       ((r: IntStringRecord) => r.s) as "s")
-    val mapped = tuple.map { case (i, s) => IntStringRecord(i, s) }
+    val mapped = tuple.map(r => r match {
+      case (i, s) => IntStringRecord(i, s)
+    })
 
     val ComputedStream(_, _, mapFunction) = mapped.node
     val MapRecord(source, FunctionDef(params, Unpack(unpackParam, List("i", "s"), ApplyFunction(function, args, _)))) = mapFunction
@@ -84,35 +85,6 @@ class TestTupleStream {
   }
 
   @Test
-  def test_TupleStream_ProjectOnto_WithCorrectConstructor_DoesNotThrow(): Unit = {
-    val tuple = Stream.of[IntStringRecord].map(
-      ((r: IntStringRecord) => r.i) as "i",
-      ((r: IntStringRecord) => r.s) as "s")
-    tuple.projectOnto[IntStringRecord]
-  }
-
-  @Test(expected = classOf[InvalidProgramException])
-  def test_TupleStream_ProjectOnto_WithoutCorrectConstructor_ThrowsInvalidProjectException(): Unit = {
-    val tuple = Stream.of[IntStringRecord].map(
-      ((r: IntStringRecord) => r.i) as "i",
-      ((r: IntStringRecord) => r.s) as "j")
-    tuple.projectOnto[IntStringRecord]
-  }
-
-  @Test
-  def test_TupleStream_ProjectOnto_CreatesExpectedMapFunctionDef(): Unit = {
-    val tuple = Stream.of[IntStringRecord].map(
-      ((r: IntStringRecord) => r.i) as "i",
-      ((r: IntStringRecord) => r.s) as "s")
-    val projected = tuple.projectOnto[IntStringRecord]
-
-    // If these extractions succeed then everything checks out.
-    val ComputedStream(_, _, MapRecord(_, mapExpr)) = projected.node
-    val FunctionDef(List("r"), CreateInstance(_, args)) = mapExpr
-    val List(SelectField(SelectTerm("r"), RecordIdFieldName), SelectField(SelectTerm("r"), "i"), SelectField(SelectTerm("r"), "s")) = args
-  }
-
-  @Test
   def test_TupleStream_AddField_HasCorrectOutputTypeAndMapExpression(): Unit = {
     val tuple = Stream.of[IntStringRecord].map(
       ((r: IntStringRecord) => r.i) as "i",
@@ -120,7 +92,7 @@ class TestTupleStream {
     val output = tuple.addField[Int](((_: (Int, String)) => 1) as "one")
 
     val expectedType = TypeDescriptor.createNamedTuple[(Int, String, Int)](List(("i", types.Int), ("s", types.String), ("one", types.Int)))
-    assertEquals(expectedType, output.getRecordType)
+    assertEquals(expectedType, output.recordType)
 
     // If the extraction succeeds then the expression is correct.
     val MapFields(_, List(
@@ -137,7 +109,7 @@ class TestTupleStream {
     val output = tuple.addFields(((_: (Int, String)) => 1) as "one", ((_: (Int, String)) => 2L) as "two")
 
     val expectedType = TypeDescriptor.createNamedTuple[(Int, String, Int)](List(("i", types.Int), ("s", types.String), ("one", types.Int), ("two", types.Long)))
-    assertEquals(expectedType, output.getRecordType)
+    assertEquals(expectedType, output.recordType)
 
     // If the extraction succeeds then the expression is correct.
     val MapFields(_, List(
@@ -163,7 +135,7 @@ class TestTupleStream {
       ("one", types.Int),
       ("two", types.Long),
       ("three", types.String)))
-    assertEquals(expectedType, output.getRecordType)
+    assertEquals(expectedType, output.recordType)
 
     // If the extraction succeeds then the expression is correct.
     val MapFields(_, List(

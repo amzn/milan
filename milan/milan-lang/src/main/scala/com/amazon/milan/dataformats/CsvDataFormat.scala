@@ -1,5 +1,7 @@
 package com.amazon.milan.dataformats
 
+import java.io.InputStream
+
 import com.amazon.milan.serialization.{DataFormatConfiguration, DataFormatFlags, JavaTypeFactory}
 import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
@@ -7,6 +9,8 @@ import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectReader}
 import com.fasterxml.jackson.dataformat.csv.{CsvMapper, CsvSchema}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.apache.commons.lang.builder.HashCodeBuilder
+
+import scala.collection.JavaConverters._
 
 
 /**
@@ -51,6 +55,10 @@ class CsvDataFormat[T: TypeDescriptor](val schema: Array[String],
 
   override def readValue(bytes: Array[Byte], offset: Int, length: Int): T = {
     this.reader.readValue[T](bytes, offset, length)
+  }
+
+  override def readValues(stream: InputStream): TraversableOnce[T] = {
+    this.reader.readValues[T](stream).asScala
   }
 
   /**

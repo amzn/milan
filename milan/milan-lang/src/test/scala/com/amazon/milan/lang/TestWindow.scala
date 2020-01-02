@@ -37,8 +37,8 @@ class TestWindow {
 
     val ComputedStream(_, _, MapFields(source, fields)) = selected.node
 
-    assertEquals(1, selected.fields.length)
-    assertEquals(FieldDescriptor("max", types.Int), selected.fields.head)
+    assertEquals(1, selected.recordType.fields.length)
+    assertEquals(FieldDescriptor("max", types.Int), selected.recordType.fields.head)
 
     assertEquals(1, fields.length)
     assertEquals("max", fields.head.fieldName)

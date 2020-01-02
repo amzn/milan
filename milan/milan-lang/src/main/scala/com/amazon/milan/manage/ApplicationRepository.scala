@@ -4,9 +4,7 @@ import java.nio.file.Path
 
 import com.amazon.milan.SemanticVersion
 import com.amazon.milan.application.{Application, ApplicationConfiguration}
-import com.amazon.milan.serialization.ScalaObjectMapper
 import com.amazon.milan.storage._
-import com.amazonaws.regions.Regions
 
 
 object ApplicationRepository {
@@ -17,20 +15,6 @@ object ApplicationRepository {
    */
   def createMemoryApplicationRepository(): ApplicationRepository = {
     val entityStoreFactory = new MemoryEntityStoreFactory()
-    new EntityStoreApplicationRepository(entityStoreFactory)
-  }
-
-  /**
-   * Creates an [[ApplicationRepository]] that stores objects in S3.
-   *
-   * @param region     The AWS region where the bucket is located.
-   * @param bucketName The name of the S3 bucket.
-   * @param rootFolder The root folder of the repository in the bucket.
-   * @return An [[ApplicationRepository]] interface to the repository in the bucket.
-   */
-  def createS3ApplicationRepository(region: Regions, bucketName: String, rootFolder: String): ApplicationRepository = {
-    val s3ClientFactory = S3ClientFactory.createForRegion(region)
-    val entityStoreFactory = new S3EntityStoreFactory(s3ClientFactory, bucketName, rootFolder, ".json", new ScalaObjectMapper())
     new EntityStoreApplicationRepository(entityStoreFactory)
   }
 

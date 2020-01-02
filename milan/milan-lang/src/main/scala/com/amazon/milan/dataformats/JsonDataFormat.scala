@@ -1,10 +1,13 @@
 package com.amazon.milan.dataformats
 
+import java.io.InputStream
+
 import com.amazon.milan.HashUtil
 import com.amazon.milan.serialization.{DataFormatConfiguration, JavaTypeFactory, ScalaObjectMapper}
 import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
+import scala.collection.JavaConverters._
 import scala.language.experimental.macros
 
 
@@ -38,6 +41,10 @@ class JsonDataFormat[T: TypeDescriptor](val config: DataFormatConfiguration)
 
   override def readValue(bytes: Array[Byte], offset: Int, length: Int): T = {
     this.objectMapper.readValue[T](bytes, offset, length, this.javaType)
+  }
+
+  override def readValues(stream: InputStream): TraversableOnce[T] = {
+    this.objectMapper.readerFor(this.javaType).readValues[T](stream).asScala
   }
 
   override def hashCode(): Int = this.hashCodeValue

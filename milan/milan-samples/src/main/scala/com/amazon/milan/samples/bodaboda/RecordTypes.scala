@@ -4,7 +4,6 @@ import java.time.{Duration, Instant}
 
 import com.amazon.milan.Id
 import com.amazon.milan.serialization.ScalaObjectMapper
-import com.amazon.milan.types.Record
 
 
 class Location(var latitude: Double, var longitude: Double) extends Serializable {
@@ -35,7 +34,7 @@ class RideRequest(var recordId: String,
                   var requestTime: Instant,
                   var fromLocation: Location,
                   var toLocation: Location)
-  extends Record with Serializable {
+  extends Serializable {
 
   def this(rideId: String, userId: String, requestTime: Instant, fromLocation: Location, toLocation: Location) {
     this(Id.newId(), rideId, userId, requestTime, fromLocation, toLocation)
@@ -45,8 +44,6 @@ class RideRequest(var recordId: String,
     // We need a parameterless constructor so that Flink treats this as a POJO type, which has performance benefits.
     this("", "", Instant.MIN, Location.NONE, Location.NONE)
   }
-
-  override def getRecordId: String = this.recordId
 }
 
 
@@ -55,7 +52,7 @@ class RideEvent(var recordId: String,
                 var eventTime: Instant,
                 var eventType: String,
                 var eventData: String)
-  extends Record with Serializable {
+  extends Serializable {
 
   def this(rideId: String, eventTime: Instant, eventType: String, eventData: String) {
     this(Id.newId(), rideId, eventTime, eventType, eventData)
@@ -69,8 +66,6 @@ class RideEvent(var recordId: String,
     // We need a parameterless constructor so that Flink treats this as a POJO type, which has performance benefits.
     this("", Instant.MIN, "", "")
   }
-
-  override def getRecordId: String = this.recordId
 }
 
 object RideEventType {
@@ -88,7 +83,7 @@ class RideInformation(var recordId: String,
                       var rideStatus: String,
                       var updateTime: Instant,
                       var lastLocation: Location)
-  extends Record with Serializable {
+  extends Serializable {
 
   def this(rideId: String, userId: String, driverId: String, rideStatus: String, updateTime: Instant, lastLocation: Location) {
     this(Id.newId(), rideId, userId, driverId, rideStatus, updateTime, lastLocation)
@@ -98,8 +93,6 @@ class RideInformation(var recordId: String,
     // We need a parameterless constructor so that Flink treats this as a POJO type, which has performance benefits.
     this("", "", "", "", Instant.MIN, Location.NONE)
   }
-
-  override def getRecordId: String = this.recordId
 }
 
 object RideStatus {
@@ -115,7 +108,7 @@ class RideWaitInfo(var recordId: String,
                    var requestTime: Instant,
                    var waitDuration: Duration,
                    var location: Location)
-  extends Record with Serializable {
+  extends Serializable {
 
   def this(rideId: String, requestTime: Instant, waitDuration: Duration, location: Location) {
     this(Id.newId(), rideId, requestTime, waitDuration, location)
@@ -125,8 +118,6 @@ class RideWaitInfo(var recordId: String,
     // We need a parameterless constructor so that Flink treats this as a POJO type, which has performance benefits.
     this("", Instant.MIN, Duration.ZERO, Location.NONE)
   }
-
-  override def getRecordId: String = this.recordId
 }
 
 
@@ -134,7 +125,7 @@ class DriverStatus(var recordId: String,
                    var driverId: String,
                    var updateTime: Instant,
                    var status: String)
-  extends Record with Serializable {
+  extends Serializable {
 
   def this(driverId: String, statusTime: Instant, driverStatus: String) {
     this(Id.newId(), driverId, statusTime, driverStatus)
@@ -144,8 +135,6 @@ class DriverStatus(var recordId: String,
     // We need a parameterless constructor so that Flink treats this as a POJO type, which has performance benefits.
     this("", Instant.MIN, "")
   }
-
-  override def getRecordId: String = this.recordId
 }
 
 
@@ -153,7 +142,7 @@ class DriverLocation(var recordId: String,
                      var driverId: String,
                      var locationTime: Instant,
                      var location: Location)
-  extends Record with Serializable {
+  extends Serializable {
 
   def this(driverId: String, locationTime: Instant, location: Location) {
     this(Id.newId(), driverId, locationTime, location)
@@ -163,8 +152,6 @@ class DriverLocation(var recordId: String,
     // We need a parameterless constructor so that Flink treats this as a POJO type, which has performance benefits.
     this("", Instant.MIN, Location.NONE)
   }
-
-  override def getRecordId: String = this.recordId
 }
 
 
@@ -180,7 +167,7 @@ class DriverInformation(var recordId: String,
                         var lastStatus: DriverStatus,
                         var lastLocation: DriverLocation,
                         var updateTime: Instant)
-  extends Record with Serializable {
+  extends Serializable {
 
   def this(driverId: String,
            lastStatus: DriverStatus,
@@ -193,6 +180,4 @@ class DriverInformation(var recordId: String,
     // We need a parameterless constructor so that Flink treats this as a POJO type, which has performance benefits.
     this("", new DriverStatus(), new DriverLocation(), Instant.MIN)
   }
-
-  override def getRecordId: String = this.recordId
 }

@@ -33,7 +33,7 @@ class ApplicationConfiguration {
    * @param stream A data stream reference.
    * @param source A DataSource representing the source of the data.
    */
-  def setSource[T](stream: Stream[T, _], source: DataSource[T]): Unit =
+  def setSource[T](stream: Stream[T], source: DataSource[T]): Unit =
     this.setSource(stream.streamId, source)
 
   /**
@@ -51,7 +51,7 @@ class ApplicationConfiguration {
    * @param stream A stream.
    * @param sink   The sink to add for the stream data.
    */
-  def addSink[T](stream: Stream[T, _], sink: DataSink[T]): Unit =
+  def addSink[T](stream: Stream[T], sink: DataSink[T]): Unit =
     this.addSink(stream.streamId, sink)
 
   /**
@@ -77,7 +77,7 @@ class ApplicationConfiguration {
    * @param stream           A data stream reference.
    * @param metricDefinition A metric definition representing the metric to be added to the stream.
    */
-  def addMetric[T](stream: Stream[T, _], metricDefinition: MetricDefinition[T]): Unit =
+  def addMetric[T](stream: Stream[T], metricDefinition: MetricDefinition[T]): Unit =
     this.metrics = this.metrics :+ StreamMetric(stream.streamId, metricDefinition)
 
   def setMetricPrefix(prefix: String): Unit = this.metricPrefix = prefix

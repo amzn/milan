@@ -3,20 +3,21 @@ package com.amazon.milan.lang
 import java.time.{Duration, Instant}
 
 import com.amazon.milan.lang.internal.StreamMacros
-import com.amazon.milan.program
-import com.amazon.milan.types.Record
-import com.amazon.milan.typeutil.TypeDescriptor
+import com.amazon.milan.program.{ComputedStream, FieldDefinition, FunctionDef, MapFields, SelectTerm}
+import com.amazon.milan.typeutil.{FieldDescriptor, TupleTypeDescriptor, TypeDescriptor, TypeJoiner}
+import com.amazon.milan.{Id, program}
 
 import scala.language.experimental.macros
 
 
 /**
- * Base class for streams.
+ * Class for streams of records.
  *
- * @param node The graph node representing the stream.
+ * @param node       The graph node representing the tream.
+ * @param recordType A [[TypeDescriptor]] describing the stream records.
  * @tparam T The type of records on the stream.
  */
-abstract class Stream[T, TStream <: Stream[T, _]](val node: program.Stream) {
+class Stream[T](val node: program.Stream, val recordType: TypeDescriptor[T]) {
   type RecordType = T
 
   def streamId: String = node.nodeId
@@ -24,23 +25,14 @@ abstract class Stream[T, TStream <: Stream[T, _]](val node: program.Stream) {
   def streamName: String = node.name
 
   /**
-   * Gets a [[TypeDescriptor]] describing the type of records on the stream.
-   *
-   * @return A [[TypeDescriptor]] for the stream records, or null if the type cannot be determined.
-   */
-  def getRecordType: TypeDescriptor[T] =
-    this.node.getStreamExpression.tpe match {
-      case null => null
-      case ty => ty.asStream.recordType.asInstanceOf[TypeDescriptor[T]]
-    }
-
-  /**
    * Gets a copy of this [[Stream]] object with the specified name assigned.
    *
    * @param name The name to assign.
    * @return A copy of the stream with the specified name assigned.
    */
-  def withName(name: String): Stream[T, TStream]
+  def withName(name: String): Stream[T] = {
+    new Stream[T](this.node.withName(name), this.recordType)
+  }
 
   /**
    * Gets a copy of this [[Stream]] object with the specified ID assigned.
@@ -48,23 +40,101 @@ abstract class Stream[T, TStream <: Stream[T, _]](val node: program.Stream) {
    * @param id The ID to assign.
    * @return A copy of the stream with the specified ID assigned.
    */
-  def withId(id: String): Stream[T, TStream]
+  def withId(id: String): Stream[T] = {
+    new Stream[T](this.node.withId(id), this.recordType)
+  }
 
   /**
-   * Defines a map relationship between this [[Stream]] and an [[ObjectStream]].
+   * Define a filter relationship between this [[Stream]] and another [[Stream]] of the same type.
+   *
+   * @param predicate A predicate that indicates which records from this stream are present on the output stream.
+   * @return A [[Stream]] representing the output filtered stream.
+   */
+  def where(predicate: T => Boolean): Stream[T] = macro StreamMacros.where[T]
+
+  /**
+   * Defines a map relationship between this [[Stream]] and an [[Stream]].
    *
    * @param f The map function.
    * @tparam TOut The type of the output objects.
-   * @return An [[ObjectStream]]`[`[[TOut]]`]` representing the output mapped stream.
+   * @return An [[Stream]]`[`[[TOut]]`]` representing the output mapped stream.
    */
-  def map[TOut <: Record](f: T => TOut): ObjectStream[TOut] = macro StreamMacros.map[T, TOut]
+  def map[TOut](f: T => TOut): Stream[TOut] = macro StreamMacros.map[T, TOut]
 
   /**
-   * Defines a map relationship between this [[Stream]] and a [[TupleStream]] stream with two fields.
+   * Define a map relationship between this [[Stream]] and a stream with one field.
    *
-   * @return A [[TupleStream]] representing the output mapped stream.
+   * @param f A function that maps the objects on this stream to a named field.
+   * @tparam TF The type of the field.
+   * @return An [[Stream]] representing the output mapped stream.
    */
-  def map[TF1, TF2](f1: FieldStatement[T, TF1], f2: FieldStatement[T, TF2]): TupleStream[(TF1, TF2)] = macro StreamMacros.mapTuple2[T, TF1, TF2]
+  def map[TF](f: FieldStatement[T, TF]): Stream[Tuple1[TF]] = macro StreamMacros.mapTuple1[T, TF]
+
+  /**
+   * Defines a map relationship between this [[Stream]] and a [[Stream]] stream with two fields.
+   *
+   * @return A [[Stream]] representing the output mapped stream.
+   */
+  def map[TF1, TF2](f1: FieldStatement[T, TF1], f2: FieldStatement[T, TF2]): Stream[(TF1, TF2)] = macro StreamMacros.mapTuple2[T, TF1, TF2]
+
+  /**
+   * Converts this [[Stream]] to a [[Stream]] with one field whose values contain the records from
+   * this stream.
+   *
+   * @param fieldName The name of the field to use in the output stream.
+   * @return A [[Stream]] with one field with the specified name.
+   */
+  def toField(fieldName: String): Stream[Tuple1[T]] = {
+    // Create a MapFields expression that maps the input records into a single field.
+    val fieldDef = FieldDefinition(fieldName, FunctionDef(List("r"), SelectTerm("r")))
+    val mapExpr = MapFields(this.node.getExpression, List(fieldDef))
+    val newId = Id.newId()
+    val mapNode = ComputedStream(newId, newId, mapExpr)
+    val fieldDescriptor = FieldDescriptor(fieldName, this.recordType)
+    val recordType = new TupleTypeDescriptor[Tuple1[T]](List(fieldDescriptor))
+    new Stream[Tuple1[T]](mapNode, recordType)
+  }
+
+  /**
+   * Adds a field to the current stream that is computed from record values.
+   *
+   * @param f      A [[FieldStatement]] that describes the new field.
+   * @param joiner A [[TypeJoiner]] that can produce the output stream type.
+   * @tparam TF The type of the new field.
+   * @return A [[Stream]] containing the input records with the new field appended.
+   */
+  def addField[TF](f: FieldStatement[T, TF])(implicit joiner: TypeJoiner[T, Tuple1[TF]]): Stream[joiner.OutputType] = macro StreamMacros.addField[T, TF]
+
+  /**
+   * Adds fields to the current stream that are computed from record values.
+   *
+   * @param f1     A [[FieldStatement]] that describes the first new field.
+   * @param f2     A [[FieldStatement]] that describes the second new field.
+   * @param joiner A [[TypeJoiner]] that can produce the output stream type.
+   * @tparam TF1 The type of the first new field.
+   * @tparam TF2 The type of the second new field.
+   * @return A [[Stream]] containing the input records with the new fields appended.
+   */
+  def addFields[TF1, TF2](f1: FieldStatement[T, TF1],
+                          f2: FieldStatement[T, TF2])
+                         (implicit joiner: TypeJoiner[T, (TF1, TF2)]): Stream[joiner.OutputType] = macro StreamMacros.addFields2[T, TF1, TF2]
+
+  /**
+   * Adds fields to the current stream that are computed from record values.
+   *
+   * @param f1     A [[FieldStatement]] that describes the first new field.
+   * @param f2     A [[FieldStatement]] that describes the second new field.
+   * @param f3     A [[FieldStatement]] that describes the third new field.
+   * @param joiner A [[TypeJoiner]] that can produce the output stream type.
+   * @tparam TF1 The type of the first new field.
+   * @tparam TF2 The type of the second new field.
+   * @tparam TF3 The type of the third new field.
+   * @return An[[Stream]] containing the input records with the new fields appended.
+   */
+  def addFields[TF1, TF2, TF3](f1: FieldStatement[T, TF1],
+                               f2: FieldStatement[T, TF2],
+                               f3: FieldStatement[T, TF3])
+                              (implicit joiner: TypeJoiner[T, (TF1, TF2, TF3)]): Stream[joiner.OutputType] = macro StreamMacros.addFields3[T, TF1, TF2, TF3]
 
   /**
    * Defines a "full outer join" relationship between this stream and another stream.
@@ -76,7 +146,7 @@ abstract class Stream[T, TStream <: Stream[T, _]](val node: program.Stream) {
    *       If no record on the other stream is available at that time, the corresponding field in the output stream
    *       will be empty.
    */
-  def fullJoin[TOther](other: Stream[TOther, _]): JoinedStream[T, TOther] = {
+  def fullJoin[TOther](other: Stream[TOther]): JoinedStream[T, TOther] = {
     new JoinedStream[T, TOther](this.node, other.node, JoinType.FullEnrichmentJoin)
   }
 
@@ -90,7 +160,7 @@ abstract class Stream[T, TStream <: Stream[T, _]](val node: program.Stream) {
    *       If no record on the right stream is available at that time, the corresponding field in the output stream
    *       will be empty.
    */
-  def leftJoin[TOther](other: Stream[TOther, _]): JoinedStream[T, TOther] = {
+  def leftJoin[TOther](other: Stream[TOther]): JoinedStream[T, TOther] = {
     new JoinedStream[T, TOther](this.node, other.node, JoinType.LeftEnrichmentJoin)
   }
 
@@ -101,7 +171,7 @@ abstract class Stream[T, TStream <: Stream[T, _]](val node: program.Stream) {
    * @tparam TOther The record type of the windowed stream.
    * @return A [[LeftJoinedWindowedStream]] representing the joined streams.
    */
-  def leftJoin[TOther](other: WindowedStream[TOther, _]): LeftJoinedWindowedStream[T, TOther] = {
+  def leftJoin[TOther](other: WindowedStream[TOther]): LeftJoinedWindowedStream[T, TOther] = {
     new LeftJoinedWindowedStream[T, TOther](this, other)
   }
 
@@ -116,7 +186,7 @@ abstract class Stream[T, TStream <: Stream[T, _]](val node: program.Stream) {
    *       construct that ought to be able to be written using more general language primitives. The compiler should
    *       then figure out the best way to execute it.
    */
-  def latestBy[TKey](dateExtractor: T => Instant, keyFunc: T => TKey): WindowedStream[T, TStream] = macro StreamMacros.latestBy[T, TKey, TStream]
+  def latestBy[TKey](dateExtractor: T => Instant, keyFunc: T => TKey): WindowedStream[T] = macro StreamMacros.latestBy[T, TKey]
 
   /**
    * Defines a grouping over records in the stream.
@@ -125,7 +195,7 @@ abstract class Stream[T, TStream <: Stream[T, _]](val node: program.Stream) {
    * @tparam TKey The type of group key.
    * @return A [[GroupedStream]] representing the result of the grouping operation.
    */
-  def groupBy[TKey](keyFunc: T => TKey): GroupedStream[T, TKey, TStream] = macro StreamMacros.groupBy[T, TKey, TStream]
+  def groupBy[TKey](keyFunc: T => TKey): GroupedStream[T, TKey] = macro StreamMacros.groupBy[T, TKey]
 
   /**
    * Defines a stream of tumbling windows over a date/time that is extracted from stream records.
@@ -136,7 +206,7 @@ abstract class Stream[T, TStream <: Stream[T, _]](val node: program.Stream) {
    *                      This offset shifts the window alignment to the specified duration after the epoch.
    * @return A [[WindowedStream]] representing the result of the windowing operation.
    */
-  def tumblingWindow(dateExtractor: T => Instant, windowPeriod: Duration, offset: Duration): WindowedStream[T, TStream] = macro StreamMacros.tumblingWindow[T, TStream]
+  def tumblingWindow(dateExtractor: T => Instant, windowPeriod: Duration, offset: Duration): WindowedStream[T] = macro StreamMacros.tumblingWindow[T]
 
   /**
    * Defines a stream of sliding windows over a date/time that is extracted from stream records.
@@ -148,27 +218,27 @@ abstract class Stream[T, TStream <: Stream[T, _]](val node: program.Stream) {
    *                      This offset shifts the window alignment to the specified duration after the epoch.
    * @return A [[WindowedStream]] representing the result of the windowing operation.
    */
-  def slidingWindow(dateExtractor: T => Instant, windowSize: Duration, slide: Duration, offset: Duration): WindowedStream[T, TStream] = macro StreamMacros.slidingWindow[T, TStream]
+  def slidingWindow(dateExtractor: T => Instant, windowSize: Duration, slide: Duration, offset: Duration): WindowedStream[T] = macro StreamMacros.slidingWindow[T]
 }
 
 
 object Stream {
   /**
-   * Creates an [[ObjectStream]]`[`[[T]]`]` representing a stream of objects of the specified type.
+   * Creates a [[Stream]]`[`[[T]]`]` representing a stream of objects of the specified type.
    *
    * @tparam T The type of objects.
-   * @return An [[ObjectStream]]`[`[[T]]`]` representing the stream.
+   * @return A [[Stream]]`[`[[T]]`]` representing the stream.
    */
-  def of[T <: Record]: ObjectStream[T] = macro StreamMacros.of[T]
+  def of[T]: Stream[T] = macro StreamMacros.of[T]
 
   /**
-   * Creates a [[TupleStream]]`[`[[T]]`]` representing a stream of named tuples of the specified type.
+   * Creates a [[Stream]]`[`[[T]]`]` representing a stream of named tuples of the specified type.
    *
    * @param fieldNames The field names corresponding to the tuple type parameters.
    * @tparam T The type of tuple objects.
-   * @return A [[TupleStream]]`[`[[T]]`]` representing the stream.
+   * @return A [[Stream]]`[`[[T]]`]` representing the stream.
    */
-  def ofFields[T <: Product](fieldNames: String*): TupleStream[T] = macro StreamMacros.ofFields[T]
+  def ofFields[T <: Product](fieldNames: String*): Stream[T] = macro StreamMacros.ofFields[T]
 }
 
 

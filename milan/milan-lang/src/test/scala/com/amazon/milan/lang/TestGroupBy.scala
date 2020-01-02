@@ -11,7 +11,7 @@ import org.junit.Test
 @Test
 class TestGroupBy {
   @Test
-  def test_ObjectStream_GroupBy_ReturnsStreamWithCorrectInputNodeAndKeyFunction(): Unit = {
+  def test_Stream_GroupBy_ReturnsStreamWithCorrectInputNodeAndKeyFunction(): Unit = {
     val stream = Stream.of[IntKeyValueRecord]
     val grouped = stream.groupBy(r => r.key)
 
@@ -22,15 +22,15 @@ class TestGroupBy {
   }
 
   @Test
-  def test_ObjectStream_GroupBy_ThenSelectToTuple_ReturnsStreamWithCorrectFieldComputationExpression(): Unit = {
+  def test_Stream_GroupBy_ThenSelectToTuple_ReturnsStreamWithCorrectFieldComputationExpression(): Unit = {
     val stream = Stream.of[IntKeyValueRecord]
     val grouped = stream.groupBy(r => r.key)
     val selected = grouped.select(((key: Int, r: IntKeyValueRecord) => key) as "i")
 
     val node = selected.node.asInstanceOf[ComputedStream]
 
-    assertEquals(1, selected.fields.length)
-    assertEquals(FieldDescriptor("i", types.Int), selected.fields.head)
+    assertEquals(1, selected.recordType.fields.length)
+    assertEquals(FieldDescriptor("i", types.Int), selected.recordType.fields.head)
 
     val map = node.getExpression.asInstanceOf[MapFields]
     assertEquals(1, map.fields.length)
@@ -41,7 +41,7 @@ class TestGroupBy {
   }
 
   @Test
-  def test_ObjectStream_GroupBy_ThenSelectToObject_ReturnsStreamWithCorrectMapFunction(): Unit = {
+  def test_Stream_GroupBy_ThenSelectToObject_ReturnsStreamWithCorrectMapFunction(): Unit = {
     val stream = Stream.of[IntKeyValueRecord]
     val grouped = stream.groupBy(r => r.key)
     val selected = grouped.select((key, r) => argmax(r.value, r))
@@ -53,11 +53,9 @@ class TestGroupBy {
   }
 
   @Test
-  def test_ObjectStream_GroupBy_ThenMaxBy_ReturnsObjectStreamWithCorrectMapFunction(): Unit = {
+  def test_Stream_GroupBy_ThenMaxBy_ReturnsObjectStreamWithCorrectMapFunction(): Unit = {
     val input = Stream.of[IntKeyValueRecord]
     val output = input.groupBy(r => r.key).maxBy(r => r.value)
-
-    assertTrue(output.isInstanceOf[ObjectStream[_]])
 
     val MapRecord(_, mapFunctionDef) = output.node.getExpression
     val FunctionDef(List(_, "r"), ArgMax(Tuple(List(SelectField(SelectTerm("r"), "value"), SelectTerm("r"))))) = mapFunctionDef

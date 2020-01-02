@@ -8,11 +8,11 @@ import com.amazon.milan.application.sinks.KinesisDataSink
 import com.amazon.milan.application.sources.{KinesisDataSource, ListDataSource}
 import com.amazon.milan.application.{Application, ApplicationConfiguration}
 import com.amazon.milan.flink.compiler.FlinkCompiler
+import com.amazon.milan.flink.manage.FlinkApplicationManager
 import com.amazon.milan.lang.aggregation._
 import com.amazon.milan.lang.{Stream, StreamGraph}
-import com.amazon.milan.manage.ApplicationManager
-import com.amazonaws.regions.Regions
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
+import software.amazon.awssdk.regions.Region
 
 import scala.util.Random
 
@@ -63,7 +63,7 @@ object ExecutionModes {
     val application = new Application(graph)
 
     val rootPath = Paths.get("")
-    val manager = ApplicationManager.createLocalApplicationManager(rootPath)
+    val manager = FlinkApplicationManager.createLocalFlinkApplicationManager(rootPath)
 
     // This packages the application and configuration into a JAR and executes it using the flink command on the local
     // machine.
@@ -89,8 +89,8 @@ object ExecutionModes {
 
     val application = new Application(graph)
 
-    val manager = ApplicationManager.createS3KinesisApplicationManager(
-      Regions.EU_WEST_1,
+    val manager = FlinkApplicationManager.createS3KinesisApplicationManager(
+      Region.EU_WEST_1,
       "my-s3-bucket",
       "repository-root-folder",
       "controller-messages-stream",

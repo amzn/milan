@@ -77,9 +77,9 @@ class TestObjectStream {
     assertEquals("r", argName)
     assertEquals("i", fieldName)
 
-    assertEquals(1, mapped.fields.length)
-    assertEquals("x", mapped.fields.head.name)
-    assertEquals(TypeUtil.getTypeName(classOf[IntRecord]), mapped.fields.head.fieldType.fullName)
+    assertEquals(1, mapped.recordType.fields.length)
+    assertEquals("x", mapped.recordType.fields.head.name)
+    assertEquals(TypeUtil.getTypeName(classOf[IntRecord]), mapped.recordType.fields.head.fieldType.fullName)
   }
 
   @Test
@@ -108,11 +108,11 @@ class TestObjectStream {
     assertEquals("r", argName2)
     assertEquals("i", fieldName2)
 
-    assertEquals(2, mapped.fields.length)
-    assertEquals("x", mapped.fields.head.name)
-    assertEquals(TypeUtil.getTypeName(classOf[IntRecord]), mapped.fields.head.fieldType.fullName)
-    assertEquals("y", mapped.fields(1).name)
-    assertEquals(TypeUtil.getTypeName(classOf[IntRecord]), mapped.fields(1).fieldType.fullName)
+    assertEquals(2, mapped.recordType.fields.length)
+    assertEquals("x", mapped.recordType.fields.head.name)
+    assertEquals(TypeUtil.getTypeName(classOf[IntRecord]), mapped.recordType.fields.head.fieldType.fullName)
+    assertEquals("y", mapped.recordType.fields(1).name)
+    assertEquals(TypeUtil.getTypeName(classOf[IntRecord]), mapped.recordType.fields(1).fieldType.fullName)
   }
 
   @Test

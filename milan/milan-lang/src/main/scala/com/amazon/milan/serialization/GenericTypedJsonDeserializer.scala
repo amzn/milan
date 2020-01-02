@@ -19,7 +19,15 @@ class GenericTypedJsonDeserializer[T <: SetGenericTypeInfo](typeNameTransformer:
   override def deserialize(parser: JsonParser, context: DeserializationContext): T = {
     assert(parser.nextFieldName() == "_type")
 
-    val typeName = this.typeNameTransformer(parser.nextTextValue())
+    val rawTypeName = parser.nextTextValue()
+
+    // If the stored type name contains a path separator then use it verbatim, otherwise transform it.
+    val typeName =
+      if (rawTypeName.contains(".")) {
+        rawTypeName
+      } else {
+        this.typeNameTransformer(rawTypeName)
+      }
 
     assert(parser.nextFieldName() == "_genericArgs")
     parser.nextToken()
@@ -29,12 +37,16 @@ class GenericTypedJsonDeserializer[T <: SetGenericTypeInfo](typeNameTransformer:
 
     logger.info(s"Deserializing type '$typeName[${genericArgs.map(_.fullName).mkString(", ")}]'.")
 
-    val cls = getClass.getClassLoader.loadClass(typeName).asInstanceOf[Class[T]]
+    val cls = this.getTypeClass(typeName)
     val javaType = new JavaTypeFactory(context.getTypeFactory).makeJavaType(cls, genericArgs)
 
     val value = context.readValue[T](parser, javaType)
     value.setGenericArguments(genericArgs)
 
     value
+  }
+
+  protected def getTypeClass(typeName: String): Class[_ <: T] = {
+    getClass.getClassLoader.loadClass(typeName).asInstanceOf[Class[T]]
   }
 }

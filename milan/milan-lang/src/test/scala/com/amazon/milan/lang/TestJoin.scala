@@ -91,7 +91,7 @@ class TestJoin {
     val expectedFields = List(
       FieldDescriptor("left", TypeDescriptor.of[IntKeyValueRecord]),
       FieldDescriptor("right", TypeDescriptor.of[IntKeyValueRecord]))
-    assertEquals(expectedFields, output.fields)
+    assertEquals(expectedFields, output.recordType.fields)
 
     val MapFields(_, fields) = output.node.getExpression
     val FieldDefinition("left", FunctionDef(List("l", "r"), SelectTerm("l"))) = fields.head
@@ -111,7 +111,7 @@ class TestJoin {
       FieldDescriptor("left", TypeDescriptor.of[IntKeyValueRecord]),
       FieldDescriptor("a", types.Int),
       FieldDescriptor("b", types.Long))
-    assertEquals(expectedFields, output.fields)
+    assertEquals(expectedFields, output.recordType.fields)
 
     val MapFields(_, fields) = output.node.getExpression
     val FieldDefinition("left", FunctionDef(List("l", "r"), SelectTerm("l"))) = fields.head
@@ -132,7 +132,7 @@ class TestJoin {
       FieldDescriptor("a", types.Int),
       FieldDescriptor("b", types.Long),
       FieldDescriptor("right", TypeDescriptor.of[IntKeyValueRecord]))
-    assertEquals(expectedFields, output.fields)
+    assertEquals(expectedFields, output.recordType.fields)
 
     val MapFields(_, fields) = output.node.getExpression
     val FieldDefinition("a", FunctionDef(List("l", "r"), SelectField(SelectTerm("l"), "a"))) = fields.head
@@ -156,7 +156,7 @@ class TestJoin {
       FieldDescriptor("b", types.Long),
       FieldDescriptor("c", types.Int),
       FieldDescriptor("d", types.Double))
-    assertEquals(expectedFields, output.fields)
+    assertEquals(expectedFields, output.recordType.fields)
 
     val MapFields(_, fields) = output.node.getExpression
     val FieldDefinition("a", FunctionDef(List("l", "r"), SelectField(SelectTerm("l"), "a"))) = fields.head

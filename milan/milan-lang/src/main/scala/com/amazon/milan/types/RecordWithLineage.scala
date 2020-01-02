@@ -5,4 +5,4 @@ object RecordWithLineage {
   val typeName: String = getClass.getTypeName.stripSuffix("$")
 }
 
-case class RecordWithLineage[T <: Record](record: T, lineage: LineageRecord)
+case class RecordWithLineage[T](record: T, lineage: LineageRecord)

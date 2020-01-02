@@ -142,13 +142,13 @@ object BodaApp {
       request.fromLocation)
   }
 
-  case class BodaStreams(inputDriverStatus: ObjectStream[DriverStatus],
-                         inputDriverLocation: ObjectStream[DriverLocation],
-                         inputRideRequests: ObjectStream[RideRequest],
-                         inputRideEvents: ObjectStream[RideEvent],
-                         outputDrierInfo: ObjectStream[DriverInformation],
-                         outputDriverAllocations: ObjectStream[DriverStatus],
-                         outputRideInfo: ObjectStream[RideInformation],
-                         outputRideWaitTimes: ObjectStream[RideWaitInfo])
+  case class BodaStreams(inputDriverStatus: Stream[DriverStatus],
+                         inputDriverLocation: Stream[DriverLocation],
+                         inputRideRequests: Stream[RideRequest],
+                         inputRideEvents: Stream[RideEvent],
+                         outputDrierInfo: Stream[DriverInformation],
+                         outputDriverAllocations: Stream[DriverStatus],
+                         outputRideInfo: Stream[RideInformation],
+                         outputRideWaitTimes: Stream[RideWaitInfo])
 
 }

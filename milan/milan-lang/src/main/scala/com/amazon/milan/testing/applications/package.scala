@@ -14,7 +14,7 @@ import scala.language.implicitConversions
 package object applications {
 
   implicit class ApplicationConfigurationExtensions(config: ApplicationConfiguration) {
-    def setListSource[T: TypeDescriptor](stream: Stream[T, _], values: T*): Unit = {
+    def setListSource[T: TypeDescriptor](stream: Stream[T], values: T*): Unit = {
       this.config.setSource(stream, new ListDataSource[T](values.toList))
     }
 
@@ -22,7 +22,7 @@ package object applications {
       this.config.setSource(streamId, new ListDataSource[T](values.toList))
     }
 
-    def addMemorySink[T: TypeDescriptor](stream: Stream[T, _]): SingletonMemorySink[T] = {
+    def addMemorySink[T: TypeDescriptor](stream: Stream[T]): SingletonMemorySink[T] = {
       val sink = new SingletonMemorySink[T]()
       this.config.addSink(stream, sink)
       sink

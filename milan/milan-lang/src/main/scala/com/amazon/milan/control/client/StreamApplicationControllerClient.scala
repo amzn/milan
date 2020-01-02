@@ -1,51 +1,9 @@
 package com.amazon.milan.control.client
 
-import java.nio.ByteBuffer
-
 import com.amazon.milan.Id
 import com.amazon.milan.control.{ApplicationControllerMessageEnvelope, _}
-import com.amazon.milan.serialization.ScalaObjectMapper
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
-import com.amazonaws.regions.Regions
-import com.amazonaws.services.kinesis.AmazonKinesisClientBuilder
 import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
-
-
-object StreamApplicationControllerClient {
-  private val logger = Logger(LoggerFactory.getLogger(getClass))
-
-  /**
-   * Creates a [[StreamApplicationControllerClient]] that uses Kinesis streams.
-   *
-   * @param messageStreamName The name of the Kinesis stream to send controller messages to.
-   * @param stateStreamName   The name of the Kinesis stream from which controller state can be read.
-   * @param controllerId      The application controller ID (usually 'default').
-   * @return A [[StreamApplicationControllerClient]] instance.
-   */
-  def createForKinesisStreams(messageStreamName: String,
-                              stateStreamName: String,
-                              controllerId: String = DEFAULT_CONTROLLER_ID,
-                              region: Regions = Regions.EU_WEST_1): StreamApplicationControllerClient = {
-    val kinesisClient = AmazonKinesisClientBuilder.standard()
-      .withCredentials(new DefaultAWSCredentialsProviderChain())
-      .withRegion(region)
-      .build()
-
-    val objectMapper = new ScalaObjectMapper()
-
-    def messageSink(envelope: ApplicationControllerMessageEnvelope): Unit = {
-      this.logger.info(s"Adding controller message to stream '$messageStreamName'.")
-      val envelopeBytes = objectMapper.writeValueAsBytes(envelope)
-      val buffer = ByteBuffer.wrap(envelopeBytes)
-      kinesisClient.putRecord(messageStreamName, buffer, "0")
-    }
-
-    val stateReader = KinesisIteratorObjectReader.forStreamWithOneShard[ApplicationControllerState](kinesisClient, stateStreamName)
-
-    new StreamApplicationControllerClient(messageSink, () => stateReader.next(), controllerId)
-  }
-}
 
 
 /**

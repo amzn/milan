@@ -1,7 +1,6 @@
 package com.amazon.milan.lang
 
 import com.amazon.milan.lang.internal.JoinedWindowedStreamMacros
-import com.amazon.milan.types.Record
 
 import scala.language.experimental.macros
 
@@ -14,8 +13,8 @@ import scala.language.experimental.macros
  * @tparam TLeft  The type of records on the left stream.
  * @tparam TRight The type of records on the right stream.
  */
-class LeftJoinedWindowedStream[TLeft, TRight](val leftInput: Stream[TLeft, _],
-                                              val rightInput: WindowedStream[TRight, _]) {
+class LeftJoinedWindowedStream[TLeft, TRight](val leftInput: Stream[TLeft],
+                                              val rightInput: WindowedStream[TRight]) {
   /**
    * Applies a function to produce outputs from the join.
    * The function is applied to each record from the left stream and the corresponding window from the right stream.
@@ -24,5 +23,5 @@ class LeftJoinedWindowedStream[TLeft, TRight](val leftInput: Stream[TLeft, _],
    * @tparam TOut The output type of the function being applied.
    * @return An [[ObjectStream]] representing the result of the operation.
    */
-  def apply[TOut <: Record](applyFunction: (TLeft, Iterable[TRight]) => TOut): ObjectStream[TOut] = macro JoinedWindowedStreamMacros.leftApply[TLeft, TRight, TOut]
+  def apply[TOut](applyFunction: (TLeft, Iterable[TRight]) => TOut): Stream[TOut] = macro JoinedWindowedStreamMacros.leftApply[TLeft, TRight, TOut]
 }

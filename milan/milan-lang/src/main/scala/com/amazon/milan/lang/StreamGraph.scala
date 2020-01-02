@@ -13,7 +13,7 @@ class StreamGraph(var streamsById: Map[String, program.Stream]) {
     this(Map.empty[String, program.Stream])
   }
 
-  def this(streams: Stream[_, _]*) {
+  def this(streams: Stream[_]*) {
     this()
     streams.foreach(this.addStream)
   }
@@ -23,7 +23,7 @@ class StreamGraph(var streamsById: Map[String, program.Stream]) {
    *
    * @param stream The stream to add.
    */
-  def addStream(stream: Stream[_, _]): Unit = {
+  def addStream(stream: Stream[_]): Unit = {
     this.addWithReferences(stream.node)
   }
 
