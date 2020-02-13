@@ -3,7 +3,7 @@ package com.amazon.milan.lang
 import java.time.Instant
 
 import com.amazon.milan.lang.internal.WindowedStreamMacros
-import com.amazon.milan.program.ComputedGraphNode
+import com.amazon.milan.program.GroupingExpression
 
 import scala.language.experimental.macros
 
@@ -11,10 +11,10 @@ import scala.language.experimental.macros
 /**
  * Represents the result of a windowing operation.
  *
- * @param node The graph node representing the windowing operation.
+ * @param expr The Milan expression representing windowing operation.
  * @tparam T The type of the stream.
  */
-class WindowedStream[T](val node: ComputedGraphNode) extends GroupOperations[T, Instant] {
+class WindowedStream[T](val expr: GroupingExpression) extends GroupOperations[T, Instant] {
   /**
    * Specifies that for any following aggregate operations, only the latest record for each selector value will be
    * included in the aggregate calculation.

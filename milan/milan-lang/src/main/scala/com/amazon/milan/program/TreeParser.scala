@@ -70,18 +70,18 @@ class TreeParser(typeFactory: TypeFactory) {
         case "Unpack" => Unpack(convertNode[SelectTerm](children(0)), convertStringList(children(1)), convertNode[Tree](children(2)))
 
         // Graph node expressions
-        case "FullJoin" => FullJoin(convertNode[StreamExpression](children(0)), convertNode[StreamExpression](children(1)), convertNode[FunctionDef](children(2)))
+        case "FullJoin" => FullJoin(convertNode[StreamExpression](children(0)), convertNode[StreamExpression](children(1)))
         case "Ref" => Ref(getString(children(0)))
         case "GroupBy" => GroupBy(convertNode[StreamExpression](children(0)), convertNode[FunctionDef](children(1)))
         case "LatestBy" => LatestBy(convertNode[StreamExpression](children(0)), convertNode[FunctionDef](children(1)), convertNode[FunctionDef](children(2)))
-        case "LeftJoin" => LeftJoin(convertNode[StreamExpression](children(0)), convertNode[StreamExpression](children(1)), convertNode[FunctionDef](children(2)))
-        case "MapRecord" => MapRecord(convertNode[GraphNodeExpression](children(0)), convertNode[FunctionDef](children(1)))
-        case "MapFields" => MapFields(convertNode[GraphNodeExpression](children(0)), convertList[FieldDefinition](children(1)))
+        case "LeftJoin" => LeftJoin(convertNode[StreamExpression](children(0)), convertNode[StreamExpression](children(1)))
+        case "MapRecord" => MapRecord(convertNode[StreamExpression](children(0)), convertNode[FunctionDef](children(1)))
+        case "MapFields" => MapFields(convertNode[StreamExpression](children(0)), convertList[FieldDefinition](children(1)))
         case "Filter" => Filter(convertNode[StreamExpression](children(0)), convertNode[FunctionDef](children(1)))
         case "SlidingWindow" => SlidingWindow(convertNode[StreamExpression](children(0)), convertNode[FunctionDef](children(1)), convertNode[Duration](children(2)), convertNode[Duration](children(3)), convertNode[Duration](children(4)))
         case "TumblingWindow" => TumblingWindow(convertNode[StreamExpression](children(0)), convertNode[FunctionDef](children(1)), convertNode[Duration](children(2)), convertNode[Duration](children(3)))
         case "UniqueBy" => UniqueBy(convertNode[GroupingExpression](children(0)), convertNode[FunctionDef](children(1)))
-        case "WindowedLeftJoin" => WindowedLeftJoin(convertNode[StreamExpression](children(0)), convertNode[WindowExpression](children(1)))
+        case "FlatMap" => FlatMap(convertNode[StreamExpression](children(0)), convertNode[FunctionDef](children(1)))
 
         // Built-in functions
         case "Sum" => Sum(convertNode[Tree](children.head))

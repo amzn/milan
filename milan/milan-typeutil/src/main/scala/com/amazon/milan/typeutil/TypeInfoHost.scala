@@ -74,7 +74,7 @@ trait TypeInfoHost {
      */
     def toStreamTypeDescriptor: StreamTypeDescriptor = {
       val recordType = this.toTypeDescriptor
-      new StreamTypeDescriptor(recordType)
+      new DataStreamTypeDescriptor(recordType)
     }
 
     /**

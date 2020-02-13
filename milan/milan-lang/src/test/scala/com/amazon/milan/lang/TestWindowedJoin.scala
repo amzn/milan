@@ -2,7 +2,7 @@ package com.amazon.milan.lang
 
 import java.time.Duration
 
-import com.amazon.milan.program.{ApplyFunction, FunctionDef, FunctionReference, MapRecord, SelectField, SelectTerm, WindowedLeftJoin}
+import com.amazon.milan.program.{ApplyFunction, Filter, FlatMap, FunctionDef, FunctionReference, LeftJoin, SelectField, SelectTerm}
 import com.amazon.milan.test.DateIntRecord
 import org.junit.Test
 
@@ -26,9 +26,9 @@ class TestWindowedJoin {
     val joined = left.leftJoin(rightWindowed)
     val output = joined.apply((leftRecord, rightRecords) => DateIntRecord(leftRecord.dateTime, TestWindowedJoin.sumValues(rightRecords)))
 
-    val MapRecord(mapSource, FunctionDef(List("leftRecord", "rightRecords"), mapFunctionBody)) = output.node.getStreamExpression
+    val FlatMap(mapSource, FunctionDef(List("leftRecord", "rightRecords"), mapFunctionBody)) = output.expr
     val ApplyFunction(FunctionReference("com.amazon.milan.test.DateIntRecord", "apply"), recordArgs, _) = mapFunctionBody
     val List(SelectField(SelectTerm("leftRecord"), "dateTime"), ApplyFunction(FunctionReference("com.amazon.milan.lang.TestWindowedJoin", "sumValues"), List(SelectTerm("rightRecords")), _)) = recordArgs
-    val WindowedLeftJoin(_, _) = mapSource
+    val LeftJoin(_, _) = mapSource
   }
 }

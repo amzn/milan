@@ -1,6 +1,6 @@
 package com.amazon.milan.program
 
-import com.amazon.milan.test.{IntRecord, KeyValueRecord}
+import com.amazon.milan.test.{IntKeyValueRecord, IntRecord, KeyValueRecord}
 import com.amazon.milan.typeutil.{TypeDescriptor, types}
 import org.junit.Test
 

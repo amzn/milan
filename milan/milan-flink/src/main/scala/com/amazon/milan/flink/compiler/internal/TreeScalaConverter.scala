@@ -45,7 +45,7 @@ object TreeScalaConverter {
       s"$argList => $body"
     }
     catch {
-      case ex: Throwable =>
+      case ex: Exception =>
         throw new FlinkCompilationException(s"Error compiling function expression '$transformed' with input types $inputTypeNames.", ex)
     }
   }

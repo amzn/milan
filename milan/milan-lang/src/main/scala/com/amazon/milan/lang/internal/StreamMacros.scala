@@ -4,8 +4,8 @@ import java.time.{Duration, Instant}
 
 import com.amazon.milan.lang.{FieldStatement, GroupedStream, Stream, WindowedStream}
 import com.amazon.milan.program.internal.{FilteredStreamHost, LiftableImpls}
-import com.amazon.milan.program.{ComputedGraphNode, ComputedStream, ExternalStream, FieldDefinition, FunctionDef, GroupBy, LatestBy, MapFields, SelectField, SelectTerm, SlidingWindow, TumblingWindow}
-import com.amazon.milan.typeutil.{FieldDescriptor, GroupedStreamTypeDescriptor, StreamTypeDescriptor, TupleTypeDescriptor, TypeDescriptor, TypeJoiner}
+import com.amazon.milan.program.{ExternalStream, FieldDefinition, FunctionDef, GroupBy, LatestBy, MapFields, SelectField, SelectTerm, SlidingWindow, TumblingWindow}
+import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, FieldDescriptor, GroupedStreamTypeDescriptor, TupleTypeDescriptor, TypeDescriptor, TypeJoiner}
 import com.amazon.milan.{Id, program}
 
 import scala.reflect.macros.whitebox
@@ -56,7 +56,7 @@ class StreamMacros(val c: whitebox.Context)
    */
   def ofFields[T <: Product : c.WeakTypeTag](fieldNames: c.Expr[String]*): c.Expr[Stream[T]] = {
     val recordType = this.getNamedTupleTypeDescriptor[T](fieldNames.toList)
-    val streamType = q"new com.amazon.milan.typeutil.StreamTypeDescriptor($recordType)"
+    val streamType = q"new ${typeOf[DataStreamTypeDescriptor]}($recordType)"
     val idVal = TermName(c.freshName())
     val nodeVal = TermName(c.freshName())
 
@@ -170,16 +170,17 @@ class StreamMacros(val c: whitebox.Context)
     val outNodeId = Id.newId()
     val keyFuncExpr = getMilanFunction(keyFunc.tree)
 
-    val inputNodeVal = TermName(c.freshName())
+    val inputExprVal = TermName(c.freshName())
     val exprVal = TermName(c.freshName())
-    val nodeVal = TermName(c.freshName())
+
+    val recordType = this.getTypeDescriptor[T]
+    val exprType = new GroupedStreamTypeDescriptor(recordType)
 
     val tree =
       q"""
-          val $inputNodeVal = ${c.prefix}.node
-          val $exprVal = new ${typeOf[GroupBy]}($inputNodeVal.getStreamExpression, $keyFuncExpr, $outNodeId, $outNodeId)
-          val $nodeVal = new ${typeOf[ComputedGraphNode]}($outNodeId, $exprVal)
-          new ${weakTypeOf[GroupedStream[T, TKey]]}($nodeVal)
+          val $inputExprVal = ${c.prefix}.expr
+          val $exprVal = new ${typeOf[GroupBy]}($inputExprVal, $keyFuncExpr, $outNodeId, $outNodeId, $exprType)
+          new ${weakTypeOf[GroupedStream[T, TKey]]}($exprVal)
        """
 
     c.Expr[GroupedStream[T, TKey]](tree)
@@ -216,16 +217,16 @@ class StreamMacros(val c: whitebox.Context)
     val periodExpr = this.getDuration(windowPeriod)
     val offsetExpr = this.getDuration(offset)
 
-    val inputNodeVal = TermName(c.freshName())
+    val inputExprVal = TermName(c.freshName())
+    val outputTypeVal = TermName(c.freshName())
     val exprVal = TermName(c.freshName())
-    val nodeVal = TermName(c.freshName())
 
     val tree =
       q"""
-          val $inputNodeVal = ${c.prefix}.node
-          val $exprVal = new ${typeOf[TumblingWindow]}($inputNodeVal.getExpression, $dateExtractorFunc, $periodExpr, $offsetExpr, $outNodeId, $outNodeId)
-          val $nodeVal = new ${typeOf[ComputedGraphNode]}($outNodeId, $exprVal)
-          new ${weakTypeOf[WindowedStream[T]]}($nodeVal)
+          val $inputExprVal = ${c.prefix}.expr
+          val $outputTypeVal = new ${typeOf[GroupedStreamTypeDescriptor]}($inputExprVal.recordType)
+          val $exprVal = new ${typeOf[TumblingWindow]}($inputExprVal, $dateExtractorFunc, $periodExpr, $offsetExpr, $outNodeId, $outNodeId, $outputTypeVal)
+          new ${weakTypeOf[WindowedStream[T]]}($exprVal)
        """
 
     c.Expr[WindowedStream[T]](tree)
@@ -245,16 +246,14 @@ class StreamMacros(val c: whitebox.Context)
     val slideExpr = this.getDuration(slide)
     val offsetExpr = this.getDuration(offset)
 
-    val inputNodeVal = TermName(c.freshName())
+    val inputExprVal = TermName(c.freshName())
     val exprVal = TermName(c.freshName())
-    val nodeVal = TermName(c.freshName())
 
     val tree =
       q"""
-          val $inputNodeVal = ${c.prefix}.node
-          val $exprVal = new ${typeOf[SlidingWindow]}($inputNodeVal.getExpression, $dateExtractorFunc, $sizeExpr, $slideExpr, $offsetExpr, $outNodeId, $outNodeId)
-          val $nodeVal = new ${typeOf[ComputedGraphNode]}($outNodeId, $exprVal)
-          new ${weakTypeOf[WindowedStream[T]]}($nodeVal)
+          val $inputExprVal = ${c.prefix}.expr
+          val $exprVal = new ${typeOf[SlidingWindow]}($inputExprVal, $dateExtractorFunc, $sizeExpr, $slideExpr, $offsetExpr, $outNodeId, $outNodeId)
+          new ${weakTypeOf[WindowedStream[T]]}($exprVal)
        """
 
     c.Expr[WindowedStream[T]](tree)
@@ -273,10 +272,9 @@ object StreamMacroUtil {
     val nodeId = Id.newId()
     val inputRecordType = inputStream.recordType
     val outputStreamType = new GroupedStreamTypeDescriptor(inputRecordType)
-    val latestExpr = new LatestBy(inputStream.node.getStreamExpression, dateExtractor, keyFunc, nodeId, nodeId, outputStreamType)
+    val latestExpr = new LatestBy(inputStream.expr, dateExtractor, keyFunc, nodeId, nodeId, outputStreamType)
 
-    val node = ComputedGraphNode(nodeId, latestExpr)
-    new WindowedStream[T](node)
+    new WindowedStream[T](latestExpr)
   }
 
   /**
@@ -304,17 +302,16 @@ object StreamMacroUtil {
     val newFieldsType = new TupleTypeDescriptor[TAdd](newFields)
     val outputRecordType = joiner.getOutputType(inputRecordType, newFieldsType)
 
-    val outputStreamType = new StreamTypeDescriptor(outputRecordType)
+    val outputStreamType = new DataStreamTypeDescriptor(outputRecordType)
     val mapExpr = this.createAddFieldsMapExpression(inputStream, fieldsToAdd, outputStreamType)
-    val node = ComputedStream(mapExpr.nodeId, mapExpr.nodeName, mapExpr)
-    new Stream[joiner.OutputType](node, outputRecordType)
+    new Stream[joiner.OutputType](mapExpr, outputRecordType)
   }
 
   private def createAddFieldsMapExpression(inputStream: Stream[_],
                                            fieldsToAdd: List[FieldDefinition],
                                            outputType: TypeDescriptor[_]): MapFields = {
     val inputRecordType = inputStream.recordType
-    val inputExpr = inputStream.node.getStreamExpression
+    val inputExpr = inputStream.expr
 
     val existingFields = inputRecordType.fields.map(field =>
       FieldDefinition(field.name, FunctionDef(List("r"), SelectField(SelectTerm("r"), field.name))))

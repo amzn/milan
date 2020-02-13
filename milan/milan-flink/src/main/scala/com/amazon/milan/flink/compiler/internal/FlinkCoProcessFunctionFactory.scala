@@ -19,7 +19,7 @@ object FlinkCoProcessFunctionFactory {
 
   private val logger = Logger(LoggerFactory.getLogger(getClass))
 
-  def applyCoProcessFunction(mapExpr: MapNodeExpression,
+  def applyCoProcessFunction(mapExpr: MapExpression,
                              dataStream: ConnectedStreams[_, _],
                              joinPostConditions: Option[FunctionDef],
                              lineageFactory: JoinLineageRecordFactory,
@@ -30,9 +30,9 @@ object FlinkCoProcessFunctionFactory {
 
     val eval = RuntimeEvaluator.instance
 
-    eval.evalFunction[MapNodeExpression, Option[FunctionDef], ConnectedStreams[_, _], JoinLineageRecordFactory, MetricFactory, SingleOutputStreamOperator[RecordWithLineage[_]]](
+    eval.evalFunction[MapExpression, Option[FunctionDef], ConnectedStreams[_, _], JoinLineageRecordFactory, MetricFactory, SingleOutputStreamOperator[RecordWithLineage[_]]](
       "mapExpr",
-      eval.getClassName[MapNodeExpression],
+      eval.getClassName[MapExpression],
       "joinPostConditions",
       s"Option[${eval.getClassName[FunctionDef]}]",
       "dataStream",
@@ -49,17 +49,17 @@ object FlinkCoProcessFunctionFactory {
       metricFactory)
   }
 
-  def applyCoProcessFunctionImpl[TLeft, TRight, TOut](mapExpr: MapNodeExpression,
+  def applyCoProcessFunctionImpl[TLeft, TRight, TOut](mapExpr: MapExpression,
                                                       joinPostConditions: Option[FunctionDef],
                                                       dataStream: ConnectedStreams[TLeft, TRight],
                                                       lineageFactory: JoinLineageRecordFactory,
                                                       metricFactory: MetricFactory): SingleOutputStreamOperator[RecordWithLineage[TOut]] = {
     val processFunction =
       mapExpr.source match {
-        case joinExpr: JoinNodeExpression =>
+        case Filter(JoinExpression(_, _), _) =>
           getJoinedStreamCoProcessFunction[TLeft, TRight, TOut](
             mapExpr,
-            joinExpr,
+            mapExpr.source.asInstanceOf[Filter].source.asInstanceOf[JoinExpression],
             joinPostConditions,
             dataStream,
             lineageFactory,
@@ -75,8 +75,8 @@ object FlinkCoProcessFunctionFactory {
     this.applyName(outputStream, mapExpr)
   }
 
-  def getJoinedStreamCoProcessFunction[TLeft, TRight, TOut](mapExpr: MapNodeExpression,
-                                                            joinExpr: JoinNodeExpression,
+  def getJoinedStreamCoProcessFunction[TLeft, TRight, TOut](mapExpr: MapExpression,
+                                                            joinExpr: JoinExpression,
                                                             joinPostConditions: Option[FunctionDef],
                                                             dataStream: ConnectedStreams[TLeft, TRight],
                                                             lineageFactory: JoinLineageRecordFactory,
@@ -93,7 +93,7 @@ object FlinkCoProcessFunctionFactory {
     }
   }
 
-  def getFullJoinCoProcessFunction[TLeft, TRight, TOut](mapExpr: MapNodeExpression,
+  def getFullJoinCoProcessFunction[TLeft, TRight, TOut](mapExpr: MapExpression,
                                                         joinExpr: FullJoin,
                                                         joinPostConditions: Option[FunctionDef],
                                                         dataStream: ConnectedStreams[TLeft, TRight],
@@ -139,7 +139,7 @@ object FlinkCoProcessFunctionFactory {
     }
   }
 
-  def getLeftJoinCoProcessFunction[TLeft, TRight, TOut](mapExpr: MapNodeExpression,
+  def getLeftJoinCoProcessFunction[TLeft, TRight, TOut](mapExpr: MapExpression,
                                                         joinExpr: LeftJoin,
                                                         joinPostConditions: Option[FunctionDef],
                                                         dataStream: ConnectedStreams[TLeft, TRight],
@@ -189,13 +189,13 @@ object FlinkCoProcessFunctionFactory {
    *         returned without a new name applied.
    */
   private def applyName[T](dataStream: SingleOutputStreamOperator[T],
-                           mapExpr: MapNodeExpression): SingleOutputStreamOperator[T] = {
+                           mapExpr: MapExpression): SingleOutputStreamOperator[T] = {
     val name =
       mapExpr.source match {
-        case LeftJoin(left, right, _) =>
+        case Filter(LeftJoin(left, right), _) =>
           s"LeftEnrichmentJoin [${left.nodeName}] with [${right.nodeName}] -> [${mapExpr.nodeName}]"
 
-        case FullJoin(left, right, _) =>
+        case Filter(FullJoin(left, right), _) =>
           s"FullEnrichmentJoin [${left.nodeName}] with [${right.nodeName}] -> [${mapExpr.nodeName}]"
       }
 

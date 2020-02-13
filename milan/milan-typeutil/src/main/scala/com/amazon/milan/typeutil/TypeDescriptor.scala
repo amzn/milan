@@ -203,7 +203,7 @@ class TypeDescriptorMacros(val c: whitebox.Context) extends TypeDescriptorMacroH
 
   def createStream[T: c.WeakTypeTag]: c.Expr[StreamTypeDescriptor] = {
     val recordTypeDesc = this.getTypeDescriptor[T]
-    c.Expr[StreamTypeDescriptor](q"new ${typeOf[StreamTypeDescriptor]}($recordTypeDesc)")
+    c.Expr[StreamTypeDescriptor](q"new ${typeOf[DataStreamTypeDescriptor]}($recordTypeDesc)")
   }
 
   def createNamedTuple[T <: Product : c.WeakTypeTag](fieldNames: c.Expr[String]*): c.Expr[TupleTypeDescriptor[T]] = {

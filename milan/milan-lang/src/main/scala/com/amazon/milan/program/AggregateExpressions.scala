@@ -1,6 +1,7 @@
 package com.amazon.milan.program
 
 import com.amazon.milan.typeutil.types
+import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
 
 trait AggregateExpression extends Tree {
@@ -12,6 +13,8 @@ object AggregateExpression {
 }
 
 
+@JsonSerialize
+@JsonDeserialize
 class Sum(val expr: Tree) extends AggregateExpression {
   override def getChildren: Iterable[Tree] = Seq(expr)
 
@@ -30,6 +33,8 @@ object Sum {
 }
 
 
+@JsonSerialize
+@JsonDeserialize
 class Max(val expr: Tree) extends AggregateExpression {
   override def getChildren: Iterable[Tree] = Seq(expr)
 
@@ -48,6 +53,8 @@ object Max {
 }
 
 
+@JsonSerialize
+@JsonDeserialize
 class Min(val expr: Tree) extends AggregateExpression {
   override def getChildren: Iterable[Tree] = Seq(expr)
 
@@ -75,6 +82,8 @@ object ArgAggregateExpression {
 }
 
 
+@JsonSerialize
+@JsonDeserialize
 class ArgMax(val expr: Tuple) extends ArgAggregateExpression {
   override def getChildren: Iterable[Tree] = Seq(expr)
 
@@ -93,6 +102,8 @@ object ArgMax {
 }
 
 
+@JsonSerialize
+@JsonDeserialize
 class ArgMin(val expr: Tuple) extends ArgAggregateExpression {
   override def getChildren: Iterable[Tree] = Seq(expr)
 
@@ -111,6 +122,8 @@ object ArgMin {
 }
 
 
+@JsonSerialize
+@JsonDeserialize
 class Mean(val expr: Tree) extends AggregateExpression {
   this.tpe = types.Double
 
@@ -131,6 +144,8 @@ object Mean {
 }
 
 
+@JsonSerialize
+@JsonDeserialize
 class First(val expr: Tree) extends AggregateExpression {
   override def getChildren: Iterable[Tree] = Seq(expr)
 

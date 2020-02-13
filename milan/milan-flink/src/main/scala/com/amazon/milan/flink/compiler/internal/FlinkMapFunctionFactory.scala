@@ -19,14 +19,14 @@ object FlinkMapFunctionFactory {
   private val typeName: String = getClass.getTypeName.stripSuffix("$")
 
   /**
-   * Applies a map operation defined in a [[MapNodeExpression]] graph node to a Flink data stream.
+   * Applies a map operation defined in a [[MapExpression]] graph node to a Flink data stream.
    *
-   * @param mapExpr         A [[MapNodeExpression]] expressing the map operation.
+   * @param mapExpr         A [[MapExpression]] expressing the map operation.
    * @param inputDataStream The Flink data stream being mapped.
    * @param lineageFactory  A factory for the lineage records that will be produced by the operation.
    * @return A [[SingleOutputStreamOperator]] of the mapped records and their associated lineage records.
    */
-  def applyMapFunction(mapExpr: MapNodeExpression,
+  def applyMapFunction(mapExpr: MapExpression,
                        inputDataStream: SingleOutputStreamOperator[_],
                        metricFactory: MetricFactory,
                        lineageFactory: LineageRecordFactory): SingleOutputStreamOperator[RecordWithLineage[_]] = {
@@ -197,7 +197,7 @@ object FlinkMapFunctionFactory {
     inputDataStream.map(lineageWrapper).name(this.generateName(mapExpr))
   }
 
-  private def generateName(mapExpr: MapNodeExpression): String = {
-    s"Map [${mapExpr.source.nodeName}] -> [${mapExpr.nodeName}]"
+  private def generateName(mapExpr: MapExpression): String = {
+    s"Map [${mapExpr.source.asStream.nodeName}] -> [${mapExpr.nodeName}]"
   }
 }

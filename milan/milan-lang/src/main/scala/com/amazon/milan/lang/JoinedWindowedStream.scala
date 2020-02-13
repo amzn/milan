@@ -21,7 +21,7 @@ class LeftJoinedWindowedStream[TLeft, TRight](val leftInput: Stream[TLeft],
    *
    * @param applyFunction The function to apply.
    * @tparam TOut The output type of the function being applied.
-   * @return An [[ObjectStream]] representing the result of the operation.
+   * @return A [[Stream]] representing the result of the operation.
    */
   def apply[TOut](applyFunction: (TLeft, Iterable[TRight]) => TOut): Stream[TOut] = macro JoinedWindowedStreamMacros.leftApply[TLeft, TRight, TOut]
 }

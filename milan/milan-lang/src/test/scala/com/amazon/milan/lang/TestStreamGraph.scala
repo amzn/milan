@@ -37,19 +37,19 @@ class TestStreamGraph {
   }
 
   @Test
-  def test_StreamGraph_GetStreams_WithOneStreamAddedWithOneInput_ReturnsBothStreamNodesWithoutReferences(): Unit = {
+  def test_StreamGraph_GetDereferencedGraph_Then_GetStreams_WithOneStreamAddedWithOneInput_ReturnsBothStreamNodesWithoutReferences(): Unit = {
     val input = Stream.of[IntRecord]
     val mapped = input.map(((r: IntRecord) => r) as "record")
 
     val graph = new StreamGraph(mapped)
 
-    val graphStreams = graph.getStreams.toList.sortBy(_.nodeId)
-    val originalStreams = List(input, mapped).map(_.node).sortBy(_.nodeId)
+    val graphStreams = graph.getDereferencedGraph.getStreams.toList.sortBy(_.nodeId)
+    val originalStreams = List(input, mapped).map(_.expr).sortBy(_.nodeId)
     assertEquals(originalStreams, graphStreams)
   }
 
   @Test
-  def test_StreamGraph_GetStreams_AfterDeserialization_WithOneStreamAddedWithOneInput_ReturnsBothStreamNodesWithoutReferences(): Unit = {
+  def test_StreamGraph_GetDereferencedGraph_Then_GetStreams_AfterDeserialization_WithOneStreamAddedWithOneInput_ReturnsBothStreamNodesWithoutReferences(): Unit = {
     val input = Stream.of[IntRecord]
     val mapped = input.map(((r: IntRecord) => r) as "record")
 
@@ -60,8 +60,8 @@ class TestStreamGraph {
 
     val parsedGraph = mapper.readValue[StreamGraph](json, classOf[StreamGraph])
 
-    val graphStreams = parsedGraph.getStreams.toList.sortBy(_.nodeId)
-    val originalStreams = List(input, mapped).map(_.node).sortBy(_.nodeId)
+    val graphStreams = parsedGraph.getDereferencedGraph.getStreams.toList.sortBy(_.nodeId)
+    val originalStreams = List(input, mapped).map(_.expr).sortBy(_.nodeId)
     assertEquals(originalStreams, graphStreams)
   }
 }

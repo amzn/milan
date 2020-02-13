@@ -12,7 +12,7 @@ class TestStream {
   def test_Stream_Of_ReturnsStreamWithExternalStreamNodeAndCorrectTypeName(): Unit = {
     val input = Stream.of[IntStringRecord]
 
-    val ExternalStream(_, _, streamType) = input.node
+    val ExternalStream(_, _, streamType) = input.expr
     assertEquals(TypeUtil.getTypeName(classOf[IntStringRecord]), streamType.recordType.fullName)
   }
 
@@ -20,7 +20,7 @@ class TestStream {
   def test_Stream_Of_GenericType_HasRecordTypeWithGenericArguments(): Unit = {
     val input = Stream.of[Tuple3Record[Int, Long, Double]]
 
-    val ExternalStream(_, _, streamType) = input.node
+    val ExternalStream(_, _, streamType) = input.expr
     assertEquals(3, streamType.recordType.genericArguments.length)
   }
 
@@ -29,7 +29,7 @@ class TestStream {
     val input = Stream.of[DateKeyValueRecord].withId("input")
     val windowed = input.latestBy(r => r.dateTime, r => r.key)
 
-    val LatestBy(Ref("input"), dateFunc, keyFunc) = windowed.node.getExpression
+    val LatestBy(ExternalStream("input", "input", _), dateFunc, keyFunc) = windowed.expr
     val FunctionDef(List("r"), SelectField(SelectTerm("r"), "dateTime")) = dateFunc
     val FunctionDef(List("r"), SelectField(SelectTerm("r"), "key")) = keyFunc
   }

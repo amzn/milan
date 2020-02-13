@@ -1,13 +1,10 @@
 package com.amazon.milan.program
 
 import com.amazon.milan.program.internal.TreeMacros
-import com.amazon.milan.serialization.ScalaObjectMapper
-import com.amazon.milan.typeutil.TypeDescriptor
-import com.fasterxml.jackson.core.{JsonGenerator, JsonParser}
-import com.fasterxml.jackson.databind._
+import com.amazon.milan.serialization.{ScalaObjectMapper, TypeInfoProvider, TypedJsonDeserializer, TypedJsonSerializer}
+import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, TypeDescriptor}
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
-import com.typesafe.scalalogging.Logger
-import org.slf4j.LoggerFactory
 
 import scala.language.experimental.macros
 
@@ -48,23 +45,27 @@ object Tree {
   }
 
   /**
-   * Gets the [[GraphNodeExpression]] nodes in a tree.
+   * Gets the [[StreamExpression]] nodes in a tree where type argument is a record type and not a stream.
    *
    * @param tree An expression tree.
-   * @return A sequence of all of the [[GraphNodeExpression]] nodes in the tree.
+   * @return A sequence of all of the [[StreamExpression]] nodes in the tree.
    */
-  def getStreamExpressions(tree: Tree): Iterable[StreamExpression] = {
+  def getDataStreams(tree: Tree): Iterable[StreamExpression] = {
     tree match {
-      case s: StreamExpression =>
+      case s: StreamExpression if this.isDataStream(s) =>
         Seq(s)
 
       case _ =>
-        tree.getChildren.flatMap(this.getStreamExpressions)
+        tree.getChildren.flatMap(this.getDataStreams)
     }
   }
 
+  def isDataStream(tree: Tree): Boolean = {
+    tree.tpe.isInstanceOf[DataStreamTypeDescriptor]
+  }
+
   /**
-   * Gets a copy of an expression tree with any child [[GraphNodeExpression]] nodes replaced with [[Ref]]
+   * Gets a copy of an expression tree with any child [[StreamExpression]] nodes replaced with [[Ref]]
    * nodes.
    *
    * @param tree An expression tree.
@@ -83,7 +84,7 @@ object Tree {
    * @return A copy of the input tree with any references replaced with actual nodes.
    */
   def replaceRefsWithActual(tree: Tree,
-                            nodes: Map[String, GraphNodeExpression]): Tree = {
+                            nodes: Map[String, StreamExpression]): Tree = {
     tree match {
       case Ref(nodeId) =>
         val node = nodes(nodeId)
@@ -97,14 +98,14 @@ object Tree {
 
 
   /**
-   * Gets a copy of an expression tree with [[GraphNodeExpression]] nodes replaced with [[Ref]] nodes.
+   * Gets a copy of an expression tree with [[StreamExpression]] nodes replaced with [[Ref]] nodes.
    *
    * @param tree An expression tree.
    * @return A copy of the expression tree with graph nodes replaced with references.
    */
   private def replaceStreamsWithReferences(tree: Tree): Tree = {
     tree match {
-      case s: StreamExpression =>
+      case s: StreamExpression if this.isDataStream(s) =>
         Ref(s.nodeId)
 
       case _ =>
@@ -120,7 +121,7 @@ object Tree {
  */
 @JsonSerialize(using = classOf[TreeSerializer])
 @JsonDeserialize(using = classOf[TreeDeserializer])
-abstract class Tree extends Serializable {
+abstract class Tree extends Serializable with TypeInfoProvider {
   /**
    * The type of the tree.
    * This can be null for trees that have not been fully typechecked.
@@ -130,8 +131,10 @@ abstract class Tree extends Serializable {
   /**
    * The expression type.
    */
+  @JsonIgnore
   val expressionType: String = getClass.getSimpleName
 
+  @JsonIgnore
   def getChildren: Iterable[Tree] = List()
 
   def replaceChildren(children: List[Tree]): Tree = this
@@ -148,7 +151,12 @@ abstract class Tree extends Serializable {
 
           case None if p.getType == classOf[TypeDescriptor[_]] =>
             // Private val constructor parameters of type TypeDescriptor are always equivalent to the tpe value.
-            cls.getMethod("tpe").invoke(this).asInstanceOf[TypeDescriptor[_]].toString
+            if (this.tpe == null) {
+              "null"
+            }
+            else {
+              this.tpe.toString
+            }
         }
       })
 
@@ -172,24 +180,12 @@ abstract class Tree extends Serializable {
 
 
 /**
- * Custom serializer for [[Tree]] objects that writes the expression tree as a string.
+ * Custom serializer for [[Tree]] objects.
  */
-class TreeSerializer extends JsonSerializer[Tree] {
-  override def serialize(t: Tree, jsonGenerator: JsonGenerator, serializerProvider: SerializerProvider): Unit = {
-    jsonGenerator.writeString(t.toString)
-  }
-}
+class TreeSerializer extends TypedJsonSerializer[Tree]
 
 
 /**
- * Custom deserializer for [[Tree]] objects that parses an expression tree string.
+ * Custom deserializer for [[Tree]] objects.
  */
-class TreeDeserializer extends JsonDeserializer[Tree] {
-  private val logger = Logger(LoggerFactory.getLogger(getClass))
-
-  override def deserialize(parser: JsonParser, context: DeserializationContext): Tree = {
-    val treeString = parser.getValueAsString
-    logger.debug(s"Deserializing tree '$treeString'.")
-    TreeParser.parse[Tree](treeString)
-  }
-}
+class TreeDeserializer extends TypedJsonDeserializer[Tree]("com.amazon.milan.program")

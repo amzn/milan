@@ -1,6 +1,7 @@
 package com.amazon.milan.program
 
 import com.amazon.milan.typeutil.{TypeDescriptor, types}
+import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
 /*
 This file contains the expression types for Milan expression trees.
@@ -25,11 +26,14 @@ In order for a new expression type to be used, it must be added here and support
    children
  */
 
+
 /**
  * A expression representing a constant value.
  *
  * @param value The constant value.
  */
+@JsonSerialize
+@JsonDeserialize
 class ConstantValue(val value: Any, private val valueType: TypeDescriptor[_]) extends Tree {
   this.tpe = valueType
 
@@ -51,6 +55,8 @@ object ConstantValue {
  *
  * @param milliseconds The length of the duration in milliseconds.
  */
+@JsonSerialize
+@JsonDeserialize
 class Duration(val milliseconds: Long) extends Tree {
   this.tpe = types.Duration
 
@@ -78,6 +84,8 @@ object Duration {
  * @param thenExpr  The expression to evaluate when the condition is true.
  * @param elseExpr  The expression to evaluate when the condition is false.
  */
+@JsonSerialize
+@JsonDeserialize
 class IfThenElse(val condition: Tree, val thenExpr: Tree, val elseExpr: Tree) extends Tree {
   override def getChildren: Iterable[Tree] = List(condition, thenExpr, elseExpr)
 
@@ -101,6 +109,8 @@ object IfThenElse {
  *
  * @param expr The expression to check for null.
  */
+@JsonSerialize
+@JsonDeserialize
 class IsNull(val expr: Tree) extends Tree {
   this.tpe = types.Boolean
 
@@ -126,6 +136,8 @@ object IsNull {
  *
  * @param expr The input expression.
  */
+@JsonSerialize
+@JsonDeserialize
 class Not(val expr: Tree) extends Tree {
   this.tpe = types.Boolean
 
@@ -146,6 +158,8 @@ object Not {
 }
 
 
+@JsonSerialize(using = classOf[TreeSerializer])
+@JsonDeserialize(using = classOf[TreeDeserializer])
 trait SelectExpression extends Tree
 
 
@@ -155,6 +169,8 @@ trait SelectExpression extends Tree
  * @param qualifier The qualifier of the field.
  * @param fieldName The name of the field.
  */
+@JsonSerialize
+@JsonDeserialize
 class SelectField(val qualifier: SelectExpression, val fieldName: String) extends SelectExpression {
   override def getChildren: Iterable[Tree] = Seq(this.qualifier)
 
@@ -179,6 +195,8 @@ object SelectField {
  *
  * @param termName The name of the function argument.
  */
+@JsonSerialize
+@JsonDeserialize
 class SelectTerm(val termName: String) extends SelectExpression {
   override def equals(obj: Any): Boolean = obj match {
     case SelectTerm(a) => this.termName.equals(a)
@@ -198,6 +216,8 @@ object SelectTerm {
  *
  * @param names The names to assign to the fields of the tuple in the inner expression.
  */
+@JsonSerialize
+@JsonDeserialize
 class Unpack(val target: SelectTerm, val names: List[String], val body: Tree) extends Tree {
   override def getChildren: Iterable[Tree] = List(target, body)
 
@@ -223,6 +243,8 @@ object Unpack {
  * @param arguments The names of the arguments of the function.
  * @param expr      The function expression.
  */
+@JsonSerialize
+@JsonDeserialize
 class FunctionDef(val arguments: List[String], val expr: Tree) extends Tree {
   override def getChildren: Iterable[Tree] = List(expr)
 
@@ -248,15 +270,17 @@ object FunctionDef {
  * @param function A reference to the function.
  * @param args     The arguments that are passed to the function.
  */
+@JsonSerialize
+@JsonDeserialize
 class ApplyFunction(val function: FunctionReference, val args: List[Tree], private val returnType: TypeDescriptor[_]) extends Tree {
   this.tpe = returnType
 
   override def getChildren: Iterable[Tree] = this.args
 
-  override def replaceChildren(children: List[Tree]): Tree = ApplyFunction(this.function, children, this.returnType)
+  override def replaceChildren(children: List[Tree]): Tree = ApplyFunction(this.function, children, this.tpe)
 
   override def equals(obj: Any): Boolean = obj match {
-    case ApplyFunction(f, a, r) => this.function.equals(f) && this.args.equals(a) && this.returnType.equals(r)
+    case ApplyFunction(f, a, r) => this.function.equals(f) && this.args.equals(a) && this.tpe == r
     case _ => false
   }
 }
@@ -276,22 +300,24 @@ object ApplyFunction {
  * @param expr       The expression to convert.
  * @param targetType The type to convert to.
  */
-class ConvertType(val expr: Tree, private val targetType: TypeDescriptor[_]) extends Tree {
+@JsonSerialize
+@JsonDeserialize
+class ConvertType(val expr: Tree, targetType: TypeDescriptor[_]) extends Tree {
   this.tpe = targetType
 
   override def getChildren: Iterable[Tree] = List(this.expr)
 
-  override def replaceChildren(children: List[Tree]): Tree = ConvertType(children.head, this.targetType)
+  override def replaceChildren(children: List[Tree]): Tree = ConvertType(children.head, this.tpe)
 
   override def equals(obj: Any): Boolean = obj match {
-    case ConvertType(e, t) => this.expr.equals(e) && this.targetType.equals(t)
+    case ConvertType(e, t) => this.expr.equals(e) && this.tpe.equals(t)
   }
 }
 
 object ConvertType {
   def apply(expr: Tree, targetType: TypeDescriptor[_]): ConvertType = new ConvertType(expr, targetType)
 
-  def unapply(arg: ConvertType): Option[(Tree, TypeDescriptor[_])] = Some((arg.expr, arg.targetType))
+  def unapply(arg: ConvertType): Option[(Tree, TypeDescriptor[_])] = Some((arg.expr, arg.tpe))
 }
 
 
@@ -301,6 +327,8 @@ object ConvertType {
  * @param ty   The type being instantiated.
  * @param args The constructor arguments.
  */
+@JsonSerialize
+@JsonDeserialize
 class CreateInstance(val ty: TypeDescriptor[_], val args: List[Tree]) extends Tree {
   this.tpe = ty
 
@@ -325,6 +353,8 @@ object CreateInstance {
  *
  * @param elements The trees whose output is put in the list.
  */
+@JsonSerialize
+@JsonDeserialize
 class Tuple(val elements: List[Tree]) extends Tree {
   override def getChildren: Iterable[Tree] = this.elements
 
@@ -345,6 +375,8 @@ object Tuple {
 /**
  * Base class for binary mathematical operators.
  */
+@JsonSerialize
+@JsonDeserialize
 abstract class BinaryMathOperator(val isAssociative: Boolean) extends Tree {
   val left: Tree
   val right: Tree
@@ -386,6 +418,8 @@ object Minus {
 /**
  * Base class for binary logical operators.
  */
+@JsonSerialize
+@JsonDeserialize
 abstract class BinaryLogicalOperator extends Tree {
   val left: Tree
   val right: Tree

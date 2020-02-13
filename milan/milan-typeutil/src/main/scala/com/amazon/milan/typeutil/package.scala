@@ -136,6 +136,10 @@ package object typeutil {
     def isStream: Boolean = this.typeDesc.isInstanceOf[StreamTypeDescriptor]
 
     def asStream: StreamTypeDescriptor = this.typeDesc.asInstanceOf[StreamTypeDescriptor]
+
+    def toIterable: TypeDescriptor[Iterable[T]] = TypeDescriptor.iterableOf[T](this.typeDesc)
+
+    def toStream: DataStreamTypeDescriptor = new DataStreamTypeDescriptor(this.typeDesc)
   }
 
 }

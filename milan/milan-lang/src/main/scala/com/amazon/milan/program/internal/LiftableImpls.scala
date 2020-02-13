@@ -95,17 +95,17 @@ trait LiftableImpls extends ProgramTypeNamesHost with LiftTypeDescriptorHost {
   implicit val liftMapRecord: Liftable[MapRecord] = { t => q"new ${typeOf[MapRecord]}(${t.source}, ${t.expr}, ${t.nodeId}, ${t.nodeName})" }
   implicit val liftMapFields: Liftable[MapFields] = { t => q"new ${typeOf[MapFields]}(${t.source}, ${t.fields}, ${t.nodeId}, ${t.nodeName})" }
 
-  implicit val liftMapNodeExpression: Liftable[MapNodeExpression] = { tree =>
+  implicit val liftMapExpression: Liftable[MapExpression] = { tree =>
     tree match {
       case t: MapRecord => liftMapRecord(t)
       case t: MapFields => liftMapFields(t)
     }
   }
 
-  implicit val liftLeftJoin: Liftable[LeftJoin] = { t => q"new ${typeOf[LeftJoin]}(${t.left}, ${t.right}, ${t.joinCondition}, ${t.nodeId}, ${t.nodeName})" }
-  implicit val liftFullJoin: Liftable[FullJoin] = { t => q"new ${typeOf[FullJoin]}(${t.left}, ${t.right}, ${t.joinCondition}, ${t.nodeId}, ${t.nodeName})" }
+  implicit val liftLeftJoin: Liftable[LeftJoin] = { t => q"new ${typeOf[LeftJoin]}(${t.left}, ${t.right}, ${t.nodeId}, ${t.nodeName})" }
+  implicit val liftFullJoin: Liftable[FullJoin] = { t => q"new ${typeOf[FullJoin]}(${t.left}, ${t.right}, ${t.nodeId}, ${t.nodeName})" }
 
-  implicit val liftJoinNodeExpression: Liftable[JoinNodeExpression] = { tree =>
+  implicit val liftJoinNodeExpression: Liftable[JoinExpression] = { tree =>
     tree match {
       case t: LeftJoin => liftLeftJoin(t)
       case t: FullJoin => liftFullJoin(t)
@@ -132,18 +132,12 @@ trait LiftableImpls extends ProgramTypeNamesHost with LiftTypeDescriptorHost {
   implicit val liftStreamExpression: Liftable[StreamExpression] = { tree =>
     tree match {
       case t: Filter => liftFilter(t)
-      case t: MapNodeExpression => liftMapNodeExpression(t)
-      case t: Ref => liftRef(t)
-    }
-  }
-
-  implicit val liftGraphNodeExpression: Liftable[GraphNodeExpression] = { tree =>
-    tree match {
+      case t: MapExpression => liftMapExpression(t)
       case t: FieldDefinition => liftFieldDefinition(t)
       case t: UniqueBy => liftUniqueBy(t)
-      case t: StreamExpression => liftStreamExpression(t)
-      case t: JoinNodeExpression => liftJoinNodeExpression(t)
+      case t: JoinExpression => liftJoinNodeExpression(t)
       case t: GroupingExpression => liftGroupingExpression(t)
+      case t: Ref => liftRef(t)
     }
   }
 
@@ -163,6 +157,7 @@ trait LiftableImpls extends ProgramTypeNamesHost with LiftTypeDescriptorHost {
       case t: Not => liftNot(t)
       case t: Plus => liftPlus(t)
       case t: SelectExpression => liftSelectExpression(t)
+      case t: StreamExpression => liftStreamExpression(t)
       case t: Tuple => liftTuple(t)
       case t: Unpack => liftUnpack(t)
     }

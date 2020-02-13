@@ -28,8 +28,8 @@ class TestJoin {
     val join = left.fullJoin(right)
 
     assertEquals(JoinType.FullEnrichmentJoin, join.joinType)
-    assertEquals(left.node, join.leftInput)
-    assertEquals(right.node, join.rightInput)
+    assertEquals(left.expr, join.leftInput)
+    assertEquals(right.expr, join.rightInput)
   }
 
   @Test
@@ -40,9 +40,9 @@ class TestJoin {
     val join = left.fullJoin(right)
     val where = join.where((l, r) => l.key == r.key)
 
-    val FullJoin(leftInput, rightInput, condition) = where.node.getExpression
-    assertEquals(left.node.getExpression, leftInput)
-    assertEquals(right.node.getExpression, rightInput)
+    val Filter(FullJoin(leftInput, rightInput), condition) = where.expr
+    assertEquals(left.expr, leftInput)
+    assertEquals(right.expr, rightInput)
 
     // Extract out the join condition expression.
     val FunctionDef(_, Equals(SelectField(SelectTerm("l"), "key"), SelectField(SelectTerm("r"), "key"))) = condition
@@ -57,8 +57,8 @@ class TestJoin {
     val where = join.where((l, r) => l.key == r.key)
     val select = where.select((l, r) => TestJoin.joinRecords(l, r))
 
-    val mapExpr = select.node.getExpression.asInstanceOf[MapRecord]
-    assertEquals(where.node.getExpression, mapExpr.source)
+    val mapExpr = select.expr.asInstanceOf[MapRecord]
+    assertEquals(where.expr, mapExpr.source)
 
     val FunctionDef(List("l", "r"), ApplyFunction(FunctionReference(objectTypeName, "joinRecords"), List(SelectTerm("l"), SelectTerm("r")), _)) = mapExpr.expr
     assertEquals(classOf[TestJoin].getName, objectTypeName)
@@ -74,8 +74,8 @@ class TestJoin {
     val select = where.select(
       ((l: KeyValueRecord, r: KeyValueRecord) => TestJoin.joinRecords(l, r)) as "j")
 
-    val mapExpr = select.node.getExpression.asInstanceOf[MapFields]
-    assertEquals(where.node.getExpression, mapExpr.source)
+    val mapExpr = select.expr.asInstanceOf[MapFields]
+    assertEquals(where.expr, mapExpr.source)
 
     val List(FieldDefinition("j", FunctionDef(List("l", "r"), ApplyFunction(FunctionReference(objectTypeName, "joinRecords"), List(SelectTerm("l"), SelectTerm("r")), _)))) = mapExpr.fields
     assertEquals(classOf[TestJoin].getName, objectTypeName)
@@ -93,7 +93,7 @@ class TestJoin {
       FieldDescriptor("right", TypeDescriptor.of[IntKeyValueRecord]))
     assertEquals(expectedFields, output.recordType.fields)
 
-    val MapFields(_, fields) = output.node.getExpression
+    val MapFields(_, fields) = output.expr
     val FieldDefinition("left", FunctionDef(List("l", "r"), SelectTerm("l"))) = fields.head
     val FieldDefinition("right", FunctionDef(List("l", "r"), SelectTerm("r"))) = fields.last
   }
@@ -113,7 +113,7 @@ class TestJoin {
       FieldDescriptor("b", types.Long))
     assertEquals(expectedFields, output.recordType.fields)
 
-    val MapFields(_, fields) = output.node.getExpression
+    val MapFields(_, fields) = output.expr
     val FieldDefinition("left", FunctionDef(List("l", "r"), SelectTerm("l"))) = fields.head
     val FieldDefinition("a", FunctionDef(List("l", "r"), SelectField(SelectTerm("r"), "a"))) = fields(1)
     val FieldDefinition("b", FunctionDef(List("l", "r"), SelectField(SelectTerm("r"), "b"))) = fields(2)
@@ -134,7 +134,7 @@ class TestJoin {
       FieldDescriptor("right", TypeDescriptor.of[IntKeyValueRecord]))
     assertEquals(expectedFields, output.recordType.fields)
 
-    val MapFields(_, fields) = output.node.getExpression
+    val MapFields(_, fields) = output.expr
     val FieldDefinition("a", FunctionDef(List("l", "r"), SelectField(SelectTerm("l"), "a"))) = fields.head
     val FieldDefinition("b", FunctionDef(List("l", "r"), SelectField(SelectTerm("l"), "b"))) = fields(1)
     val FieldDefinition("right", FunctionDef(List("l", "r"), SelectTerm("r"))) = fields(2)
@@ -158,7 +158,7 @@ class TestJoin {
       FieldDescriptor("d", types.Double))
     assertEquals(expectedFields, output.recordType.fields)
 
-    val MapFields(_, fields) = output.node.getExpression
+    val MapFields(_, fields) = output.expr
     val FieldDefinition("a", FunctionDef(List("l", "r"), SelectField(SelectTerm("l"), "a"))) = fields.head
     val FieldDefinition("b", FunctionDef(List("l", "r"), SelectField(SelectTerm("l"), "b"))) = fields(1)
     val FieldDefinition("c", FunctionDef(List("l", "r"), SelectField(SelectTerm("r"), "c"))) = fields(2)

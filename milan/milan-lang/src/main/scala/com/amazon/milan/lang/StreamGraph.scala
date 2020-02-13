@@ -1,16 +1,15 @@
 package com.amazon.milan.lang
 
-import com.amazon.milan.program
-import com.amazon.milan.program.{ComputedStream, ExternalStream, Filter, GraphNode, GraphNodeExpression, MapNodeExpression, Ref, StreamExpression, Tree}
+import com.amazon.milan.program.{Ref, StreamExpression, Tree}
 import com.fasterxml.jackson.annotation.{JsonCreator, JsonIgnore}
 
 import scala.language.experimental.macros
 
 
 @JsonCreator()
-class StreamGraph(var streamsById: Map[String, program.Stream]) {
+class StreamGraph(var streamsById: Map[String, StreamExpression]) {
   def this() {
-    this(Map.empty[String, program.Stream])
+    this(Map.empty[String, StreamExpression])
   }
 
   def this(streams: Stream[_]*) {
@@ -24,19 +23,19 @@ class StreamGraph(var streamsById: Map[String, program.Stream]) {
    * @param stream The stream to add.
    */
   def addStream(stream: Stream[_]): Unit = {
-    this.addWithReferences(stream.node)
+    this.addWithReferences(stream.expr)
   }
 
   /**
    * Gets the stream with the specified ID.
    *
    * @param streamId The ID of a stream.
-   * @return The [[program.Stream]] object representing the requested stream.
+   * @return The [[StreamExpression]] object representing the requested stream.
    */
-  def getStream(streamId: String): program.Stream = {
+  def getStream(streamId: String): StreamExpression = {
     this.streamsById.get(streamId) match {
       case Some(stream) =>
-        stream.asStream
+        stream
 
       case _ =>
         throw new IllegalArgumentException(s"No stream with ID '$streamId' exists.")
@@ -49,22 +48,16 @@ class StreamGraph(var streamsById: Map[String, program.Stream]) {
    * @return An [[Iterable]] that yields the streams.
    */
   @JsonIgnore
-  def getStreams: Iterable[program.Stream] = this.streamsById.values
+  def getStreams: Iterable[StreamExpression] = this.streamsById.values
 
   /**
    * Gets the nodes in the graph with all references replaced with actual nodes where possible.
    */
   @JsonIgnore
   def getDereferencedGraph: StreamGraph = {
-    // We need a map of IDs to stream expressions, where the expressions have had node IDs applied.
-    val streamExpressionsById = this.streamsById.map {
-      case (id, stream) => id -> this.getExpressionWithNameAndId(stream)
-    }
-
     val dereferencedStreams =
-      streamExpressionsById.values
-        .map(this.dereferenceGraphNodeExpression(streamExpressionsById))
-        .map(this.convertToStream)
+      streamsById.values
+        .map(this.dereferenceStreamExpression)
         .map(stream => stream.nodeId -> stream)
         .toMap
 
@@ -72,27 +65,25 @@ class StreamGraph(var streamsById: Map[String, program.Stream]) {
   }
 
   /**
-   * Recursively adds a [[program.Stream]] object to the graph, replacing input streams with references.
+   * Recursively adds a [[StreamExpression]] object to the graph, replacing input streams with references.
    *
-   * @param stream A [[program.Stream]] object to add to the graph.
+   * @param stream A [[StreamExpression]] object to add to the graph.
    */
-  private def addWithReferences(stream: program.Stream): Unit = {
+  private def addWithReferences(stream: StreamExpression): Unit = {
     if (this.streamsById.contains(stream.nodeId)) {
       return
     }
 
     // First add any child graph nodes as separate entries in the database.
-    stream.getExpression.getChildren
-      .flatMap(Tree.getStreamExpressions)
-      .map(this.convertToStream)
+    stream.getChildren
+      .flatMap(Tree.getDataStreams)
       .foreach(this.addWithReferences)
 
     // Get a version of the node with child nodes replaced with references.
     // This prevents us from deep-copying any nodes.
-    val exprWithReferences = Tree.replaceChildStreamsWithReferences(stream.getExpression).asInstanceOf[StreamExpression]
-    val streamToAdd = this.convertToStream(exprWithReferences)
+    val exprWithReferences = Tree.replaceChildStreamsWithReferences(stream).asInstanceOf[StreamExpression]
 
-    this.streamsById = this.streamsById + (stream.nodeId -> streamToAdd)
+    this.streamsById = this.streamsById + (stream.nodeId -> exprWithReferences)
   }
 
   /**
@@ -102,19 +93,22 @@ class StreamGraph(var streamsById: Map[String, program.Stream]) {
    * @param tree An expression tree.
    * @return A copy of the tree with all non-external references replaced with actual nodes.
    */
-  private def dereferenceExpressionTree(refsById: Map[String, GraphNodeExpression])(tree: Tree): Tree = {
+  private def dereferenceExpressionTree(tree: Tree): Tree = {
     tree match {
       case Ref(nodeId) =>
-        refsById(nodeId) match {
-          case Ref(derefNodeId) =>
-            refsById(derefNodeId)
+        streamsById.get(nodeId) match {
+          case Some(Ref(derefNodeId)) =>
+            streamsById(derefNodeId)
 
-          case expr =>
-            this.dereferenceExpressionTree(refsById)(expr)
+          case Some(expr) =>
+            this.dereferenceExpressionTree(expr)
+
+          case None =>
+            tree
         }
 
       case _ =>
-        val newChildren = tree.getChildren.map(this.dereferenceExpressionTree(refsById)).toList
+        val newChildren = tree.getChildren.map(this.dereferenceExpressionTree).toList
         tree.replaceChildren(newChildren)
     }
   }
@@ -123,35 +117,11 @@ class StreamGraph(var streamsById: Map[String, program.Stream]) {
    * Reconstructs an expression tree so that any [[Ref]] nodes are replaced with the actual nodes
    * they refer to. Any references to external streams will remain as [[Ref]] nodes.
    *
-   * @param expr A [[GraphNodeExpression]] expression tree.
+   * @param expr A [[StreamExpression]] expression tree.
    * @return A copy of the tree with all non-external references replaced with actual nodes.
    */
-  private def dereferenceGraphNodeExpression(refsById: Map[String, GraphNodeExpression])(expr: GraphNodeExpression): GraphNodeExpression = {
-    this.dereferenceExpressionTree(refsById)(expr).asInstanceOf[GraphNodeExpression]
-  }
-
-  /**
-   * Gets a [[GraphNode]] representing the application of a [[GraphNodeExpression]] expression.
-   */
-  private def convertToStream(expr: GraphNodeExpression): program.Stream = {
-    expr match {
-      case r: Ref => ExternalStream(r.nodeId, r.nodeName, r.tpe.asStream)
-      case f: Filter => ComputedStream(f.nodeId, f.nodeName, f)
-      case m: MapNodeExpression => ComputedStream(m.nodeId, m.nodeName, m)
-    }
-  }
-
-  /**
-   * Gets the expression from a graph node with the name and ID of the node applied to the expression.
-   */
-  private def getExpressionWithNameAndId(stream: program.Stream): GraphNodeExpression = {
-    stream match {
-      case e: ExternalStream =>
-        e.getExpression
-
-      case s: ComputedStream =>
-        s.definition.withNameAndId(s.name, s.nodeId)
-    }
+  private def dereferenceStreamExpression(expr: StreamExpression): StreamExpression = {
+    this.dereferenceExpressionTree(expr).asInstanceOf[StreamExpression]
   }
 
   override def equals(obj: Any): Boolean = {

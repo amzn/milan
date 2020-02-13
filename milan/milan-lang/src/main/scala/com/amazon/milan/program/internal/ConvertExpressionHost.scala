@@ -20,6 +20,8 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
    */
   private trait ExpressionContext {
     def isArgument(name: String): Boolean
+
+    def convertApplyExpression(apply: Apply): c.universe.Tree
   }
 
   /**
@@ -27,19 +29,54 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
    */
   private class BaseExpressionContext extends ExpressionContext {
     override def isArgument(name: String): Boolean = false
+
+    override def convertApplyExpression(apply: c.universe.Apply): c.universe.Tree = throw new NotImplementedError()
   }
 
   /**
-   * An [[ExpressionContext]] used when the current context is a function body.
+   * An [[ExpressionContext]] used when the current context is the body of a function with scalar arguments.
    *
    * @param argNames The names of the input arguments to the function that contains the expression.
    */
-  private class FunctionBodyExpressionContext(argNames: List[String],
-                                              parentContext: ExpressionContext)
+  private class ScalarFunctionBodyExpressionContext(argNames: List[String],
+                                                    parentContext: ExpressionContext)
     extends ExpressionContext {
 
     override def isArgument(name: String): Boolean = {
       this.argNames.contains(name) || this.parentContext.isArgument(name)
+    }
+
+    override def convertApplyExpression(apply: c.universe.Apply): c.universe.Tree = {
+      val functionReference = getFunctionReferenceFromTree(apply.fun)
+      val argsList = getFunctionArguments(this, apply.args)
+
+      if (functionReference.objectTypeName == "builtin") {
+        getBuiltinFunction(functionReference, argsList)
+      }
+      else {
+        val outType = createTypeInfo[Any](apply.tpe)
+        q"new ${typeOf[ApplyFunction]}($functionReference, $argsList, ${outType.toTypeDescriptor})"
+      }
+    }
+  }
+
+  /**
+   * An [[ExpressionContext]] used when the current context is the body of a function with stream arguments.
+   *
+   * @param argNames The names of the input arguments to the function that contains the expression.
+   */
+  private class StreamFunctionBodyExpressionContext(argNames: List[String],
+                                                    parentContext: ExpressionContext)
+    extends ExpressionContext {
+
+    override def isArgument(name: String): Boolean = {
+      this.argNames.contains(name) || this.parentContext.isArgument(name)
+    }
+
+    override def convertApplyExpression(apply: c.universe.Apply): c.universe.Tree = {
+      // Apply expressions in a function of a Stream need to go inside the definition of the function in order to
+      // convert the body of that function as well.
+      apply
     }
   }
 
@@ -93,7 +130,7 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
                                body: c.universe.Tree): c.Expr[FunctionDef] = {
     val argNames = valDefs.map(_.name.toString)
 
-    val context = new FunctionBodyExpressionContext(argNames, new BaseExpressionContext)
+    val context = new ScalarFunctionBodyExpressionContext(argNames, new BaseExpressionContext)
     val milanExpr = getMilanExpressionTree(context, body)
     val tree = q"new ${typeOf[FunctionDef]}($argNames, $milanExpr)"
     c.Expr[FunctionDef](tree)
@@ -114,34 +151,34 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
 
     val outputTree =
       body match {
-        case q"$operand == null" =>
+        case q"$operand == null  " =>
           q"new ${typeOf[IsNull]}(${convert(operand)})"
 
-        case q"$operand != null" =>
+        case q"$operand != null  " =>
           q"new ${typeOf[Not]}(new ${typeOf[IsNull]}(${convert(operand)}))"
 
-        case q"$leftOperand != $rightOperand" =>
+        case q"$leftOperand != $rightOperand " =>
           q"new ${typeOf[Not]}(new ${typeOf[Equals]}(${convert(leftOperand)}, ${convert(rightOperand)}))"
 
-        case q"$leftOperand == $rightOperand" =>
+        case q"$leftOperand == $rightOperand " =>
           q"new ${typeOf[Equals]}(${convert(leftOperand)}, ${convert(rightOperand)})"
 
-        case q"$leftOperand && $rightOperand" =>
+        case q"$leftOperand && $rightOperand " =>
           q"new ${typeOf[And]}(${convert(leftOperand)}, ${convert(rightOperand)})"
 
-        case q"$leftOperand > $rightOperand" =>
+        case q"$leftOperand > $rightOperand " =>
           q"new ${typeOf[GreaterThan]}(${convert(leftOperand)}, ${convert(rightOperand)})"
 
-        case q"$leftOperand < $rightOperand" =>
+        case q"$leftOperand < $rightOperand " =>
           q"new ${typeOf[LessThan]}(${convert(leftOperand)}, ${convert(rightOperand)})"
 
-        case q"$leftOperand + $rightOperand" =>
+        case q"$leftOperand + $rightOperand " =>
           q"new ${typeOf[Plus]}(${convert(leftOperand)}, ${convert(rightOperand)})"
 
-        case q"$leftOperand - $rightOperand" =>
+        case q"$leftOperand - $rightOperand " =>
           q"new ${typeOf[Minus]}(${convert(leftOperand)}, ${convert(rightOperand)})"
 
-        case q"new $ty(..$args)" =>
+        case q"new $ty(..$args)  " =>
           q"new ${typeOf[CreateInstance]}(${convertTypeDescriptor(ty)}, ${convertList(args)})"
 
         case Select(qualifier, TermName(name)) if name.startsWith("to") && typeConversionTargetTypes.contains(name.substring(2)) =>
@@ -287,11 +324,11 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
 
     // match statements can be converted into a single Unpack expression because we only allow
     // a single match case and no case guards.
-    val q"(..$caseArgs)" = casePattern
+    val q"(..$caseArgs)  " = casePattern
     val argNames = getCaseArgNames(caseArgs.map(_.asInstanceOf[c.universe.Tree])).toList
 
     // Create a nested context with the new case arg names.
-    val caseContext = new FunctionBodyExpressionContext(argNames, context)
+    val caseContext = new ScalarFunctionBodyExpressionContext(argNames, context)
 
     val bodyNode = this.getMilanExpressionTree(caseContext, caseBody)
 

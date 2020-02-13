@@ -20,7 +20,7 @@ class TestWindow {
     val stream = Stream.of[DateIntRecord]
     val windowed = stream.tumblingWindow(r => r.dateTime, Duration.ofHours(1), Duration.ofMinutes(30))
 
-    val ComputedGraphNode(_, TumblingWindow(_, dateExtractorFunc, period, offset)) = windowed.node
+    val TumblingWindow(_, dateExtractorFunc, period, offset) = windowed.expr
 
     // If this extraction doesn't throw an exception then the formula is correct.
     val FunctionDef(List("r"), SelectField(SelectTerm("r"), "dateTime")) = dateExtractorFunc
@@ -35,7 +35,7 @@ class TestWindow {
     val grouped = stream.tumblingWindow(r => r.dateTime, Duration.ofHours(1), Duration.ofMinutes(30))
     val selected = grouped.select(((key: Instant, r: DateIntRecord) => max(r.i)) as "max")
 
-    val ComputedStream(_, _, MapFields(source, fields)) = selected.node
+    val MapFields(source, fields) = selected.expr
 
     assertEquals(1, selected.recordType.fields.length)
     assertEquals(FieldDescriptor("max", types.Int), selected.recordType.fields.head)
@@ -52,7 +52,7 @@ class TestWindow {
     val stream = Stream.of[DateIntRecord]
     val windowed = stream.slidingWindow(r => r.dateTime, Duration.ofHours(1), Duration.ofMinutes(10), Duration.ofMinutes(30))
 
-    val ComputedGraphNode(_, SlidingWindow(_, dateExtractorFunc, size, slide, offset)) = windowed.node
+    val SlidingWindow(_, dateExtractorFunc, size, slide, offset) = windowed.expr
 
     val FunctionDef(List("r"), SelectField(SelectTerm("r"), "dateTime")) = dateExtractorFunc
 
@@ -68,8 +68,8 @@ class TestWindow {
       .tumblingWindow(r => r.dateTime, Duration.ofMinutes(5), Duration.ZERO)
       .select((windowStart, r) => any(r))
 
-    val MapRecord(windowExpr, FunctionDef(List("windowStart", "r"), First(SelectTerm("r")))) = output.node.getExpression
+    val MapRecord(windowExpr, FunctionDef(List("windowStart", "r"), First(SelectTerm("r")))) = output.expr
     val TumblingWindow(groupExpr, FunctionDef(List("r"), SelectField(SelectTerm("r"), "dateTime")), program.Duration(300000), program.Duration(0)) = windowExpr
-    val GroupBy(Ref("input"), FunctionDef(List("r"), SelectField(SelectTerm("r"), "key"))) = groupExpr
+    val GroupBy(ExternalStream("input", "input", _), FunctionDef(List("r"), SelectField(SelectTerm("r"), "key"))) = groupExpr
   }
 }

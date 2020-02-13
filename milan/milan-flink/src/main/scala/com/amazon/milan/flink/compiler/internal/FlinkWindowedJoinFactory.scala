@@ -2,7 +2,7 @@ package com.amazon.milan.flink.compiler.internal
 
 import com.amazon.milan.flink.components.LatestApplyCoProcessFunction
 import com.amazon.milan.flink.{FlinkTypeNames, RuntimeEvaluator, TypeUtil}
-import com.amazon.milan.program.{LatestBy, MapRecord, WindowedLeftJoin}
+import com.amazon.milan.program.{FlatMap, LatestBy, LeftJoin}
 import com.amazon.milan.types.RecordWithLineage
 import com.amazon.milan.typeutil.TypeDescriptor
 import org.apache.flink.api.java.functions.KeySelector
@@ -15,11 +15,11 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator
 object FlinkWindowedJoinFactory {
   private val typeName: String = getClass.getTypeName.stripSuffix("$")
 
-  def applyLatestByThenApply(mapExpr: MapRecord,
+  def applyLatestByThenApply(mapExpr: FlatMap,
                              leftInputStream: SingleOutputStreamOperator[_],
                              rightInputStream: SingleOutputStreamOperator[_],
                              lineageRecordFactory: JoinLineageRecordFactory): SingleOutputStreamOperator[RecordWithLineage[_]] = {
-    val joinExpr = mapExpr.source.asInstanceOf[WindowedLeftJoin]
+    val joinExpr = mapExpr.source.asInstanceOf[LeftJoin]
     val latestByExpr = joinExpr.right.asInstanceOf[LatestBy]
     val keyType = latestByExpr.keyFunc.tpe
 
@@ -29,9 +29,9 @@ object FlinkWindowedJoinFactory {
     val outputTypeName = mapExpr.getRecordTypeName
 
     val eval = RuntimeEvaluator.instance
-    eval.evalFunction[MapRecord, SingleOutputStreamOperator[_], SingleOutputStreamOperator[_], JoinLineageRecordFactory, SingleOutputStreamOperator[RecordWithLineage[_]]](
+    eval.evalFunction[FlatMap, SingleOutputStreamOperator[_], SingleOutputStreamOperator[_], JoinLineageRecordFactory, SingleOutputStreamOperator[RecordWithLineage[_]]](
       "mapExpr",
-      eval.getClassName[MapRecord],
+      eval.getClassName[FlatMap],
       "leftInputStream",
       FlinkTypeNames.singleOutputStreamOperator(leftTypeName),
       "rightInputStream",
@@ -45,11 +45,11 @@ object FlinkWindowedJoinFactory {
       lineageRecordFactory)
   }
 
-  def applyLatestByThenApplyImpl[TLeft, TRight, TKey, TOut](mapExpr: MapRecord,
+  def applyLatestByThenApplyImpl[TLeft, TRight, TKey, TOut](mapExpr: FlatMap,
                                                             leftInputStream: SingleOutputStreamOperator[TLeft],
                                                             rightInputStream: SingleOutputStreamOperator[TRight],
                                                             lineageRecordFactory: JoinLineageRecordFactory): SingleOutputStreamOperator[RecordWithLineage[TOut]] = {
-    val joinExpr = mapExpr.source.asInstanceOf[WindowedLeftJoin]
+    val joinExpr = mapExpr.source.asInstanceOf[LeftJoin]
     val latestByExpr = joinExpr.right.asInstanceOf[LatestBy]
 
     val eval = RuntimeEvaluator.instance

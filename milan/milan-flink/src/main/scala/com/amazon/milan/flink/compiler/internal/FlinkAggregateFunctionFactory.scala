@@ -30,7 +30,7 @@ object FlinkAggregateFunctionFactory {
    * @param windowTypeName The full name of the window type of the windowed stream.
    * @return The [[SingleOutputStreamOperator]] that is the result of applying the select() operation to the windowed stream.
    */
-  def applySelectToWindowedStream(mapExpr: MapNodeExpression,
+  def applySelectToWindowedStream(mapExpr: MapExpression,
                                   windowedStream: WindowedStream[_, _, _],
                                   windowTypeName: String): SingleOutputStreamOperator[_] = {
     val eval = RuntimeEvaluator.instance
@@ -42,9 +42,9 @@ object FlinkAggregateFunctionFactory {
     val groupExpr = mapExpr.source.asInstanceOf[GroupingExpression]
     val keyTypeName = groupExpr.expr.tpe.getTypeName
 
-    eval.evalFunction[MapNodeExpression, GroupingExpression, WindowedStream[_, _, _], String, TypeInformation[_], SingleOutputStreamOperator[_]](
+    eval.evalFunction[MapExpression, GroupingExpression, WindowedStream[_, _, _], String, TypeInformation[_], SingleOutputStreamOperator[_]](
       "mapExpr",
-      eval.getClassName[MapNodeExpression],
+      eval.getClassName[MapExpression],
       "groupExpr",
       eval.getClassName[GroupingExpression],
       "windowedStream",
@@ -75,7 +75,7 @@ object FlinkAggregateFunctionFactory {
    * @tparam TOut    The output type of the select() operation.
    * @return The [[SingleOutputStreamOperator]] that is the result of applying the select() operation to the windowed stream.
    */
-  def applySelectToWindowedStreamImpl[TIn, TKey, TWindow <: Window, TOut](mapExpr: MapNodeExpression,
+  def applySelectToWindowedStreamImpl[TIn, TKey, TWindow <: Window, TOut](mapExpr: MapExpression,
                                                                           groupExpr: GroupingExpression,
                                                                           windowedStream: WindowedStream[TIn, TKey, TWindow],
                                                                           windowTypeName: String,
@@ -100,7 +100,7 @@ object FlinkAggregateFunctionFactory {
    * @param windowTypeName The full name of the window type of the windowed stream.
    * @return The [[SingleOutputStreamOperator]] that is the result of applying the select() operation to the windowed stream.
    */
-  def applySelectToAllWindowedStream(mapExpr: MapNodeExpression,
+  def applySelectToAllWindowedStream(mapExpr: MapExpression,
                                      windowedStream: AllWindowedStream[_, _],
                                      windowTypeName: String): SingleOutputStreamOperator[_] = {
     val eval = RuntimeEvaluator.instance
@@ -109,9 +109,9 @@ object FlinkAggregateFunctionFactory {
     val outputTypeName = outputTypeInfo.getTypeName
     val groupExpr = mapExpr.source.asInstanceOf[GroupingExpression]
 
-    eval.evalFunction[MapNodeExpression, GroupingExpression, AllWindowedStream[_, _], String, TypeInformation[_], SingleOutputStreamOperator[_]](
+    eval.evalFunction[MapExpression, GroupingExpression, AllWindowedStream[_, _], String, TypeInformation[_], SingleOutputStreamOperator[_]](
       "mapExpr",
-      eval.getClassName[MapNodeExpression],
+      eval.getClassName[MapExpression],
       "groupExpr",
       eval.getClassName[GroupingExpression],
       "windowedStream",
@@ -131,7 +131,7 @@ object FlinkAggregateFunctionFactory {
   /**
    * Applies a select() operation to a [[AllWindowedStream]] stream.
    *
-   * @param mapExpr        The graph node corresponding to the select() operation.
+   * @param mapExpr        The expression corresponding to the select() operation.
    * @param groupExpr      A [[GroupingExpression]] representing the input to the aggregation.
    * @param windowedStream The Flink [[AllWindowedStream]] that will have the select operation applied.
    * @param windowTypeName The full name of the window type of the windowed stream.
@@ -141,7 +141,7 @@ object FlinkAggregateFunctionFactory {
    * @tparam TOut    The output type of the select() operation.
    * @return The [[SingleOutputStreamOperator]] that is the result of applying the select() operation to the windowed stream.
    */
-  def applySelectToAllWindowedStreamImpl[TIn, TWindow <: Window, TOut](mapExpr: MapNodeExpression,
+  def applySelectToAllWindowedStreamImpl[TIn, TWindow <: Window, TOut](mapExpr: MapExpression,
                                                                        groupExpr: GroupingExpression,
                                                                        windowedStream: AllWindowedStream[TIn, TWindow],
                                                                        windowTypeName: String,
@@ -630,7 +630,7 @@ object FlinkAggregateFunctionFactory {
       .asInstanceOf[ProcessAllWindowFunction[TAggOut, TOut, TimeWindow]]
   }
 
-  private def generateName(expr: MapNodeExpression): String = {
+  private def generateName(expr: MapExpression): String = {
     s"AggregateSelect [${expr.nodeName}]"
   }
 }

@@ -22,13 +22,13 @@ object FlinkStreamConnector {
   /**
    * Connect two data streams where the join conditions are expressed in a Milan function.
    *
-   * @param joinExpr        The [[JoinNodeExpression]] expressing the join operation.
+   * @param joinCondition   The [[Filter]] expression containing the join operation and the join condition.
    * @param leftDataStream  The left input stream.
    * @param rightDataStream The right input stream.
    * @return A [[ConnectStreamsResult]] containing the connected streams, and a Milan function expressing the portion
    *         of the join conditions that could not be applied prior to the join logic.
    */
-  def keyByAndConnectStreams(joinExpr: JoinNodeExpression,
+  def keyByAndConnectStreams(joinCondition: Filter,
                              leftDataStream: SingleOutputStreamOperator[_],
                              rightDataStream: SingleOutputStreamOperator[_],
                              metricFactory: MetricFactory): ConnectStreamsResult = {
@@ -37,9 +37,9 @@ object FlinkStreamConnector {
 
     this.logger.info(s"Connecting streams of type '$leftTypeName' and '$rightTypeName'.")
 
-    val condition = joinExpr.joinCondition
-    val leftInputType = joinExpr.left.recordType
-    val rightInputType = joinExpr.right.recordType
+    val Filter(JoinExpression(leftInput, rightInput), condition) = joinCondition
+    val leftInputType = leftInput.recordType
+    val rightInputType = rightInput.recordType
 
     val transformedCondition =
       ContextualTreeTransformer.transform(condition, List(leftInputType, rightInputType))

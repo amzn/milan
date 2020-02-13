@@ -1,12 +1,12 @@
 package com.amazon.milan.program.internal
 
 import com.amazon.milan.Id
-import com.amazon.milan.program.{ComputedStream, Filter}
+import com.amazon.milan.program.Filter
 
 import scala.reflect.macros.whitebox
 
 /**
- * Trait enabling macro bundles to create [[ComputedStream]] graph nodes that contain filter operations.
+ * Trait enabling macro bundles to create [[Filter]] expressions.
  */
 trait FilteredStreamHost extends ConvertExpressionHost with ProgramTypeNamesHost {
   val c: whitebox.Context
@@ -14,25 +14,23 @@ trait FilteredStreamHost extends ConvertExpressionHost with ProgramTypeNamesHost
   import c.universe._
 
   /**
-   * Creates an expression that evaluates to a [[ComputedStream]] object, for a filter operation that yields a
+   * Creates an expression that evaluates to a [[Filter]] object, for a filter operation that yields a
    * record stream.
    *
    * @param predicate A filter predicate expression.
    * @tparam T The type of the stream being filtered.
-   * @return An expression that evaluates to a [[ComputedStream]] object.
+   * @return An expression that evaluates to a [[Filter]] object.
    */
-  def createdFilteredStream[T: c.WeakTypeTag](predicate: c.Expr[T => Boolean]): c.Expr[ComputedStream] = {
+  def createdFilteredStream[T: c.WeakTypeTag](predicate: c.Expr[T => Boolean]): c.Expr[Filter] = {
     val outputNodeId = Id.newId()
     val predicateExpression = getMilanFunction(predicate.tree)
-    val inputNodeVal = TermName(c.freshName())
-    val exprNodeVal = TermName(c.freshName())
+    val inputExprVal = TermName(c.freshName())
 
     val tree =
       q"""
-          val $inputNodeVal = ${c.prefix}.node
-          val $exprNodeVal = new ${typeOf[Filter]}($inputNodeVal.getStreamExpression, $predicateExpression, $outputNodeId, $outputNodeId, $inputNodeVal.getExpression.tpe)
-          new ${typeOf[ComputedStream]}($outputNodeId, $outputNodeId, $exprNodeVal)
+          val $inputExprVal = ${c.prefix}.expr
+          new ${typeOf[Filter]}($inputExprVal, $predicateExpression, $outputNodeId, $outputNodeId, $inputExprVal.tpe)
        """
-    c.Expr[ComputedStream](tree)
+    c.Expr[Filter](tree)
   }
 }

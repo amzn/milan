@@ -31,8 +31,8 @@ trait LiftTypeDescriptorHost {
     q"new ${weakTypeOf[CollectionTypeDescriptor[T]]}(${t.typeName}, ${t.genericArguments})"
   }
 
-  implicit val liftStreamTypeDescriptor: Liftable[StreamTypeDescriptor] = { t =>
-    q"new ${typeOf[StreamTypeDescriptor]}(${t.recordType})"
+  implicit val liftDataStreamTypeDescriptor: Liftable[DataStreamTypeDescriptor] = { t =>
+    q"new ${typeOf[DataStreamTypeDescriptor]}(${t.recordType})"
   }
 
   implicit val liftJoinedStreamsTypeDescriptor: Liftable[JoinedStreamsTypeDescriptor] = { t =>
@@ -43,6 +43,14 @@ trait LiftTypeDescriptorHost {
     q"new ${typeOf[GroupedStreamTypeDescriptor]}(${t.recordType})"
   }
 
+  implicit def liftStreamTypeDescriptor: Liftable[StreamTypeDescriptor] = { tree =>
+    tree match {
+      case t: DataStreamTypeDescriptor => liftDataStreamTypeDescriptor(t)
+      case t: JoinedStreamsTypeDescriptor => liftJoinedStreamsTypeDescriptor(t)
+      case t: GroupedStreamTypeDescriptor => liftGroupedStreamTypeDescriptor(t)
+    }
+  }
+
   implicit def liftTypeDescriptor[T: c.WeakTypeTag]: Liftable[TypeDescriptor[T]] = { tree =>
     tree match {
       case t: BasicTypeDescriptor[T] => liftBasicTypeDescriptor[T](c.weakTypeTag[T])(t)
@@ -50,8 +58,6 @@ trait LiftTypeDescriptorHost {
       case t: ObjectTypeDescriptor[T] => liftObjectTypeDescriptor(c.weakTypeTag[T])(t)
       case t: CollectionTypeDescriptor[T] => liftCollectionTypeDescriptor(c.weakTypeTag[T])(t)
       case t: StreamTypeDescriptor => liftStreamTypeDescriptor(t)
-      case t: JoinedStreamsTypeDescriptor => liftJoinedStreamsTypeDescriptor(t)
-      case t: GroupedStreamTypeDescriptor => liftGroupedStreamTypeDescriptor(t)
     }
   }
 

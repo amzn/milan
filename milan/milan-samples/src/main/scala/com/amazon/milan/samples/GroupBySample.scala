@@ -18,12 +18,12 @@ object GroupBySample {
     // Group by the "key" field and output a tuple stream with two fields.
     // One field is the group key, the other is the sum of the "value" field for all group members.
     val output =
-    input
-      .groupBy(r => r.key)
-      .select(
-        ((key: Int, _: KeyValueRecord) => key) as "key",
-        ((_: Int, r: KeyValueRecord) => sum(r.value)) as "sum")
-      .withName("output")
+      input
+        .groupBy(r => r.key)
+        .select(
+          ((key: Int, _: KeyValueRecord) => key) as "key",
+          ((_: Int, r: KeyValueRecord) => sum(r.value)) as "sum")
+        .withName("output")
 
     val graph = new StreamGraph(output)
 

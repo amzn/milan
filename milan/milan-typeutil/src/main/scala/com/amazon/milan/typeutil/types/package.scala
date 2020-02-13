@@ -19,7 +19,7 @@ package object types {
   val Nothing = new BasicTypeDescriptor[Nothing]("Nothing")
 
   def stream(recordType: TypeDescriptor[_]): StreamTypeDescriptor = {
-    new StreamTypeDescriptor(recordType)
+    new DataStreamTypeDescriptor(recordType)
   }
 
   def joinedStreams(leftRecordType: TypeDescriptor[_], rightRecordType: TypeDescriptor[_]): JoinedStreamsTypeDescriptor = {

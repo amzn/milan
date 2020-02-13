@@ -37,9 +37,9 @@ class TestObjectStream {
     val mapped = input.map(StaticMapFunctions.mapInputRecord(_))
 
     // Extract out the AST node for the mapped stream.
-    val ComputedStream(_, _, MapRecord(source, FunctionDef(_, ApplyFunction(FunctionReference(mapFunctionTypeName, mapFunctionMethodName), _, _)))) = mapped.node
+    val MapRecord(source, FunctionDef(_, ApplyFunction(FunctionReference(mapFunctionTypeName, mapFunctionMethodName), _, _))) = mapped.expr
     val outputTypeName = classOf[IntRecord].getTypeName.replace("$", ".")
-    assertEquals(input.node.getExpression, source)
+    assertEquals(input.expr, source)
     assertEquals("mapInputRecord", mapFunctionMethodName)
     assertEquals("com.amazon.milan.lang.TestObjectStream.StaticMapFunctions", mapFunctionTypeName)
   }
@@ -49,10 +49,9 @@ class TestObjectStream {
     val input = Stream.of[IntRecord]
     val mapped = input.map(r => TestObjectStream.makeOutput(r.i))
 
-    val ComputedStream(_, _, mapExpression) = mapped.node
-    val MapRecord(source, FunctionDef(_, ApplyFunction(_, args, _))) = mapExpression
+    val MapRecord(source, FunctionDef(_, ApplyFunction(_, args, _))) = mapped.expr
 
-    assertEquals(input.node.getExpression, source)
+    assertEquals(input.expr, source)
 
     val SelectField(SelectTerm(argName), fieldName) = args.head
     assertEquals("r", argName)
@@ -64,9 +63,9 @@ class TestObjectStream {
     val input = Stream.of[IntRecord]
     val mapped = input.map(((r: IntRecord) => TestObjectStream.makeOutput(r.i)) as "x")
 
-    val ComputedStream(_, _, MapFields(source, fields)) = mapped.node
+    val MapFields(source, fields) = mapped.expr
 
-    assertEquals(input.node.getExpression, source)
+    assertEquals(input.expr, source)
     assertEquals(1, fields.length)
 
     val fieldExpr = fields.head
@@ -89,9 +88,9 @@ class TestObjectStream {
       ((r: IntRecord) => TestObjectStream.makeOutput(r.i)) as "x",
       ((r: IntRecord) => TestObjectStream.makeOutput(r.i)) as "y")
 
-    val ComputedStream(_, _, MapFields(source, fields)) = mapped.node
+    val MapFields(source, fields) = mapped.expr
 
-    assertEquals(input.node.getExpression, source)
+    assertEquals(input.expr, source)
     assertEquals(2, fields.length)
 
     val List(fieldExpr1, fieldExpr2) = fields
@@ -120,8 +119,8 @@ class TestObjectStream {
     val input = Stream.of[IntRecord]
     val filtered = input.where(r => r.i == 1)
 
-    val ComputedStream(_, _, Filter(source, predicate)) = filtered.node
-    assertEquals(input.node.getExpression, source)
+    val Filter(source, predicate) = filtered.expr
+    assertEquals(input.expr, source)
 
     // If this template extraction doesn't throw an exception then we got what we expected.
     val FunctionDef(_, Equals(SelectField(SelectTerm("r"), "i"), ConstantValue(1, _))) = predicate

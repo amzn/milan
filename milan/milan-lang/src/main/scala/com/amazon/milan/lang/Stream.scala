@@ -2,10 +2,10 @@ package com.amazon.milan.lang
 
 import java.time.{Duration, Instant}
 
+import com.amazon.milan.Id
 import com.amazon.milan.lang.internal.StreamMacros
-import com.amazon.milan.program.{ComputedStream, FieldDefinition, FunctionDef, MapFields, SelectTerm}
-import com.amazon.milan.typeutil.{FieldDescriptor, TupleTypeDescriptor, TypeDescriptor, TypeJoiner}
-import com.amazon.milan.{Id, program}
+import com.amazon.milan.program.{FieldDefinition, FunctionDef, MapFields, SelectTerm, StreamExpression}
+import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, FieldDescriptor, TupleTypeDescriptor, TypeDescriptor, TypeJoiner}
 
 import scala.language.experimental.macros
 
@@ -13,16 +13,16 @@ import scala.language.experimental.macros
 /**
  * Class for streams of records.
  *
- * @param node       The graph node representing the tream.
+ * @param expr       The Milan expression representing the stream.
  * @param recordType A [[TypeDescriptor]] describing the stream records.
  * @tparam T The type of records on the stream.
  */
-class Stream[T](val node: program.Stream, val recordType: TypeDescriptor[T]) {
+class Stream[T](val expr: StreamExpression, val recordType: TypeDescriptor[T]) {
   type RecordType = T
 
-  def streamId: String = node.nodeId
+  def streamId: String = expr.nodeId
 
-  def streamName: String = node.name
+  def streamName: String = expr.nodeName
 
   /**
    * Gets a copy of this [[Stream]] object with the specified name assigned.
@@ -31,7 +31,7 @@ class Stream[T](val node: program.Stream, val recordType: TypeDescriptor[T]) {
    * @return A copy of the stream with the specified name assigned.
    */
   def withName(name: String): Stream[T] = {
-    new Stream[T](this.node.withName(name), this.recordType)
+    new Stream[T](this.expr.withName(name), this.recordType)
   }
 
   /**
@@ -41,7 +41,7 @@ class Stream[T](val node: program.Stream, val recordType: TypeDescriptor[T]) {
    * @return A copy of the stream with the specified ID assigned.
    */
   def withId(id: String): Stream[T] = {
-    new Stream[T](this.node.withId(id), this.recordType)
+    new Stream[T](this.expr.withId(id), this.recordType)
   }
 
   /**
@@ -87,12 +87,13 @@ class Stream[T](val node: program.Stream, val recordType: TypeDescriptor[T]) {
   def toField(fieldName: String): Stream[Tuple1[T]] = {
     // Create a MapFields expression that maps the input records into a single field.
     val fieldDef = FieldDefinition(fieldName, FunctionDef(List("r"), SelectTerm("r")))
-    val mapExpr = MapFields(this.node.getExpression, List(fieldDef))
-    val newId = Id.newId()
-    val mapNode = ComputedStream(newId, newId, mapExpr)
     val fieldDescriptor = FieldDescriptor(fieldName, this.recordType)
     val recordType = new TupleTypeDescriptor[Tuple1[T]](List(fieldDescriptor))
-    new Stream[Tuple1[T]](mapNode, recordType)
+
+    val id = Id.newId()
+    val outputType = new DataStreamTypeDescriptor(recordType)
+    val mapExpr = new MapFields(this.expr, List(fieldDef), id, id, outputType)
+    new Stream[Tuple1[T]](mapExpr, recordType)
   }
 
   /**
@@ -147,7 +148,7 @@ class Stream[T](val node: program.Stream, val recordType: TypeDescriptor[T]) {
    *       will be empty.
    */
   def fullJoin[TOther](other: Stream[TOther]): JoinedStream[T, TOther] = {
-    new JoinedStream[T, TOther](this.node, other.node, JoinType.FullEnrichmentJoin)
+    new JoinedStream[T, TOther](this.expr, other.expr, JoinType.FullEnrichmentJoin)
   }
 
   /**
@@ -161,7 +162,7 @@ class Stream[T](val node: program.Stream, val recordType: TypeDescriptor[T]) {
    *       will be empty.
    */
   def leftJoin[TOther](other: Stream[TOther]): JoinedStream[T, TOther] = {
-    new JoinedStream[T, TOther](this.node, other.node, JoinType.LeftEnrichmentJoin)
+    new JoinedStream[T, TOther](this.expr, other.expr, JoinType.LeftEnrichmentJoin)
   }
 
   /**

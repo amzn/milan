@@ -14,6 +14,6 @@ object GraphTypeChecker {
         .map(node => node.nodeId -> node.streamType)
         .toMap
 
-    graph.getStreams.foreach(node => TypeChecker.typeCheck(node.getExpression, inputNodeTypes))
+    graph.getStreams.foreach(node => TypeChecker.typeCheck(node, inputNodeTypes))
   }
 }

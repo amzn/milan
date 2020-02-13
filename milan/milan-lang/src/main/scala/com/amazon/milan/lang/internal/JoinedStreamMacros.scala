@@ -1,9 +1,10 @@
 package com.amazon.milan.lang.internal
 
 import com.amazon.milan.Id
-import com.amazon.milan.lang.{Function2FieldStatement, JoinedStream, JoinedStreamWithCondition, Stream}
+import com.amazon.milan.lang.{Function2FieldStatement, JoinType, JoinedStream, JoinedStreamWithCondition, Stream}
 import com.amazon.milan.program.internal.ConvertExpressionHost
-import com.amazon.milan.program.{ComputedGraphNode, FullJoin, LeftJoin}
+import com.amazon.milan.program.{Filter, FullJoin, FunctionDef, LeftJoin}
+import com.amazon.milan.typeutil.{JoinedStreamsTypeDescriptor, TypeDescriptor}
 
 import scala.reflect.macros.whitebox
 
@@ -27,24 +28,13 @@ class JoinedStreamMacros(val c: whitebox.Context) extends StreamMacroHost with C
    */
   def where[TLeft: c.WeakTypeTag, TRight: c.WeakTypeTag](conditionPredicate: c.Expr[(TLeft, TRight) => Boolean]): c.Expr[JoinedStreamWithCondition[TLeft, TRight]] = {
     val conditionExpr = getMilanFunction(conditionPredicate.tree)
-
     val inputStreamVal = TermName(c.freshName())
-    val streamExpr = TermName(c.freshName())
-    val outNodeVal = TermName(c.freshName())
-    val outNodeId = Id.newId()
 
     val tree =
       q"""
-          com.amazon.milan.lang.internal.ProgramValidation.validateFunction($conditionExpr, 2)
-
           val $inputStreamVal = ${c.prefix}
-          val $streamExpr = $inputStreamVal.joinType match {
-            case com.amazon.milan.lang.JoinType.LeftEnrichmentJoin => new ${typeOf[LeftJoin]}($inputStreamVal.leftInput.getStreamExpression, $inputStreamVal.rightInput.getStreamExpression, $conditionExpr, $outNodeId, $outNodeId)
-            case com.amazon.milan.lang.JoinType.FullEnrichmentJoin => new ${typeOf[FullJoin]}($inputStreamVal.leftInput.getStreamExpression, $inputStreamVal.rightInput.getStreamExpression, $conditionExpr, $outNodeId, $outNodeId)
-          }
-          val $outNodeVal = new ${typeOf[ComputedGraphNode]}($outNodeId, $streamExpr)
-          new ${weakTypeOf[JoinedStreamWithCondition[TLeft, TRight]]}($outNodeVal)
-       """
+          _root_.com.amazon.milan.lang.internal.JoinedStreamUtil.where($inputStreamVal, $conditionExpr)
+        """
 
     c.Expr[JoinedStreamWithCondition[TLeft, TRight]](tree)
   }
@@ -139,5 +129,25 @@ class JoinedStreamMacros(val c: whitebox.Context) extends StreamMacroHost with C
         (expr3, c.weakTypeOf[T3]),
         (expr4, c.weakTypeOf[T4]),
         (expr5, c.weakTypeOf[T5])))
+  }
+}
+
+
+object JoinedStreamUtil {
+  def where[TLeft, TRight](inputStream: JoinedStream[TLeft, TRight], conditionExpr: FunctionDef): JoinedStreamWithCondition[TLeft, TRight] = {
+    ProgramValidation.validateFunction(conditionExpr, 2)
+
+    val joinNodeId = Id.newId()
+    val joinedStreamType = new JoinedStreamsTypeDescriptor(inputStream.leftInput.recordType, inputStream.rightInput.recordType)
+
+    val joinExpr = inputStream.joinType match {
+      case JoinType.LeftEnrichmentJoin => new LeftJoin(inputStream.leftInput, inputStream.rightInput, joinNodeId, joinNodeId, joinedStreamType)
+      case JoinType.FullEnrichmentJoin => new FullJoin(inputStream.leftInput, inputStream.rightInput, joinNodeId, joinNodeId, joinedStreamType)
+    }
+
+    val outNodeId = Id.newId()
+    val streamExpr = new Filter(joinExpr, conditionExpr, outNodeId, outNodeId, joinedStreamType)
+
+    new JoinedStreamWithCondition[TLeft, TRight](streamExpr)
   }
 }

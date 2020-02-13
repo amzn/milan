@@ -21,10 +21,9 @@ class TestTupleStream {
       case (i, s) => IntStringRecord(i, s)
     })
 
-    val ComputedStream(_, _, mapFunction) = mapped.node
-    val MapRecord(source, FunctionDef(params, Unpack(unpackParam, List("i", "s"), ApplyFunction(function, args, _)))) = mapFunction
+    val MapRecord(source, FunctionDef(params, Unpack(unpackParam, List("i", "s"), ApplyFunction(function, args, _)))) = mapped.expr
 
-    assertEquals(tuple.node.getExpression, source)
+    assertEquals(tuple.expr, source)
     assertEquals("apply", function.functionName)
     assertEquals(2, args.length)
     assertEquals(unpackParam.termName, params.head)
@@ -48,8 +47,8 @@ class TestTupleStream {
         case (_, s) => s
       }) as "s")
 
-    val ComputedStream(_, _, MapFields(source, fields)) = mapped.node
-    assertEquals(tuple.node.getExpression, source)
+    val MapFields(source, fields) = mapped.expr
+    assertEquals(tuple.expr, source)
 
     assertEquals("i", fields.head.fieldName)
     val FunctionDef(List("t"), Unpack(SelectTerm("t"), List("i", "_"), SelectTerm("i"))) = fields.head.expr
@@ -66,8 +65,8 @@ class TestTupleStream {
       ((r: IntStringRecord) => r.s) as "s")
     val filtered = tuple.where { case (i, s) => i == 1 }
 
-    val ComputedStream(_, _, Filter(source, predicate)) = filtered.node
-    assertEquals(tuple.node.getExpression, source)
+    val Filter(source, predicate) = filtered.expr
+    assertEquals(tuple.expr, source)
 
     // If this template extraction doesn't throw an exception then we got what we expected.
     val FunctionDef(_, Unpack(_, List("i", "s"), Equals(SelectTerm("i"), ConstantValue(1, _)))) = predicate
@@ -98,7 +97,7 @@ class TestTupleStream {
     val MapFields(_, List(
     FieldDefinition("i", FunctionDef(List("r"), SelectField(SelectTerm("r"), "i"))),
     FieldDefinition("s", FunctionDef(List("r"), SelectField(SelectTerm("r"), "s"))),
-    FieldDefinition("one", FunctionDef(_, ConstantValue(1, types.Int))))) = output.node.getExpression
+    FieldDefinition("one", FunctionDef(_, ConstantValue(1, types.Int))))) = output.expr
   }
 
   @Test
@@ -116,7 +115,7 @@ class TestTupleStream {
     FieldDefinition("i", FunctionDef(List("r"), SelectField(SelectTerm("r"), "i"))),
     FieldDefinition("s", FunctionDef(List("r"), SelectField(SelectTerm("r"), "s"))),
     FieldDefinition("one", FunctionDef(_, ConstantValue(1, types.Int))),
-    FieldDefinition("two", FunctionDef(_, ConstantValue(2L, types.Long))))) = output.node.getExpression
+    FieldDefinition("two", FunctionDef(_, ConstantValue(2L, types.Long))))) = output.expr
   }
 
   @Test
@@ -143,6 +142,6 @@ class TestTupleStream {
     FieldDefinition("s", FunctionDef(List("r"), SelectField(SelectTerm("r"), "s"))),
     FieldDefinition("one", FunctionDef(_, ConstantValue(1, types.Int))),
     FieldDefinition("two", FunctionDef(_, ConstantValue(2L, types.Long))),
-    FieldDefinition("three", FunctionDef(_, ConstantValue("3", types.String))))) = output.node.getExpression
+    FieldDefinition("three", FunctionDef(_, ConstantValue("3", types.String))))) = output.expr
   }
 }

@@ -5,7 +5,7 @@ import java.time.Instant
 import com.amazon.milan.flink._
 import com.amazon.milan.flink.api.MilanAggregateFunction
 import com.amazon.milan.flink.components._
-import com.amazon.milan.program.{FunctionDef, GroupingExpression, MapFields, MapNodeExpression, MapRecord, SelectTerm, TimeWindowExpression, Tuple, UniqueBy}
+import com.amazon.milan.program.{FunctionDef, GroupingExpression, MapExpression, MapFields, MapRecord, SelectTerm, TimeWindowExpression, Tuple, UniqueBy}
 import com.amazon.milan.typeutil.TypeDescriptor
 import com.typesafe.scalalogging.Logger
 import org.apache.flink.api.common.typeinfo.TypeInformation
@@ -29,7 +29,7 @@ object FlinkAggregateUniqueFunctionFactory {
     val typeName: String
   }
 
-  class WindowedStreamContext[TIn, TKey, TWindow <: Window, TOut](val mapExpr: MapNodeExpression,
+  class WindowedStreamContext[TIn, TKey, TWindow <: Window, TOut](val mapExpr: MapExpression,
                                                                   val windowedStream: WindowedStream[TIn, TKey, TWindow],
                                                                   val windowTypeName: String,
                                                                   val outputTypeInfo: TypeInformation[TOut])
@@ -65,7 +65,7 @@ object FlinkAggregateUniqueFunctionFactory {
     def mapFields: MapFields = this.mapExpr.asInstanceOf[MapFields]
   }
 
-  class AllWindowedStreamContext[TIn, TWindow <: Window, TOut](val mapExpr: MapNodeExpression,
+  class AllWindowedStreamContext[TIn, TWindow <: Window, TOut](val mapExpr: MapExpression,
                                                                val windowedStream: AllWindowedStream[TIn, TWindow],
                                                                val windowTypeName: String,
                                                                val outputTypeInfo: TypeInformation[TOut])
@@ -107,7 +107,7 @@ object FlinkAggregateUniqueFunctionFactory {
    * @param windowTypeName The full name of the window type of the windowed stream.
    * @return The [[SingleOutputStreamOperator]] that is the result of applying the select() operation to the windowed stream.
    */
-  def applySelectToWindowedStream(mapExpr: MapNodeExpression,
+  def applySelectToWindowedStream(mapExpr: MapExpression,
                                   windowedStream: WindowedStream[_, _, _],
                                   windowTypeName: String): SingleOutputStreamOperator[_] = {
     val eval = RuntimeEvaluator.instance
@@ -116,12 +116,12 @@ object FlinkAggregateUniqueFunctionFactory {
     val outputTypeInfo = eval.createTypeInformation(mapExpr.recordType)
     val outputTypeName = mapExpr.getRecordTypeName
 
-    val MapNodeExpression(UniqueBy(source, _)) = mapExpr
+    val MapExpression(UniqueBy(source, _)) = mapExpr
     val keyTypeName = source.asInstanceOf[GroupingExpression].expr.tpe.getTypeName
 
-    val context = eval.evalFunction[MapNodeExpression, WindowedStream[_, _, _], String, TypeInformation[_], WindowedStreamContext[_, _, _, _]](
+    val context = eval.evalFunction[MapExpression, WindowedStream[_, _, _], String, TypeInformation[_], WindowedStreamContext[_, _, _, _]](
       "mapExpr",
-      eval.getClassName[MapNodeExpression],
+      eval.getClassName[MapExpression],
       "windowedStream",
       FlinkTypeNames.windowedStream(inputTypeName, keyTypeName, windowTypeName),
       "windowTypeName",
@@ -182,7 +182,7 @@ object FlinkAggregateUniqueFunctionFactory {
    * @param windowTypeName The full name of the window type of the windowed stream.
    * @return The [[SingleOutputStreamOperator]] that is the result of applying the select() operation to the windowed stream.
    */
-  def applySelectToAllWindowedStream(mapExpr: MapNodeExpression,
+  def applySelectToAllWindowedStream(mapExpr: MapExpression,
                                      windowedStream: AllWindowedStream[_, _],
                                      windowTypeName: String): SingleOutputStreamOperator[_] = {
     val eval = RuntimeEvaluator.instance
@@ -191,9 +191,9 @@ object FlinkAggregateUniqueFunctionFactory {
     val outputTypeInfo = eval.createTypeInformation(mapExpr.recordType)
     val outputTypeName = outputTypeInfo.getTypeName
 
-    val context = eval.evalFunction[MapNodeExpression, AllWindowedStream[_, _], String, TypeInformation[_], AllWindowedStreamContext[_, _, _]](
+    val context = eval.evalFunction[MapExpression, AllWindowedStream[_, _], String, TypeInformation[_], AllWindowedStreamContext[_, _, _]](
       "mapExpr",
-      eval.getClassName[MapNodeExpression],
+      eval.getClassName[MapExpression],
       "windowedStream",
       FlinkTypeNames.allWindowedStream(inputTypeName, windowTypeName),
       "windowTypeName",
@@ -572,7 +572,7 @@ object FlinkAggregateUniqueFunctionFactory {
   }
 
 
-  private def generateName(mapExpr: MapNodeExpression): String = {
+  private def generateName(mapExpr: MapExpression): String = {
     s"AggregateUniqueSelect [${mapExpr.nodeName}]"
   }
 

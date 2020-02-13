@@ -3,6 +3,7 @@ package com.amazon.milan.lang
 import com.amazon.milan.lang.internal.GroupedStreamMacros
 
 import scala.language.experimental.macros
+import scala.language.higherKinds
 
 
 /**

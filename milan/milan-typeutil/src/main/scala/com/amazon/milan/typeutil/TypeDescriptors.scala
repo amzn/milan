@@ -55,15 +55,23 @@ final class CollectionTypeDescriptor[T](val typeName: String,
 }
 
 
-trait StreamLikeTypeDescriptor[T] extends TypeDescriptor[T]
-
+trait StreamTypeDescriptor extends TypeDescriptor[Any] {
+  def recordType: TypeDescriptor[_]
+}
 
 @JsonSerialize
 @JsonDeserialize
-final class StreamTypeDescriptor(val recordType: TypeDescriptor[_]) extends StreamLikeTypeDescriptor[Any] {
+final class DataStreamTypeDescriptor(val recordType: TypeDescriptor[_]) extends StreamTypeDescriptor {
+  if (recordType == null) {
+    throw new IllegalArgumentException()
+  }
+
   override val typeName: String = "Stream"
 
-  override val fields: List[FieldDescriptor[_]] = List()
+  override val fields: List[FieldDescriptor[_]] = {
+    // Although the record type may have fields, a stream itself does not have any fields.
+    List()
+  }
 
   override val genericArguments: List[TypeDescriptor[_]] = List(this.recordType)
 }
@@ -76,7 +84,11 @@ object StreamTypeDescriptor {
 @JsonSerialize
 @JsonDeserialize
 final class JoinedStreamsTypeDescriptor(val leftRecordType: TypeDescriptor[_],
-                                        val rightRecordType: TypeDescriptor[_]) extends StreamLikeTypeDescriptor[Any] {
+                                        val rightRecordType: TypeDescriptor[_])
+  extends StreamTypeDescriptor {
+
+  override def recordType: TypeDescriptor[_] = new TupleTypeDescriptor[Any]("Tuple2", List(leftRecordType, rightRecordType), List())
+
   override val typeName: String = "JoinedStreams"
 
   override val fields: List[FieldDescriptor[_]] = List(
@@ -91,7 +103,9 @@ object JoinedStreamsTypeDescriptor {
 }
 
 
-final class GroupedStreamTypeDescriptor(val recordType: TypeDescriptor[_]) extends StreamLikeTypeDescriptor[Any] {
+@JsonSerialize
+@JsonDeserialize
+final class GroupedStreamTypeDescriptor(val recordType: TypeDescriptor[_]) extends StreamTypeDescriptor {
   override val typeName: String = "GroupedStream"
 
   override val fields: List[FieldDescriptor[_]] = List()

@@ -59,12 +59,12 @@ object TypeChecker {
   }
 
   /**
-   * Performs type checking on an expression tree whose root is a [[GraphNodeExpression]].
+   * Performs type checking on an expression tree whose root is a [[StreamExpression]].
    *
    * @param expression     The expression to type check.
    * @param inputNodeTypes A map of node IDs to types of stream nodes that are external to the expression tree.
    */
-  def typeCheck(expression: GraphNodeExpression, inputNodeTypes: Map[String, StreamTypeDescriptor]): Unit = {
+  def typeCheck(expression: StreamExpression, inputNodeTypes: Map[String, StreamTypeDescriptor]): Unit = {
     this.logger.debug(s"Type-checking expression '$expression'.")
 
     // Typecheck the input graph nodes first. Any function defs in this node will be functions of these inputs, so we'll
@@ -263,18 +263,20 @@ object TypeChecker {
   }
 
   /**
-   * Typechecks the [[GraphNodeExpression]] children of a [[GraphNodeExpression]] and returns the argument types of
+   * Typechecks the [[StreamExpression]] children of a [[StreamExpression]] and returns the argument types of
    * functions that are executed in the scope of the expression.
    * Depending on the expression the argument types will be a combination of the input stream type(s) and the group key
    * type. For example for an expression like MapRecord(GroupBy(source, keyFunction)) the argument types are
    * (group key type, source type).
    */
-  private def typeCheckInputsAndGetFunctionInputTypes(expr: GraphNodeExpression,
+  private def typeCheckInputsAndGetFunctionInputTypes(expr: StreamExpression,
                                                       inputNodeTypes: Map[String, StreamTypeDescriptor]): List[TypeDescriptor[_]] = {
-    val graphNodeInputs = expr.getChildren.filter(_.isInstanceOf[GraphNodeExpression]).map(_.asInstanceOf[GraphNodeExpression])
+    // Find all of the children of this expression that are streams.
+    // We need to make sure they are all typechecked.
+    val streamInputs = expr.getChildren.filter(_.isInstanceOf[StreamExpression]).map(_.asInstanceOf[StreamExpression])
+    streamInputs.foreach(input => this.typeCheck(input, inputNodeTypes))
 
-    graphNodeInputs.foreach(input => this.typeCheck(input, inputNodeTypes))
-
+    // Get the argument types for functions that are executed in the scope of this expression.
     this.getFunctionArgumentTypes(expr, inputNodeTypes)
   }
 
@@ -282,19 +284,22 @@ object TypeChecker {
    * Gets the types of the arguments to any functions that are executed in the scope of a graph expression.
    * This will not necessarily be the types of the direct inputs to the expression. For example, a MapRecord expression
    * may have as input a FullJoin, in which case this method will return the types of the input streams to the FullJoin.
+   *
+   * @param scopingExpr    A [[StreamExpression]] that defines the scope of functions being executed.
+   * @param inputNodeTypes The types of input nodes to the scoping expression.
    */
   @tailrec
-  private def getFunctionArgumentTypes(input: GraphNodeExpression,
+  private def getFunctionArgumentTypes(scopingExpr: StreamExpression,
                                        inputNodeTypes: Map[String, StreamTypeDescriptor]): List[TypeDescriptor[_]] = {
-    input match {
+    scopingExpr match {
       case Ref(nodeId) =>
         List(inputNodeTypes(nodeId).recordType)
 
-      case JoinNodeExpression(left, right, _) =>
-        List(left.recordType, right.recordType)
+      case ExternalStream(nodeId, _, _) =>
+        List(inputNodeTypes(nodeId).recordType)
 
-      case WindowedLeftJoin(left, right) =>
-        List(left.recordType, right.getInputRecordType)
+      case Filter(JoinExpression(left, right), _) =>
+        List(left.recordType, right.recordType)
 
       case TimeWindowExpression(GroupBy(source, _), _, _, _) =>
         this.getRecordTypes(source.tpe)
@@ -308,19 +313,29 @@ object TypeChecker {
       case UniqueBy(source, _) =>
         this.getFunctionArgumentTypes(source, inputNodeTypes)
 
-      case MapNodeExpression(source) =>
+      case MapExpression(source) =>
         this.getMapFunctionArgumentTypes(source, inputNodeTypes)
+
+      case FlatMapExpression(source) =>
+        this.getFlatMapFunctionArgumentTypes(source, inputNodeTypes)
+
+      case LatestBy(source, _, _) =>
+        List(source.recordType)
+
+      case JoinExpression(left, right) =>
+        List(left.recordType, right.recordType)
     }
   }
 
   /**
-   * Gets the types of the arguments of a map function.
+   * Gets the types of the arguments of a map function, based on the expression that represents the data source of the
+   * map function.
    * If the source of the map function is a grouping expression then the group key will be the first argument.
    */
-  private def getMapFunctionArgumentTypes(source: GraphNodeExpression,
+  private def getMapFunctionArgumentTypes(source: Tree,
                                           inputNodeTypes: Map[String, StreamTypeDescriptor]): List[TypeDescriptor[_]] = {
     source match {
-      case m: MapNodeExpression =>
+      case m: MapExpression =>
         this.getRecordTypes(m.tpe)
 
       case UniqueBy(GroupingExpression(groupSource, keyFunctionDef), _) =>
@@ -329,33 +344,52 @@ object TypeChecker {
         // UniqueBy returns the unique key, not the group key.
         List(keyFunctionDef.tpe) ++ this.getMapSourceRecordTypes(groupSource, inputNodeTypes)
 
-      case LatestBy(source, _, _) =>
-        List(source.recordType)
-
       case GroupingExpression(groupSource, keyFunctionDef) =>
         // Map functions that map the output of a group-by or window have the group key as one of the inputs.
         List(keyFunctionDef.tpe) ++ this.getMapSourceRecordTypes(groupSource, inputNodeTypes)
 
-      case o: GraphNodeExpression =>
-        this.getFunctionArgumentTypes(o, inputNodeTypes)
+      case t: SelectTerm if t.tpe.isStream =>
+        List(t.tpe.asStream.recordType)
+
+      case Filter(JoinExpression(_, _), _) =>
+        getMapSourceRecordTypes(source.asInstanceOf[Filter].source, inputNodeTypes)
+
+      case s: StreamExpression =>
+        getMapSourceRecordTypes(s, inputNodeTypes)
+    }
+  }
+
+  private def getFlatMapFunctionArgumentTypes(source: Tree,
+                                              inputNodeTypes: Map[String, StreamTypeDescriptor]): List[TypeDescriptor[_]] = {
+    source match {
+      case LeftJoin(left, right) =>
+        List(left.recordType, right.streamType)
     }
   }
 
   /**
    * Gets the record types of the source of a map expression.
    */
-  @tailrec
-  private def getMapSourceRecordTypes(source: GraphNodeExpression,
+  private def getMapSourceRecordTypes(source: Tree,
                                       inputNodeTypes: Map[String, StreamTypeDescriptor]): List[TypeDescriptor[_]] = {
     source match {
-      case m: MapNodeExpression =>
-        this.getRecordTypes(m.tpe)
-
       case GroupingExpression(groupSource, _) =>
         this.getMapSourceRecordTypes(groupSource, inputNodeTypes)
 
-      case o: GraphNodeExpression =>
-        this.getFunctionArgumentTypes(o, inputNodeTypes)
+      case t: SelectTerm if t.tpe.isStream =>
+        List(t.tpe.asStream.recordType)
+
+      case Ref(refNodeId) if inputNodeTypes.contains(refNodeId) =>
+        List(inputNodeTypes(refNodeId).recordType)
+
+      case ExternalStream(refNodeId, _, _) if inputNodeTypes.contains(refNodeId) =>
+        List(inputNodeTypes(refNodeId).recordType)
+
+      case JoinExpression(left, right) =>
+        this.getMapSourceRecordTypes(left, inputNodeTypes) ++ this.getMapSourceRecordTypes(right, inputNodeTypes)
+
+      case s: StreamExpression =>
+        this.getRecordTypes(s.tpe)
     }
   }
 
@@ -372,9 +406,10 @@ object TypeChecker {
   }
 
   /**
-   * Gets the result type of a [[GraphNodeExpression]] expression tree.
+   * Gets the result type of a [[StreamExpression]] expression tree.
    */
-  private def getTreeType(expr: GraphNodeExpression, inputNodeTypes: Map[String, StreamTypeDescriptor]): TypeDescriptor[_] = {
+  private def getTreeType(expr: StreamExpression,
+                          inputNodeTypes: Map[String, StreamTypeDescriptor]): TypeDescriptor[_] = {
     expr match {
       case Ref(nodeId) =>
         inputNodeTypes(nodeId)
@@ -386,6 +421,12 @@ object TypeChecker {
         val recordType = TypeDescriptor.createNamedTuple[Any](fields.map(field => (field.fieldName, field.expr.tpe)))
         types.stream(recordType)
 
+      case FlatMap(_, f) =>
+        types.stream(f.tpe)
+
+      case Filter(JoinExpression(left, right), _) =>
+        types.joinedStreams(left.recordType, right.recordType)
+
       case Filter(source, _) =>
         source.tpe
 
@@ -395,11 +436,11 @@ object TypeChecker {
       case g: GroupingExpression =>
         types.groupedStream(g.getInputRecordType)
 
-      case JoinNodeExpression(left, right, _) =>
-        types.joinedStreams(left.recordType, right.recordType)
+      case JoinExpression(left, right) =>
+        types.joinedStreams(left.tpe, right.tpe)
 
-      case WindowedLeftJoin(left, right) =>
-        types.joinedStreams(left.recordType, right.getInputRecordType)
+      case _ =>
+        throw new InvalidProgramException(s"Unexpected program element: $expr")
     }
   }
 

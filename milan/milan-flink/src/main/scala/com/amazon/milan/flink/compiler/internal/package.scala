@@ -4,11 +4,10 @@ import java.time.Duration
 
 import com.amazon.milan.flink.FlinkTypeNames
 import com.amazon.milan.flink.types.ArrayRecord
-import com.amazon.milan.program.{GraphNodeExpression, InvalidProgramException, SingleInputGraphNodeExpression, StreamExpression}
+import com.amazon.milan.program.{InvalidProgramException, StreamExpression, Tree}
 import com.amazon.milan.typeutil.TypeDescriptor
 import org.apache.flink.streaming.api.windowing.time.Time
 
-import scala.annotation.tailrec
 import scala.language.implicitConversions
 
 
@@ -50,13 +49,13 @@ package object internal {
     }
   }
 
-
   implicit class DurationExtensions(duration: Duration) {
     def toFlinkTime: Time = Time.milliseconds(duration.toMillis)
   }
 
+  implicit class StreamExpressionExtensions(stream: StreamExpression) {
+    def getRecordTypeName: String = stream.tpe.getRecordTypeName
 
-  implicit class GraphNodeExtensions(expr: GraphNodeExpression) {
     /**
      * Gets the record type of the nearest upstream input that is a [[StreamExpression]].
      */
@@ -75,33 +74,19 @@ package object internal {
      * StreamExpressions.
      */
     private def findInputStream: StreamExpression = {
-      this.expr match {
-        case SingleInputGraphNodeExpression(input) => findFirstStream(input)
-        case _ => findFirstStream(this.expr)
+      val streamInputs = this.stream.getChildren.filter(_.isInstanceOf[StreamExpression]).toList
+
+      if (streamInputs.length != 1) {
+        throw new InvalidProgramException(s"Couldn't determine the input stream for expression: ${this.stream}")
+      }
+      else {
+        streamInputs.head.asInstanceOf[StreamExpression]
       }
     }
   }
 
-
-  implicit class StreamExpressionExtensions(stream: StreamExpression) {
-    def getRecordTypeName: String = stream.tpe.getRecordTypeName
+  implicit class TreeExtensions(tree: Tree) {
+    def asStream: StreamExpression = this.tree.asInstanceOf[StreamExpression]
   }
 
-
-  /**
-   * Gets the stream expression that represents the nearest upstream stream expression to this expression,
-   * including this expression in the search.
-   *
-   * For example, if this expression is MapRecord(UniqueBy(GroupBy(MapRecord(...)))) then this method returns
-   * The inner MapRecord() expression because it is a StreamExpression while UniqueBy and GroupBy are not
-   * StreamExpressions.
-   */
-  @tailrec
-  def findFirstStream(expr: GraphNodeExpression): StreamExpression = {
-    expr match {
-      case s: StreamExpression => s
-      case SingleInputGraphNodeExpression(input) => findFirstStream(input)
-      case _ => throw new InvalidProgramException(s"Couldn't determine the input stream for expression: $expr")
-    }
-  }
 }

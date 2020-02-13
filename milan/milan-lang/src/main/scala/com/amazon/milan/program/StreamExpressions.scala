@@ -1,5 +1,6 @@
 package com.amazon.milan.program
 
+import com.amazon.milan.Id
 import com.amazon.milan.typeutil.{StreamTypeDescriptor, TypeDescriptor}
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
@@ -7,45 +8,31 @@ import org.apache.commons.lang.builder.HashCodeBuilder
 
 
 /**
- * Base trait for all graph expressions.
+ * Trait for graph expressions that represent data streams.
  */
 @JsonSerialize(using = classOf[TreeSerializer])
 @JsonDeserialize(using = classOf[TreeDeserializer])
-trait GraphNodeExpression extends Tree {
+trait StreamExpression extends Tree {
   val nodeId: String
   val nodeName: String
 
-  def withName(name: String): GraphNodeExpression = this.withNameAndId(name, this.nodeId)
+  def withName(name: String): StreamExpression = this.withNameAndId(name, this.nodeId)
 
-  def withId(id: String): GraphNodeExpression = this.withNameAndId(this.nodeName, id)
+  def withId(id: String): StreamExpression = {
+    // Setting the ID when the name hasn't been set, sets the name to the new ID.
+    // Otherwise the name looks like and ID but is different from the ID, which is weird.
+    if (this.nodeId == this.nodeName) {
+      this.withNameAndId(id, id)
+    }
+    else {
+      this.withNameAndId(this.nodeName, id)
+    }
+  }
 
-  def withNameAndId(name: String, id: String): GraphNodeExpression
+  def withNameAndId(name: String, id: String): StreamExpression
 
   override def hashCode(): Int = HashCodeBuilder.reflectionHashCode(this)
-}
 
-
-/**
- * Trait for graph expressions that have a single input node.
- */
-@JsonSerialize(using = classOf[TreeSerializer])
-@JsonDeserialize(using = classOf[TreeDeserializer])
-trait SingleInputGraphNodeExpression {
-  @JsonIgnore
-  def getInput: GraphNodeExpression
-}
-
-object SingleInputGraphNodeExpression {
-  def unapply(arg: SingleInputGraphNodeExpression): Option[GraphNodeExpression] = Some(arg.getInput)
-}
-
-
-/**
- * Trait for graph expressions that represent actual data streams.
- */
-@JsonSerialize(using = classOf[TreeSerializer])
-@JsonDeserialize(using = classOf[TreeDeserializer])
-trait StreamExpression extends GraphNodeExpression {
   @JsonIgnore
   def streamType: StreamTypeDescriptor = this.tpe.asStream
 
@@ -55,11 +42,62 @@ trait StreamExpression extends GraphNodeExpression {
 
 
 /**
+ * An expression that marks a location in an expression tree so that it can be located later.
+ *
+ * @param id The unique ID of the marker.
+ */
+@JsonSerialize
+@JsonDeserialize
+class Marker(val id: String) extends StreamExpression {
+  override val nodeId: String = this.id
+
+  override val nodeName: String = this.id
+
+  override def withNameAndId(name: String, id: String): StreamExpression = throw new NotImplementedError()
+
+  override def equals(obj: Any): Boolean = obj match {
+    case Marker(i) => id == i
+    case _ => false
+  }
+}
+
+object Marker {
+  def apply(id: String): Marker = new Marker(id)
+
+  def unapply(arg: Marker): Option[String] = Some(arg.id)
+}
+
+
+@JsonSerialize
+@JsonDeserialize
+class ExternalStream(val nodeId: String, val nodeName: String, streamType: StreamTypeDescriptor) extends StreamExpression {
+  this.tpe = streamType
+
+  override def withNameAndId(name: String, id: String): StreamExpression = new ExternalStream(id, name, this.streamType)
+
+  override def toString: String = s"""${this.expressionType}("${this.nodeId}", "${this.nodeName}")"""
+
+  override def equals(obj: Any): Boolean = obj match {
+    case o: ExternalStream => o.nodeId == this.nodeId && o.nodeName == this.nodeName && o.tpe == this.tpe
+    case _ => false
+  }
+}
+
+object ExternalStream {
+  def apply(nodeId: String, nodeName: String, streamType: StreamTypeDescriptor): ExternalStream = new ExternalStream(nodeId, nodeName, streamType)
+
+  def unapply(arg: ExternalStream): Option[(String, String, StreamTypeDescriptor)] = Some((arg.nodeId, arg.nodeName, arg.tpe.asStream))
+}
+
+
+/**
  * A reference to a graph node.
  *
  * @param nodeId   The ID of the referenced node.
  * @param nodeName The name of the referenced node.
  */
+@JsonSerialize
+@JsonDeserialize
 class Ref(val nodeId: String, val nodeName: String) extends StreamExpression {
   def this(nodeId: String) {
     this(nodeId, nodeId)
@@ -70,7 +108,7 @@ class Ref(val nodeId: String, val nodeName: String) extends StreamExpression {
     this.tpe = resultType
   }
 
-  override def withNameAndId(name: String, id: String): GraphNodeExpression = new Ref(id, name, this.tpe)
+  override def withNameAndId(name: String, id: String): StreamExpression = new Ref(id, name, this.tpe)
 
   override def toString: String = s"""${this.expressionType}("${this.nodeId}")"""
 
@@ -87,14 +125,12 @@ object Ref {
 }
 
 
-trait MapNodeExpression extends StreamExpression with SingleInputGraphNodeExpression {
-  val source: GraphNodeExpression
-
-  override def getInput: GraphNodeExpression = this.source
+trait MapExpression extends StreamExpression {
+  val source: Tree
 }
 
-object MapNodeExpression {
-  def unapply(arg: MapNodeExpression): Option[GraphNodeExpression] = Some(arg.source)
+object MapExpression {
+  def unapply(arg: MapExpression): Option[Tree] = Some(arg.source)
 }
 
 
@@ -104,12 +140,22 @@ object MapNodeExpression {
  * @param source The input to the map operation.
  * @param expr   The function that defines the operation.
  */
-class MapRecord(val source: GraphNodeExpression,
+@JsonSerialize
+@JsonDeserialize
+class MapRecord(val source: Tree,
                 val expr: FunctionDef,
-                val nodeId: String = "",
-                val nodeName: String = "") extends MapNodeExpression {
+                val nodeId: String,
+                val nodeName: String) extends MapExpression {
 
-  def this(source: GraphNodeExpression,
+  def this(source: Tree, expr: FunctionDef, nodeId: String) {
+    this(source, expr, nodeId, nodeId)
+  }
+
+  def this(source: Tree, expr: FunctionDef) {
+    this(source, expr, Id.newId())
+  }
+
+  def this(source: Tree,
            expr: FunctionDef,
            nodeId: String,
            nodeName: String,
@@ -118,14 +164,14 @@ class MapRecord(val source: GraphNodeExpression,
     this.tpe = resultType
   }
 
-  override def withNameAndId(name: String, id: String): GraphNodeExpression =
+  override def withNameAndId(name: String, id: String): StreamExpression =
     new MapRecord(this.source, this.expr, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(source, expr)
 
   override def replaceChildren(children: List[Tree]): Tree =
     new MapRecord(
-      children(0).asInstanceOf[GraphNodeExpression],
+      children(0),
       children(1).asInstanceOf[FunctionDef],
       this.nodeId,
       this.nodeName,
@@ -140,9 +186,9 @@ class MapRecord(val source: GraphNodeExpression,
 }
 
 object MapRecord {
-  def apply(source: GraphNodeExpression, expr: FunctionDef): MapRecord = new MapRecord(source, expr)
+  def apply(source: Tree, expr: FunctionDef): MapRecord = new MapRecord(source, expr)
 
-  def unapply(arg: MapRecord): Option[(GraphNodeExpression, FunctionDef)] = Some((arg.source, arg.expr))
+  def unapply(arg: MapRecord): Option[(Tree, FunctionDef)] = Some((arg.source, arg.expr))
 }
 
 
@@ -152,6 +198,8 @@ object MapRecord {
  * @param fieldName The name of the field.
  * @param expr      The function that defines how the field is computed.
  */
+@JsonSerialize
+@JsonDeserialize
 class FieldDefinition(val fieldName: String, val expr: FunctionDef) extends Tree {
   override def getChildren: Iterable[Tree] = Seq(expr)
 
@@ -177,12 +225,22 @@ object FieldDefinition {
  * @param source The input to the map operation.
  * @param fields The output fields.
  */
-class MapFields(val source: GraphNodeExpression,
+@JsonSerialize
+@JsonDeserialize
+class MapFields(val source: StreamExpression,
                 val fields: List[FieldDefinition],
-                val nodeId: String = "",
-                val nodeName: String = "") extends MapNodeExpression {
+                val nodeId: String,
+                val nodeName: String) extends MapExpression {
 
-  def this(source: GraphNodeExpression,
+  def this(source: StreamExpression, fields: List[FieldDefinition], nodeId: String) {
+    this(source, fields, nodeId, nodeId)
+  }
+
+  def this(source: StreamExpression, fields: List[FieldDefinition]) {
+    this(source, fields, Id.newId())
+  }
+
+  def this(source: StreamExpression,
            fields: List[FieldDefinition],
            nodeId: String,
            nodeName: String,
@@ -191,14 +249,14 @@ class MapFields(val source: GraphNodeExpression,
     this.tpe = resultType
   }
 
-  override def withNameAndId(name: String, id: String): GraphNodeExpression =
+  override def withNameAndId(name: String, id: String): StreamExpression =
     new MapFields(this.source, this.fields, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(source) ++ fields
 
   override def replaceChildren(children: List[Tree]): Tree =
     new MapFields(
-      children.head.asInstanceOf[GraphNodeExpression],
+      children.head.asInstanceOf[StreamExpression],
       children.tail.map(_.asInstanceOf[FieldDefinition]),
       this.nodeId,
       this.nodeName,
@@ -213,145 +271,115 @@ class MapFields(val source: GraphNodeExpression,
 }
 
 object MapFields {
-  def apply(source: GraphNodeExpression, fields: List[FieldDefinition]): MapFields =
+  def apply(source: StreamExpression, fields: List[FieldDefinition]): MapFields =
     new MapFields(source, fields)
 
-  def unapply(arg: MapFields): Option[(GraphNodeExpression, List[FieldDefinition])] = Some((arg.source, arg.fields))
+  def unapply(arg: MapFields): Option[(StreamExpression, List[FieldDefinition])] = Some((arg.source, arg.fields))
 }
 
 
-trait JoinNodeExpression extends GraphNodeExpression {
+/**
+ * Base trait for FlatMap expressions.
+ */
+trait FlatMapExpression extends StreamExpression {
+  val source: StreamExpression
+}
+
+object FlatMapExpression {
+  def unapply(arg: FlatMapExpression): Option[Tree] = Some(arg.source)
+}
+
+
+/**
+ * An expression representing a flatmap operation that results in a stream of objects.
+ *
+ * @param source The input to the map operation.
+ * @param expr   The function that defines the operation.
+ */
+@JsonSerialize
+@JsonDeserialize
+class FlatMap(val source: StreamExpression,
+              val expr: FunctionDef,
+              val nodeId: String,
+              val nodeName: String) extends FlatMapExpression {
+
+  def this(source: StreamExpression, expr: FunctionDef, nodeId: String) {
+    this(source, expr, nodeId, nodeId)
+  }
+
+  def this(source: StreamExpression, expr: FunctionDef) {
+    this(source, expr, Id.newId())
+  }
+
+  def this(source: StreamExpression,
+           expr: FunctionDef,
+           nodeId: String,
+           nodeName: String,
+           resultType: TypeDescriptor[_]) {
+    this(source, expr, nodeId, nodeName)
+    this.tpe = resultType
+  }
+
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new FlatMap(this.source, this.expr, id, name, this.tpe)
+
+  override def getChildren: Iterable[Tree] = List(source, expr)
+
+  override def replaceChildren(children: List[Tree]): Tree =
+    new FlatMap(
+      children(0).asInstanceOf[StreamExpression],
+      children(1).asInstanceOf[FunctionDef],
+      this.nodeId,
+      this.nodeName,
+      this.tpe)
+
+  override def equals(obj: Any): Boolean = obj match {
+    case FlatMap(s, e) => this.source.equals(s) && this.expr.equals(e)
+    case _ => false
+  }
+}
+
+object FlatMap {
+  def apply(source: StreamExpression, expr: FunctionDef): FlatMap = new FlatMap(source, expr)
+
+  def unapply(arg: FlatMap): Option[(StreamExpression, FunctionDef)] = Some((arg.source, arg.expr))
+}
+
+
+trait JoinExpression extends StreamExpression {
   val left: StreamExpression
   val right: StreamExpression
-  val joinCondition: FunctionDef
 }
 
-object JoinNodeExpression {
-  def unapply(arg: JoinNodeExpression): Option[(StreamExpression, StreamExpression, FunctionDef)] =
-    Some((arg.left, arg.right, arg.joinCondition))
+object JoinExpression {
+  def unapply(arg: JoinExpression): Option[(StreamExpression, StreamExpression)] =
+    Some((arg.left, arg.right))
 }
 
 
 /**
  * An expression representing a left join operation.
  *
- * @param left          The left input stream.
- * @param right         The right input stream.
- * @param joinCondition A function of left and right stream records that defines the join condition.
+ * @param left  The left input stream.
+ * @param right The right input stream.
  */
+@JsonSerialize
+@JsonDeserialize
 class LeftJoin(val left: StreamExpression,
                val right: StreamExpression,
-               val joinCondition: FunctionDef,
-               val nodeId: String = "",
-               val nodeName: String = "") extends JoinNodeExpression {
+               val nodeId: String,
+               val nodeName: String) extends JoinExpression {
+
+  def this(left: StreamExpression, right: StreamExpression, nodeId: String) {
+    this(left, right, nodeId, nodeId)
+  }
+
+  def this(left: StreamExpression, right: StreamExpression) {
+    this(left, right, Id.newId())
+  }
 
   def this(left: StreamExpression,
            right: StreamExpression,
-           joinCondition: FunctionDef,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(left, right, joinCondition, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
-  override def withNameAndId(name: String, id: String): GraphNodeExpression =
-    new LeftJoin(this.left, this.right, this.joinCondition, id, name, this.tpe)
-
-  override def getChildren: Iterable[Tree] = Seq(this.left, this.right, this.joinCondition)
-
-  override def replaceChildren(children: List[Tree]): Tree =
-    new LeftJoin(
-      children(0).asInstanceOf[StreamExpression],
-      children(1).asInstanceOf[StreamExpression],
-      children(2).asInstanceOf[FunctionDef],
-      this.nodeId,
-      this.nodeName,
-      this.tpe)
-
-  override def toString: String = s"${this.expressionType}(${this.left}, ${this.right}, ${this.joinCondition})"
-
-  override def equals(obj: Any): Boolean = obj match {
-    case LeftJoin(l, r, j) => this.left.equals(l) && this.right.equals(r) && this.joinCondition.equals(j)
-    case _ => false
-  }
-}
-
-object LeftJoin {
-  def apply(left: StreamExpression, right: StreamExpression, joinCondition: FunctionDef): LeftJoin =
-    new LeftJoin(left, right, joinCondition)
-
-  def unapply(arg: LeftJoin): Option[(StreamExpression, StreamExpression, FunctionDef)] =
-    Some((arg.left, arg.right, arg.joinCondition))
-}
-
-
-/**
- * An expression representing a full join operation.
- *
- * @param left          The left input stream.
- * @param right         The right input stream.
- * @param joinCondition A function of left and right stream records that defines the join condition.
- */
-class FullJoin(val left: StreamExpression,
-               val right: StreamExpression,
-               val joinCondition: FunctionDef,
-               val nodeId: String = "",
-               val nodeName: String = "") extends JoinNodeExpression {
-
-  def this(left: StreamExpression,
-           right: StreamExpression,
-           joinCondition: FunctionDef,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(left, right, joinCondition, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
-  override def withNameAndId(name: String, id: String): GraphNodeExpression =
-    new FullJoin(this.left, this.right, this.joinCondition, id, name, this.tpe)
-
-  override def getChildren: Iterable[Tree] = Seq(this.left, this.right, this.joinCondition)
-
-  override def replaceChildren(children: List[Tree]): Tree =
-    new FullJoin(
-      children(0).asInstanceOf[StreamExpression],
-      children(1).asInstanceOf[StreamExpression],
-      children(2).asInstanceOf[FunctionDef],
-      this.nodeId,
-      this.nodeName,
-      this.tpe)
-
-  override def toString: String = s"${this.expressionType}(${this.left}, ${this.right}, ${this.joinCondition})"
-
-  override def equals(obj: Any): Boolean = obj match {
-    case FullJoin(l, r, j) => this.left.equals(l) && this.right.equals(r) && this.joinCondition.equals(j)
-    case _ => false
-  }
-}
-
-object FullJoin {
-  def apply(left: StreamExpression, right: StreamExpression, joinCondition: FunctionDef): FullJoin =
-    new FullJoin(left, right, joinCondition)
-
-  def unapply(arg: FullJoin): Option[(StreamExpression, StreamExpression, FunctionDef)] =
-    Some((arg.left, arg.right, arg.joinCondition))
-}
-
-
-/**
- * Represents a left join between two windowed streams.
- *
- * @param left  The left stream.
- * @param right The right windowed stream.
- */
-class WindowedLeftJoin(val left: StreamExpression,
-                       val right: WindowExpression,
-                       val nodeId: String = "",
-                       val nodeName: String = "") extends GraphNodeExpression {
-  def this(left: StreamExpression,
-           right: WindowExpression,
            nodeId: String,
            nodeName: String,
            resultType: TypeDescriptor[_]) {
@@ -359,15 +387,15 @@ class WindowedLeftJoin(val left: StreamExpression,
     this.tpe = resultType
   }
 
-  override def withNameAndId(name: String, id: String): GraphNodeExpression =
-    new WindowedLeftJoin(this.left, this.right, id, name, this.tpe)
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new LeftJoin(this.left, this.right, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(this.left, this.right)
 
   override def replaceChildren(children: List[Tree]): Tree =
-    new WindowedLeftJoin(
+    new LeftJoin(
       children(0).asInstanceOf[StreamExpression],
-      children(1).asInstanceOf[WindowExpression],
+      children(1).asInstanceOf[StreamExpression],
       this.nodeId,
       this.nodeName,
       this.tpe)
@@ -375,16 +403,76 @@ class WindowedLeftJoin(val left: StreamExpression,
   override def toString: String = s"${this.expressionType}(${this.left}, ${this.right})"
 
   override def equals(obj: Any): Boolean = obj match {
-    case WindowedLeftJoin(l, r) => this.left.equals(l) && this.right.equals(r)
+    case LeftJoin(l, r) => this.left.equals(l) && this.right.equals(r)
     case _ => false
   }
 }
 
-object WindowedLeftJoin {
-  def apply(left: StreamExpression, right: WindowExpression): WindowedLeftJoin =
-    new WindowedLeftJoin(left, right)
+object LeftJoin {
+  def apply(left: StreamExpression, right: StreamExpression): LeftJoin =
+    new LeftJoin(left, right)
 
-  def unapply(arg: WindowedLeftJoin): Option[(StreamExpression, WindowExpression)] =
+  def unapply(arg: LeftJoin): Option[(StreamExpression, StreamExpression)] =
+    Some((arg.left, arg.right))
+}
+
+
+/**
+ * An expression representing a full join operation.
+ *
+ * @param left  The left input stream.
+ * @param right The right input stream.
+ */
+@JsonSerialize
+@JsonDeserialize
+class FullJoin(val left: StreamExpression,
+               val right: StreamExpression,
+               val nodeId: String,
+               val nodeName: String) extends JoinExpression {
+
+  def this(left: StreamExpression, right: StreamExpression, nodeId: String) {
+    this(left, right, nodeId, nodeId)
+  }
+
+  def this(left: StreamExpression, right: StreamExpression) {
+    this(left, right, Id.newId())
+  }
+
+  def this(left: StreamExpression,
+           right: StreamExpression,
+           nodeId: String,
+           nodeName: String,
+           resultType: TypeDescriptor[_]) {
+    this(left, right, nodeId, nodeName)
+    this.tpe = resultType
+  }
+
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new FullJoin(this.left, this.right, id, name, this.tpe)
+
+  override def getChildren: Iterable[Tree] = Seq(this.left, this.right)
+
+  override def replaceChildren(children: List[Tree]): Tree =
+    new FullJoin(
+      children(0).asInstanceOf[StreamExpression],
+      children(1).asInstanceOf[StreamExpression],
+      this.nodeId,
+      this.nodeName,
+      this.tpe)
+
+  override def toString: String = s"${this.expressionType}(${this.left}, ${this.right})"
+
+  override def equals(obj: Any): Boolean = obj match {
+    case FullJoin(l, r) => this.left.equals(l) && this.right.equals(r)
+    case _ => false
+  }
+}
+
+object FullJoin {
+  def apply(left: StreamExpression, right: StreamExpression): FullJoin =
+    new FullJoin(left, right)
+
+  def unapply(arg: FullJoin): Option[(StreamExpression, StreamExpression)] =
     Some((arg.left, arg.right))
 }
 
@@ -395,10 +483,20 @@ object WindowedLeftJoin {
  * @param source    The input to the filter operation.
  * @param predicate The filter predicate which determines which records pass the filter.
  */
+@JsonSerialize
+@JsonDeserialize
 class Filter(val source: StreamExpression,
              val predicate: FunctionDef,
-             val nodeId: String = "",
-             val nodeName: String = "") extends StreamExpression with SingleInputGraphNodeExpression {
+             val nodeId: String,
+             val nodeName: String) extends StreamExpression {
+
+  def this(source: StreamExpression, predicate: FunctionDef, nodeId: String) {
+    this(source, predicate, nodeId, nodeId)
+  }
+
+  def this(source: StreamExpression, predicate: FunctionDef) {
+    this(source, predicate, Id.newId())
+  }
 
   def this(source: StreamExpression,
            predicate: FunctionDef,
@@ -409,9 +507,7 @@ class Filter(val source: StreamExpression,
     this.tpe = resultType
   }
 
-  override def getInput: GraphNodeExpression = this.source
-
-  override def withNameAndId(name: String, id: String): GraphNodeExpression =
+  override def withNameAndId(name: String, id: String): StreamExpression =
     new Filter(this.source, this.predicate, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(source, predicate)
@@ -438,11 +534,9 @@ object Filter {
 }
 
 
-trait GroupingExpression extends GraphNodeExpression with SingleInputGraphNodeExpression {
-  val source: GraphNodeExpression
+trait GroupingExpression extends StreamExpression {
+  val source: StreamExpression
   val expr: FunctionDef
-
-  override def getInput: GraphNodeExpression = this.source
 
   /**
    * Gets the record type of the input stream that is being grouped.
@@ -458,7 +552,7 @@ trait GroupingExpression extends GraphNodeExpression with SingleInputGraphNodeEx
 }
 
 object GroupingExpression {
-  def unapply(arg: GroupingExpression): Option[(GraphNodeExpression, FunctionDef)] = Some((arg.source, arg.expr))
+  def unapply(arg: GroupingExpression): Option[(StreamExpression, FunctionDef)] = Some((arg.source, arg.expr))
 }
 
 
@@ -468,10 +562,20 @@ object GroupingExpression {
  * @param source The input to the group-by operation.
  * @param expr   A function that defines how group keys are extracted from input records.
  */
+@JsonSerialize
+@JsonDeserialize
 class GroupBy(val source: StreamExpression,
               val expr: FunctionDef,
-              val nodeId: String = "",
-              val nodeName: String = "") extends GroupingExpression {
+              val nodeId: String,
+              val nodeName: String) extends GroupingExpression {
+
+  def this(source: StreamExpression, expr: FunctionDef, nodeId: String) {
+    this(source, expr, nodeId, nodeId)
+  }
+
+  def this(source: StreamExpression, expr: FunctionDef) {
+    this(source, expr, Id.newId())
+  }
 
   def this(source: StreamExpression,
            expr: FunctionDef,
@@ -482,7 +586,7 @@ class GroupBy(val source: StreamExpression,
     this.tpe = resultType
   }
 
-  override def withNameAndId(name: String, id: String): GraphNodeExpression =
+  override def withNameAndId(name: String, id: String): StreamExpression =
     new GroupBy(this.source, this.expr, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(this.source, this.expr)
@@ -513,7 +617,7 @@ object GroupBy {
 trait WindowExpression extends GroupingExpression
 
 object WindowExpression {
-  def unapply(arg: WindowExpression): Option[(GraphNodeExpression, FunctionDef)] = Some((arg.source, arg.expr))
+  def unapply(arg: WindowExpression): Option[(StreamExpression, FunctionDef)] = Some((arg.source, arg.expr))
 }
 
 
@@ -523,7 +627,7 @@ trait TimeWindowExpression extends WindowExpression {
 }
 
 object TimeWindowExpression {
-  def unapply(arg: TimeWindowExpression): Option[(GraphNodeExpression, FunctionDef, Duration, Duration)] = Some((arg.source, arg.expr, arg.size, arg.offset))
+  def unapply(arg: TimeWindowExpression): Option[(StreamExpression, FunctionDef, Duration, Duration)] = Some((arg.source, arg.expr, arg.size, arg.offset))
 }
 
 
@@ -535,17 +639,27 @@ object TimeWindowExpression {
  * @param offset By default windows are aligned with the epoch, 1970-01-01.
  *               This offset shifts the window alignment to the specified duration after the epoch.
  */
-class TumblingWindow(val source: GraphNodeExpression,
+@JsonSerialize
+@JsonDeserialize
+class TumblingWindow(val source: StreamExpression,
                      val dateExtractor: FunctionDef,
                      val period: Duration,
                      val offset: Duration,
-                     val nodeId: String = "",
-                     val nodeName: String = "") extends TimeWindowExpression {
+                     val nodeId: String,
+                     val nodeName: String) extends TimeWindowExpression {
 
   val expr: FunctionDef = this.dateExtractor
   val size: Duration = this.period
 
-  def this(source: GraphNodeExpression,
+  def this(source: StreamExpression, dateExtractor: FunctionDef, period: Duration, offset: Duration, nodeId: String) {
+    this(source, dateExtractor, period, offset, nodeId, nodeId)
+  }
+
+  def this(source: StreamExpression, dateExtractor: FunctionDef, period: Duration, offset: Duration) {
+    this(source, dateExtractor, period, offset, Id.newId())
+  }
+
+  def this(source: StreamExpression,
            dateExtractor: FunctionDef,
            period: Duration,
            offset: Duration,
@@ -556,14 +670,14 @@ class TumblingWindow(val source: GraphNodeExpression,
     this.tpe = resultType
   }
 
-  override def withNameAndId(name: String, id: String): GraphNodeExpression =
+  override def withNameAndId(name: String, id: String): StreamExpression =
     new TumblingWindow(this.source, this.dateExtractor, this.period, this.offset, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(this.source, this.dateExtractor, this.period, this.offset)
 
   override def replaceChildren(children: List[Tree]): Tree =
     new TumblingWindow(
-      children(0).asInstanceOf[GraphNodeExpression],
+      children(0).asInstanceOf[StreamExpression],
       children(1).asInstanceOf[FunctionDef],
       children(2).asInstanceOf[Duration],
       children(3).asInstanceOf[Duration],
@@ -580,10 +694,10 @@ class TumblingWindow(val source: GraphNodeExpression,
 }
 
 object TumblingWindow {
-  def apply(source: GraphNodeExpression, dateExtractor: FunctionDef, period: Duration, offset: Duration): TumblingWindow =
+  def apply(source: StreamExpression, dateExtractor: FunctionDef, period: Duration, offset: Duration): TumblingWindow =
     new TumblingWindow(source, dateExtractor, period, offset)
 
-  def unapply(arg: TumblingWindow): Option[(GraphNodeExpression, FunctionDef, Duration, Duration)] =
+  def unapply(arg: TumblingWindow): Option[(StreamExpression, FunctionDef, Duration, Duration)] =
     Some((arg.source, arg.dateExtractor, arg.period, arg.offset))
 }
 
@@ -597,17 +711,27 @@ object TumblingWindow {
  * @param offset By default windows are aligned with the epoch, 1970-01-01.
  *               This offset shifts the window alignment to the specified duration after the epoch.
  */
-class SlidingWindow(val source: GraphNodeExpression,
+@JsonSerialize
+@JsonDeserialize
+class SlidingWindow(val source: StreamExpression,
                     val dateExtractor: FunctionDef,
                     val size: Duration,
                     val slide: Duration,
                     val offset: Duration,
-                    val nodeId: String = "",
-                    val nodeName: String = "") extends TimeWindowExpression {
+                    val nodeId: String,
+                    val nodeName: String) extends TimeWindowExpression {
 
   val expr: FunctionDef = this.dateExtractor
 
-  def this(source: GraphNodeExpression,
+  def this(source: StreamExpression, dateExtractor: FunctionDef, size: Duration, slide: Duration, offset: Duration, nodeId: String) {
+    this(source, dateExtractor, size, slide, offset, nodeId, nodeId)
+  }
+
+  def this(source: StreamExpression, dateExtractor: FunctionDef, size: Duration, slide: Duration, offset: Duration) {
+    this(source, dateExtractor, size, slide, offset, Id.newId())
+  }
+
+  def this(source: StreamExpression,
            dateExtractor: FunctionDef,
            size: Duration,
            slide: Duration,
@@ -619,14 +743,14 @@ class SlidingWindow(val source: GraphNodeExpression,
     this.tpe = resultType
   }
 
-  override def withNameAndId(name: String, id: String): GraphNodeExpression =
+  override def withNameAndId(name: String, id: String): StreamExpression =
     new SlidingWindow(this.source, this.dateExtractor, this.size, this.slide, this.offset, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(this.source, this.dateExtractor, this.size, this.slide, this.offset)
 
   override def replaceChildren(children: List[Tree]): Tree =
     new SlidingWindow(
-      children(0).asInstanceOf[GraphNodeExpression],
+      children(0).asInstanceOf[StreamExpression],
       children(1).asInstanceOf[FunctionDef],
       children(2).asInstanceOf[Duration],
       children(3).asInstanceOf[Duration],
@@ -651,10 +775,10 @@ class SlidingWindow(val source: GraphNodeExpression,
 }
 
 object SlidingWindow {
-  def apply(source: GraphNodeExpression, dateExtractor: FunctionDef, size: Duration, slide: Duration, offset: Duration): SlidingWindow =
+  def apply(source: StreamExpression, dateExtractor: FunctionDef, size: Duration, slide: Duration, offset: Duration): SlidingWindow =
     new SlidingWindow(source, dateExtractor, size, slide, offset)
 
-  def unapply(arg: SlidingWindow): Option[(GraphNodeExpression, FunctionDef, Duration, Duration, Duration)] =
+  def unapply(arg: SlidingWindow): Option[(StreamExpression, FunctionDef, Duration, Duration, Duration)] =
     Some((arg.source, arg.dateExtractor, arg.size, arg.slide, arg.offset))
 }
 
@@ -666,13 +790,23 @@ object SlidingWindow {
  * @param dateExtractor A function that extracts timestamps from input records.
  * @param keyFunc       A function that extracts keys from input records.
  */
+@JsonSerialize
+@JsonDeserialize
 class LatestBy(val source: StreamExpression,
                val dateExtractor: FunctionDef,
                val keyFunc: FunctionDef,
-               val nodeId: String = "",
-               val nodeName: String = "") extends WindowExpression {
+               val nodeId: String,
+               val nodeName: String) extends WindowExpression {
 
   val expr: FunctionDef = keyFunc
+
+  def this(source: StreamExpression, dateExtractor: FunctionDef, keyFunc: FunctionDef, nodeId: String) {
+    this(source, dateExtractor, keyFunc, nodeId, nodeId)
+  }
+
+  def this(source: StreamExpression, dateExtractor: FunctionDef, keyFunc: FunctionDef) {
+    this(source, dateExtractor, keyFunc, Id.newId())
+  }
 
   def this(source: StreamExpression,
            dateExtractor: FunctionDef,
@@ -684,7 +818,7 @@ class LatestBy(val source: StreamExpression,
     this.tpe = resultType
   }
 
-  override def withNameAndId(name: String, id: String): GraphNodeExpression =
+  override def withNameAndId(name: String, id: String): StreamExpression =
     new LatestBy(this.source, this.dateExtractor, this.keyFunc, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(this.source, this.dateExtractor, this.keyFunc)
@@ -721,12 +855,22 @@ object LatestBy {
  * @param source The grouping expression on which the uniqueness constraint will be applied.
  * @param expr   A function that defines the key extracted from records that will be unique in the output.
  */
-class UniqueBy(val source: GraphNodeExpression,
+@JsonSerialize
+@JsonDeserialize
+class UniqueBy(val source: StreamExpression,
                val expr: FunctionDef,
-               val nodeId: String = "",
-               val nodeName: String = "") extends GroupingExpression {
+               val nodeId: String,
+               val nodeName: String) extends GroupingExpression {
 
-  def this(source: GraphNodeExpression,
+  def this(source: StreamExpression, expr: FunctionDef, nodeId: String) {
+    this(source, expr, nodeId, nodeId)
+  }
+
+  def this(source: StreamExpression, expr: FunctionDef) {
+    this(source, expr, Id.newId())
+  }
+
+  def this(source: StreamExpression,
            expr: FunctionDef,
            nodeId: String,
            nodeName: String,
@@ -735,14 +879,14 @@ class UniqueBy(val source: GraphNodeExpression,
     this.tpe = resultType
   }
 
-  override def withNameAndId(name: String, id: String): GraphNodeExpression =
+  override def withNameAndId(name: String, id: String): StreamExpression =
     new UniqueBy(this.source, this.expr, id, nodeName, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(this.source, this.expr)
 
   override def replaceChildren(children: List[Tree]): Tree =
     new UniqueBy(
-      children(0).asInstanceOf[GraphNodeExpression],
+      children(0).asInstanceOf[StreamExpression],
       children(1).asInstanceOf[FunctionDef],
       this.nodeId,
       this.nodeName,
@@ -757,7 +901,7 @@ class UniqueBy(val source: GraphNodeExpression,
 }
 
 object UniqueBy {
-  def apply(source: GraphNodeExpression, expr: FunctionDef): UniqueBy = new UniqueBy(source, expr)
+  def apply(source: StreamExpression, expr: FunctionDef): UniqueBy = new UniqueBy(source, expr)
 
-  def unapply(arg: UniqueBy): Option[(GraphNodeExpression, FunctionDef)] = Some((arg.source, arg.expr))
+  def unapply(arg: UniqueBy): Option[(StreamExpression, FunctionDef)] = Some((arg.source, arg.expr))
 }

@@ -3,7 +3,7 @@ package com.amazon.milan.lang
 import java.time.{Duration, Instant}
 
 import com.amazon.milan.lang.internal.{GroupedStreamMacros, StreamMacros}
-import com.amazon.milan.program.ComputedGraphNode
+import com.amazon.milan.program.StreamExpression
 
 import scala.language.experimental.macros
 
@@ -11,11 +11,11 @@ import scala.language.experimental.macros
 /**
  * Represents the result of a group by operation.
  *
- * @param node The graph node representing the group by operation.
+ * @param expr The Milan expression representing the group by operation.
  * @tparam T    The type of the stream.
  * @tparam TKey The type of the group key.
  */
-class GroupedStream[T, TKey](val node: ComputedGraphNode) extends GroupOperations[T, TKey] {
+class GroupedStream[T, TKey](val expr: StreamExpression) extends GroupOperations[T, TKey] {
   /**
    * Specifies that for any following aggregate operations, only the latest record for each selector value will be
    * included in the aggregate calculation.
@@ -48,4 +48,22 @@ class GroupedStream[T, TKey](val node: ComputedGraphNode) extends GroupOperation
    * @return A [[WindowedStream]] representing the result of the windowing operation.
    */
   def slidingWindow(dateExtractor: T => Instant, windowSize: Duration, slide: Duration, offset: Duration): WindowedStream[T] = macro StreamMacros.slidingWindow[T]
+
+  /**
+   * Maps each stream of grouped records to another stream.
+   *
+   * @param f A function that maps each stream of grouped records to another stream.
+   * @tparam TOut The output record type.
+   * @return A [[GroupedStream]] containing the mapped groups.
+   */
+  def map[TOut](f: (TKey, Stream[T]) => Stream[TOut]): GroupedStream[TOut, TKey] = macro GroupedStreamMacros.map[T, TKey, TOut]
+
+  /**
+   * Maps each stream of grouped records to another stream, and combines all output streams into a single stream.
+   *
+   * @param f A function that maps each stream of grouped records to another stream.
+   * @tparam TOut The output record type.
+   * @return A [[Stream]] containing all of the output records from all groups.
+   */
+  def flatMap[TOut](f: (TKey, Stream[T]) => Stream[TOut]): Stream[TOut] = macro GroupedStreamMacros.flatMap[T, TKey, TOut]
 }

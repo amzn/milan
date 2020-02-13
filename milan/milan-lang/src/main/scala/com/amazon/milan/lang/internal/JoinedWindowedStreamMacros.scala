@@ -3,8 +3,8 @@ package com.amazon.milan.lang.internal
 import com.amazon.milan.Id
 import com.amazon.milan.lang.{LeftJoinedWindowedStream, Stream}
 import com.amazon.milan.program.internal.ConvertExpressionHost
-import com.amazon.milan.program.{ComputedStream, FunctionDef, MapRecord, WindowExpression, WindowedLeftJoin}
-import com.amazon.milan.typeutil.{StreamTypeDescriptor, TypeDescriptor}
+import com.amazon.milan.program.{FlatMap, FunctionDef, LeftJoin}
+import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, TypeDescriptor}
 
 import scala.reflect.macros.whitebox
 
@@ -39,14 +39,13 @@ object JoinedWindowedStreamUtil {
                                      outputRecordType: TypeDescriptor[TOut]): Stream[TOut] = {
     val outNodeId = Id.newId()
 
-    val leftInputExpr = inputStream.leftInput.node.getStreamExpression
-    val rightInputExpr = inputStream.rightInput.node.getExpression.asInstanceOf[WindowExpression]
+    val leftInputExpr = inputStream.leftInput.expr
+    val rightInputExpr = inputStream.rightInput.expr
 
-    val joinExpr = new WindowedLeftJoin(leftInputExpr, rightInputExpr)
-    val outputStreamType = new StreamTypeDescriptor(outputRecordType)
-    val mapExpr = new MapRecord(joinExpr, applyFunction, outNodeId, outNodeId, outputStreamType)
+    val joinExpr = new LeftJoin(leftInputExpr, rightInputExpr, null)
+    val outputStreamType = new DataStreamTypeDescriptor(outputRecordType)
+    val mapExpr = new FlatMap(joinExpr, applyFunction, outNodeId, outNodeId, outputStreamType)
 
-    val outputNode = ComputedStream(mapExpr.nodeId, mapExpr.nodeName, mapExpr)
-    new Stream[TOut](outputNode, outputRecordType)
+    new Stream[TOut](mapExpr, outputRecordType)
   }
 }

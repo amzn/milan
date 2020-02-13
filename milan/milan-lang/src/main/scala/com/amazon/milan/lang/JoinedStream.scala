@@ -1,10 +1,10 @@
 package com.amazon.milan.lang
 
+import com.amazon.milan.Id
 import com.amazon.milan.lang.JoinType.JoinType
 import com.amazon.milan.lang.internal.JoinedStreamMacros
-import com.amazon.milan.program.{ComputedGraphNode, ComputedStream, FieldDefinition, FunctionDef, GraphNodeExpression, JoinNodeExpression, MapFields, SelectField, SelectTerm}
-import com.amazon.milan.typeutil.{StreamTypeDescriptor, TypeDescriptor, TypeJoiner}
-import com.amazon.milan.{Id, program}
+import com.amazon.milan.program.{FieldDefinition, Filter, FunctionDef, JoinExpression, MapFields, SelectField, SelectTerm, StreamExpression}
+import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, TypeDescriptor, TypeJoiner}
 
 import scala.language.existentials
 import scala.language.experimental.macros
@@ -18,7 +18,7 @@ import scala.language.experimental.macros
  * @tparam TLeft  The type of the left stream.
  * @tparam TRight The type of the right stream.
  */
-class JoinedStream[TLeft, TRight](val leftInput: program.Stream, val rightInput: program.Stream, val joinType: JoinType) {
+class JoinedStream[TLeft, TRight](val leftInput: StreamExpression, val rightInput: StreamExpression, val joinType: JoinType) {
   /**
    * Applies conditions to a join operation.
    *
@@ -29,7 +29,7 @@ class JoinedStream[TLeft, TRight](val leftInput: program.Stream, val rightInput:
 }
 
 
-class JoinedStreamWithCondition[TLeft, TRight](val node: ComputedGraphNode) {
+class JoinedStreamWithCondition[TLeft, TRight](val expr: StreamExpression) {
   /**
    * Defines the output of a join operation after the join conditions have been specified.
    * The output will be a stream containing the union of the fields of the input streams.
@@ -38,16 +38,15 @@ class JoinedStreamWithCondition[TLeft, TRight](val node: ComputedGraphNode) {
    * @return A [[Stream]] representing the resulting output stream.
    */
   def selectAll()(implicit joiner: TypeJoiner[TLeft, TRight]): Stream[joiner.OutputType] = {
-    val sourceExpression = this.node.getExpression
-    val JoinNodeExpression(left, right, _) = sourceExpression
+    val sourceExpression = this.expr
+    val Filter(JoinExpression(left, right), _) = sourceExpression
     val leftRecordType = left.tpe.asStream.recordType.asInstanceOf[TypeDescriptor[TLeft]]
     val rightRecordType = right.tpe.asStream.recordType.asInstanceOf[TypeDescriptor[TRight]]
     val joinedType = joiner.getOutputType(leftRecordType, rightRecordType)
 
     val mapExpr = this.getSelectAllMapExpression(sourceExpression, leftRecordType, rightRecordType, joinedType)
-    val node = ComputedStream(mapExpr.nodeId, mapExpr.nodeId, mapExpr)
 
-    new Stream[joiner.OutputType](node, joinedType)
+    new Stream[joiner.OutputType](mapExpr, joinedType)
   }
 
   /**
@@ -113,7 +112,7 @@ class JoinedStreamWithCondition[TLeft, TRight](val node: ComputedGraphNode) {
   /**
    * Gets a [[MapFields]] expression that performs the mapping for a selectAll() operation.
    */
-  private def getSelectAllMapExpression(source: GraphNodeExpression,
+  private def getSelectAllMapExpression(source: StreamExpression,
                                         leftType: TypeDescriptor[_],
                                         rightType: TypeDescriptor[_],
                                         outputType: TypeDescriptor[_]): MapFields = {
@@ -147,7 +146,7 @@ class JoinedStreamWithCondition[TLeft, TRight](val node: ComputedGraphNode) {
 
     val outputFields = leftFieldDefs ++ rightFieldDefs
     val id = Id.newId()
-    val streamType = new StreamTypeDescriptor(outputType)
+    val streamType = new DataStreamTypeDescriptor(outputType)
     new MapFields(source, outputFields, id, id, streamType)
   }
 

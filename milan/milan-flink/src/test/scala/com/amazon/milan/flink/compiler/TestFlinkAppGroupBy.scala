@@ -64,15 +64,15 @@ class TestFlinkAppGroupBy {
   @Test
   def test_FlinkAppGroupBy_ThenJoinWithTuple_ProducesOutputRecords(): Unit = {
     val leftInput = Stream.of[IntKeyValueRecord]
-
     val left = leftInput.groupBy(_.key).select((_, r) => any(r))
 
     val rightInput = Stream.of[IntKeyValueRecord]
     val right = rightInput.map(((r: IntKeyValueRecord) => r) as "a")
 
-    val output = left.fullJoin(right).where((l: IntKeyValueRecord, r: Tuple1[IntKeyValueRecord]) => l != null && r != null && (r match {
-      case Tuple1(a) => l.value == a.key
-    }))
+    val output = left.fullJoin(right)
+      .where((l: IntKeyValueRecord, r: Tuple1[IntKeyValueRecord]) => l != null && r != null && (r match {
+        case Tuple1(a) => l.value == a.key
+      }))
       .select(
         ((l: IntKeyValueRecord, _: Tuple1[IntKeyValueRecord]) => l) as "left",
         ((_: IntKeyValueRecord, r: Tuple1[IntKeyValueRecord]) => r match {

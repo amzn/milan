@@ -23,12 +23,12 @@ class TestGraphTypeChecker {
     GraphTypeChecker.typeCheckGraph(graphCopy)
 
     val leftCopy = graphCopy.getStream(left.streamId)
-    assertEquals(TypeDescriptor.streamOf[IntKeyValueRecord], leftCopy.getExpression.tpe)
+    assertEquals(TypeDescriptor.streamOf[IntKeyValueRecord], leftCopy.tpe)
 
     val rightCopy = graphCopy.getStream(right.streamId)
-    assertEquals(TypeDescriptor.streamOf[IntKeyValueRecord], rightCopy.getExpression.tpe)
+    assertEquals(TypeDescriptor.streamOf[IntKeyValueRecord], rightCopy.tpe)
 
     val outputCopy = graphCopy.getStream(output.streamId)
-    assertEquals(TypeDescriptor.streamOf[IntKeyValueRecord].fullName, outputCopy.getExpression.tpe.fullName)
+    assertEquals(TypeDescriptor.streamOf[IntKeyValueRecord].fullName, outputCopy.tpe.fullName)
   }
 }

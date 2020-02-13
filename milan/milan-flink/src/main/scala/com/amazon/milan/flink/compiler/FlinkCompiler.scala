@@ -100,7 +100,7 @@ class FlinkCompiler(classLoader: ClassLoader) {
 
     RuntimeEvaluator.instance = new RuntimeEvaluator(this.classLoader)
 
-    env.graph.getStreams.foreach(stream => this.ensureStreamIsCompiled(env, stream.getStreamExpression))
+    env.graph.getStreams.foreach(stream => this.ensureStreamIsCompiled(env, stream))
 
     env.config.dataSinks.foreach(sink => this.compileSink(env, sink.streamId, sink.sink))
 
@@ -189,7 +189,7 @@ class FlinkCompiler(classLoader: ClassLoader) {
    * @param joinExpr The expression whose compiled [[ConnectedStreams]] will be returned.
    * @return A [[ConnectStreamsResult]] containing the compiled [[ConnectedStreams]] corresponding to the graph node.
    */
-  private def getOrCompileConnectedStream(env: CompilationEnvironment, joinExpr: JoinNodeExpression): ConnectStreamsResult = {
+  private def getOrCompileConnectedStream(env: CompilationEnvironment, joinExpr: Filter): ConnectStreamsResult = {
     env.compiledConnectedStreams.getOrElseUpdate(joinExpr, compileConnectedStream(env, joinExpr))
   }
 
@@ -217,7 +217,7 @@ class FlinkCompiler(classLoader: ClassLoader) {
 
     val dataStream = env.compiledDataStreams(streamId)
     val stream = env.graph.getStream(streamId)
-    val recordTypeName = stream.getStreamExpression.getRecordTypeName
+    val recordTypeName = stream.getRecordTypeName
 
     val streamSink =
       this.eval.evalFunction[DataStream[_], SinkFunction[_], DataStreamSink[_]](
@@ -229,7 +229,7 @@ class FlinkCompiler(classLoader: ClassLoader) {
         dataStream,
         sink.getSinkFunction)
 
-    streamSink.name(stream.name)
+    streamSink.name(stream.nodeName)
   }
 
   /**
@@ -247,11 +247,17 @@ class FlinkCompiler(classLoader: ClassLoader) {
         case r: Ref =>
           this.compileExternalStream(env, r)
 
+        case e: ExternalStream =>
+          this.compileExternalStream(env, e)
+
         case f: Filter =>
           this.compileFilteredStream(env, f)
 
-        case m: MapNodeExpression =>
+        case m: MapExpression =>
           compileMappedStream(env, m)
+
+        case m: FlatMapExpression =>
+          compileFlatMappedStream(env, m)
       }
 
     this.compileMetrics(env, compiledStream, streamExpr)
@@ -260,13 +266,13 @@ class FlinkCompiler(classLoader: ClassLoader) {
   }
 
   /**
-   * Compiles a [[JoinNodeExpression]] into a Flink [[ConnectedStreams]].
+   * Compiles a [[Filter]] that consumes a [[JoinExpression]] into a Flink [[ConnectedStreams]].
    *
    * @return A [[ConnectStreamsResult]] that contains the compiled [[ConnectedStreams]] object and a Milan function
    *         containing the portion of the join condition expression that must be applied in the Flink
    *         [[CoProcessFunction]].
    */
-  private def compileConnectedStream(env: CompilationEnvironment, joinExpr: JoinNodeExpression): ConnectStreamsResult = {
+  private def compileConnectedStream(env: CompilationEnvironment, joinExpr: Filter): ConnectStreamsResult = {
     compileJoinedStreamWithCondition(env, joinExpr)
   }
 
@@ -278,6 +284,21 @@ class FlinkCompiler(classLoader: ClassLoader) {
    * @return A [[SingleOutputStreamOperator]] representing the stream in the Flink application.
    */
   private def compileExternalStream(env: CompilationEnvironment, streamExpr: Ref): SingleOutputStreamOperator[_] = {
+    this.logger.info(s"Compiling ExternalStream '${streamExpr.nodeName}'.")
+    val source = env.config.getSource(streamExpr.nodeId)
+
+    val uid = s"Source for ${streamExpr.nodeId}"
+    source.addDataSource(env.streamEnvironment).name(streamExpr.nodeName).uid(uid)
+  }
+
+  /**
+   * Compiles a stream with an external source.
+   *
+   * @param env        The compilation environment.
+   * @param streamExpr The expression to compile.
+   * @return A [[SingleOutputStreamOperator]] representing the stream in the Flink application.
+   */
+  private def compileExternalStream(env: CompilationEnvironment, streamExpr: ExternalStream): SingleOutputStreamOperator[_] = {
     this.logger.info(s"Compiling ExternalStream '${streamExpr.nodeName}'.")
     val source = env.config.getSource(streamExpr.nodeId)
 
@@ -300,11 +321,11 @@ class FlinkCompiler(classLoader: ClassLoader) {
   }
 
   /**
-   * Compiles a [[MapNodeExpression]] into a Flink [[SingleOutputStreamOperator]].
+   * Compiles a [[MapExpression]] into a Flink [[SingleOutputStreamOperator]].
    */
-  private def compileMappedStream(env: CompilationEnvironment, expr: MapNodeExpression): SingleOutputStreamOperator[_] = {
+  private def compileMappedStream(env: CompilationEnvironment, expr: MapExpression): SingleOutputStreamOperator[_] = {
     expr.source match {
-      case _: JoinNodeExpression =>
+      case _: Filter =>
         compileJoinSelect(env, expr)
 
       case _: UniqueBy =>
@@ -313,20 +334,24 @@ class FlinkCompiler(classLoader: ClassLoader) {
       case _: GroupingExpression =>
         compileGroupSelect(env, expr)
 
-      case _: WindowedLeftJoin =>
-        compileWindowedJoin(env, expr)
-
       case _ =>
         compileMappedDataStream(env, expr)
+    }
+  }
+
+  private def compileFlatMappedStream(env: CompilationEnvironment, expr: FlatMapExpression): SingleOutputStreamOperator[_] = {
+    expr.source match {
+      case _: LeftJoin =>
+        this.compileWindowedJoin(env, expr)
     }
   }
 
   /**
    * Compiles a mapped stream that is the result of a windowed join followed by an apply statement.
    */
-  private def compileWindowedJoin(env: CompilationEnvironment, mapExpr: MapNodeExpression): SingleOutputStreamOperator[_] = {
+  private def compileWindowedJoin(env: CompilationEnvironment, mapExpr: FlatMapExpression): SingleOutputStreamOperator[_] = {
     mapExpr match {
-      case MapRecord(WindowedLeftJoin(left, LatestBy(right, _, _)), _) =>
+      case FlatMap(LeftJoin(left, LatestBy(right, _, _)), _) =>
 
         val rightDataStream = this.getOrCompileDataStream(env, right)
         val leftDataStream = this.getOrCompileDataStream(env, left)
@@ -340,7 +365,7 @@ class FlinkCompiler(classLoader: ClassLoader) {
           SemanticVersion.ZERO)
 
         val outputWithLineage = FlinkWindowedJoinFactory.applyLatestByThenApply(
-          mapExpr.asInstanceOf[MapRecord],
+          mapExpr.asInstanceOf[FlatMap],
           leftDataStream,
           rightDataStream,
           lineageRecordFactory)
@@ -356,7 +381,7 @@ class FlinkCompiler(classLoader: ClassLoader) {
    * Compiles a mapped stream that is the result of a grouping operation followed by a select statement.
    */
   private def compileGroupSelect(env: CompilationEnvironment,
-                                 mapExpr: MapNodeExpression): SingleOutputStreamOperator[_] = {
+                                 mapExpr: MapExpression): SingleOutputStreamOperator[_] = {
     val windowResult = this.getOrCompileWindowedStream(env, mapExpr.source.asInstanceOf[GroupingExpression])
 
     windowResult match {
@@ -392,7 +417,7 @@ class FlinkCompiler(classLoader: ClassLoader) {
    * followed by a select statement.
    */
   private def compileUniqueGroupSelect(env: CompilationEnvironment,
-                                       mapExpr: MapNodeExpression): SingleOutputStreamOperator[_] = {
+                                       mapExpr: MapExpression): SingleOutputStreamOperator[_] = {
     val windowResult = this.getOrCompileWindowedStream(env, mapExpr.source.asInstanceOf[GroupingExpression])
 
     windowResult match {
@@ -411,10 +436,10 @@ class FlinkCompiler(classLoader: ClassLoader) {
   }
 
   /**
-   * Compiles a [[GraphNodeExpression]] into a Flink windowed stream.
+   * Compiles a [[StreamExpression]] into a Flink windowed stream.
    */
   @tailrec
-  private def compileWindowedStream(env: CompilationEnvironment, streamExpr: GraphNodeExpression): ApplyWindowResult = {
+  private def compileWindowedStream(env: CompilationEnvironment, streamExpr: StreamExpression): ApplyWindowResult = {
     streamExpr match {
       case g: GroupBy =>
         val inputStream = this.getOrCompileDataStream(env, g.source)
@@ -440,14 +465,14 @@ class FlinkCompiler(classLoader: ClassLoader) {
   }
 
   /**
-   * Compiles a [[MapNodeExpression]] that is the result of a map operation on an object or tuple stream.
+   * Compiles a [[MapExpression]] that is the result of a map operation on an object or tuple stream.
    */
   private def compileMappedDataStream(env: CompilationEnvironment,
-                                      mapExpr: MapNodeExpression): SingleOutputStreamOperator[_] = {
+                                      mapExpr: MapExpression): SingleOutputStreamOperator[_] = {
     val inputDataStream = this.getOrCompileDataStream(env, mapExpr.source.asInstanceOf[StreamExpression])
 
     val lineageFactory = new ComponentLineageRecordFactory(
-      mapExpr.source.nodeId,
+      mapExpr.source.asInstanceOf[StreamExpression].nodeId,
       env.applicationInstanceId,
       mapExpr.nodeId,
       mapExpr.nodeId,
@@ -465,15 +490,17 @@ class FlinkCompiler(classLoader: ClassLoader) {
   }
 
   /**
-   * Compiles a [[MapNodeExpression]] that is the result of a join operation followed by a select statement.
+   * Compiles a [[MapExpression]] that is the result of a join operation followed by a select statement.
    */
   private def compileJoinSelect(env: CompilationEnvironment,
-                                mapExpr: MapNodeExpression): SingleOutputStreamOperator[_] = {
-    val joinExpr = mapExpr.source.asInstanceOf[JoinNodeExpression]
-    val connectedStreams = this.getOrCompileConnectedStream(env, joinExpr)
+                                mapExpr: MapExpression): SingleOutputStreamOperator[_] = {
+    val filterExpr = mapExpr.source.asInstanceOf[Filter]
+    val JoinExpression(left, right) = filterExpr.source
+
+    val connectedStreams = this.getOrCompileConnectedStream(env, filterExpr)
     val lineageFactory = new ComponentJoinLineageRecordFactory(
-      joinExpr.left.nodeId,
-      joinExpr.right.nodeId,
+      left.nodeId,
+      right.nodeId,
       env.applicationInstanceId,
       mapExpr.nodeId,
       mapExpr.nodeId,
@@ -493,18 +520,20 @@ class FlinkCompiler(classLoader: ClassLoader) {
   }
 
   /**
-   * Compiles a stream represented by a [[JoinNodeExpression]].
+   * Compiles a stream represented by a [[JoinExpression]].
    *
    * @param env      The compilation environment.
-   * @param joinExpr The join expression.
+   * @param joinExpr The join expression contained in the join condition.
    * @return A [[ConnectStreamsResult]] containing the results of the compilation.
    */
   private def compileJoinedStreamWithCondition(env: CompilationEnvironment,
-                                               joinExpr: JoinNodeExpression): ConnectStreamsResult = {
+                                               joinExpr: Filter): ConnectStreamsResult = {
     this.logger.info(s"Compiling join with condition '$joinExpr'.")
 
-    val leftDataStream = this.getOrCompileDataStream(env, joinExpr.left)
-    val rightDataStream = this.getOrCompileDataStream(env, joinExpr.right)
+    val JoinExpression(left, right) = joinExpr.source
+
+    val leftDataStream = this.getOrCompileDataStream(env, left)
+    val rightDataStream = this.getOrCompileDataStream(env, right)
     val metricFactory = new OperatorMetricFactory(env.config.metricPrefix, getStreamName(env, joinExpr))
 
     try {
@@ -556,7 +585,7 @@ class FlinkCompiler(classLoader: ClassLoader) {
     }
   }
 
-  private def getStreamName(env: CompilationEnvironment, expr: GraphNodeExpression): String = {
+  private def getStreamName(env: CompilationEnvironment, expr: StreamExpression): String = {
     implicit class StreamNameInterpolator(sc: StringContext) {
       def n(subs: Any*): String = {
         val partsIterator = sc.parts.iterator
@@ -564,7 +593,7 @@ class FlinkCompiler(classLoader: ClassLoader) {
 
         val sb = new StringBuilder(partsIterator.next())
         while (subsIterator.hasNext) {
-          sb.append(getStreamName(env, subsIterator.next().asInstanceOf[GraphNodeExpression]))
+          sb.append(getStreamName(env, subsIterator.next().asInstanceOf[StreamExpression]))
           sb.append(partsIterator.next())
         }
 
@@ -575,27 +604,33 @@ class FlinkCompiler(classLoader: ClassLoader) {
     expr match {
       case Ref(nodeId) =>
         val stream = env.graph.getStream(nodeId)
-        if (stream.getExpression == expr) {
-          stream.name
+        if (stream == expr) {
+          stream.nodeName
         }
         else {
-          n"${stream.getExpression}"
+          n"$stream"
         }
 
-      case Filter(source, _) =>
-        n"Filter $source"
+      case ExternalStream(_, nodeName, _) =>
+        nodeName
 
-      case FullJoin(left, right, _) =>
+      case Filter(FullJoin(left, right), _) =>
         n"FullEnrichmentJoin [$left] with [$right]"
 
       case LatestBy(source, _, _) =>
         n"LatestBy [$source]"
 
-      case LeftJoin(left, right, _) =>
+      case Filter(LeftJoin(left, right), _) =>
         n"LeftEnrichmentJoin [$left] with [$right]"
 
-      case MapNodeExpression(source) =>
+      case Filter(source, _) =>
+        n"Filter $source"
+
+      case MapExpression(source) =>
         n"Map $source"
+
+      case FlatMapExpression(source) =>
+        n"FlatMap $source"
 
       case GroupBy(source, _) =>
         n"Group [$source]"
@@ -603,8 +638,11 @@ class FlinkCompiler(classLoader: ClassLoader) {
       case UniqueBy(source, _) =>
         n"UniqueBy [$source]"
 
-      case WindowedLeftJoin(left, right) =>
-        n"WindowedLeftJoin [$left] with [$right]"
+      case LeftJoin(left, right) =>
+        n"LeftJoin [$left] with [$right]"
+
+      case FullJoin(left, right) =>
+        n"FullJoin [$left] with [$right]"
 
       case _ =>
         throw new IllegalArgumentException(s"Unsupported stream expression: $expr")
@@ -616,7 +654,7 @@ class FlinkCompiler(classLoader: ClassLoader) {
                                        val config: FlinkApplicationConfiguration,
                                        val streamEnvironment: StreamExecutionEnvironment) {
     val compiledDataStreams = new mutable.HashMap[String, SingleOutputStreamOperator[_]]()
-    val compiledConnectedStreams = new mutable.HashMap[JoinNodeExpression, ConnectStreamsResult]()
+    val compiledConnectedStreams = new mutable.HashMap[Filter, ConnectStreamsResult]()
     val compiledWindowedStreams = new mutable.HashMap[GroupingExpression, ApplyWindowResult]()
     val lineageStreams = new mutable.MutableList[DataStream[LineageRecord]]()
     val compiledMetrics = new mutable.MutableList[CompiledMetric]()
