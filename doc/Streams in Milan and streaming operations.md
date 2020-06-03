@@ -32,7 +32,7 @@ Join conditions can be a mixture of equality constraints between the streams, co
 
 For example, consider the join condition in `A.leftJoin(B).where((a, b) => a.value < 3 && a.key == b.key && (a.value > b.value + 1))`
 This has one pre-condition on stream A: the "value" field must be less than 3.
-Records that fail the pre-condition are filtered before being considered as join candidates.
+Records that fail the pre-condition are filtered before being considered as join candidates. 
 It has one equality constraint, which is that the "key" fields are equal.
 Whenever a record arrives on A or B, it is paired with the latest record from the other stream that has the same key, and any remaining constraints are then applied to this pair of records.
 
@@ -42,7 +42,7 @@ When a record arrives on one stream, the join condition is used to find all matc
 These joins are not yet implemented in Milan.
 
 #### Join Output ####
-The `select` operation tells Milan how to produce output records when a pair of input records is found that satisfies a join condition.
+The `select` operation tells Milan how to produce output records when a pair of input records is found that satisfies a join condition. 
 `select` is essentially the same as the `map` operation except that the functions supplied take two arguments rather than one.
 Like `map`, `select` can produce a stream of a single object or of multiple named fields.
 Note that unless a not-null constraint is applied to both streams in the join condition, one of the arguments to the `select` functions could be null, so they must handle this otherwise a runtime error will occur.
@@ -72,5 +72,44 @@ The group key argument to the `select` functions will be a time stamp that corre
 
 #### Uniqueness ####
 In order to prevent double-counting, a uniqueness constraint can be applied to grouped or windowed streams before aggregating.
-This is done using the `unique` operator.
+This is done using using the `unique` operator.
 `unique` takes a function that extracts a value from the input records, and guarantees that when the aggregation is performed only the latest record for any given value will be included in the aggregate computation.
+
+
+## Operations
+
+### Map
+```
+Stream[T], T => O -> Stream[O]
+GroupedStream[T, K], (K, Stream[T]) => Stream[O] -> GroupedStream[O, K]
+WindowedStream[T], (Instant, Stream[T]) => Stream[O] -> TimeWindowedStream[O]
+JoinedStream[T, U], (T, U) => O -> Stream[O]
+JoinedWindowedStream[T, U], (T, List[U]) => V -> Stream[O]
+```
+
+### FlatMap
+```
+GroupedStream[T, K], (K, Stream[T]) => Stream[O] -> Stream[O]
+TimeWindowedStream[T], (TimeStamp, Stream[T]) => Stream[O] -> Stream[O]
+```
+
+### GroupBy
+```
+Stream[T], T => K => GroupedStream[T, K]
+```
+
+### LeftJoin
+```
+Stream[T], Stream[U], (T, U) => Bool -> JoinedStream[T, U]
+Stream[T], WindowedStream[U] -> JoinedWindowedStream[T, U]
+```
+
+### FullJoin
+```
+Stream[T], Stream[U], (T, U) => Bool -> JoinedStream[T, U]
+```
+
+### UniqueBy
+```
+Stream[T], T => K, T => A -> WindowedStream[T]
+```
