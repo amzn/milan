@@ -8,9 +8,11 @@ import org.apache.flink.streaming.api.functions.sink.SinkFunction
 
 @JsonDeserialize(using = classOf[FlinkDataSinkDeserializer])
 trait FlinkDataSink[T] extends SetGenericTypeInfo with Serializable {
-  def getSinkFunction: SinkFunction[_]
+  def getSinkFunction: SinkFunction[T]
 
   def getSinkTypeName: String = getClass.getSimpleName
+
+  def getMaxParallelism: Option[Int] = None
 }
 
 

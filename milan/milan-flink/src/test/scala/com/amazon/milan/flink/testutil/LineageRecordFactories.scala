@@ -1,7 +1,7 @@
 package com.amazon.milan.flink.testutil
 
 import com.amazon.milan.SemanticVersion
-import com.amazon.milan.flink.compiler.internal.{JoinLineageRecordFactory, LineageRecordFactory}
+import com.amazon.milan.flink.internal.{JoinLineageRecordFactory, LineageRecordFactory}
 import com.amazon.milan.types.{LineageRecord, RecordPointer}
 
 

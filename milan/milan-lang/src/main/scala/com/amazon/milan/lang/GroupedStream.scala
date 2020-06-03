@@ -2,29 +2,40 @@ package com.amazon.milan.lang
 
 import java.time.{Duration, Instant}
 
+import com.amazon.milan.Id
 import com.amazon.milan.lang.internal.{GroupedStreamMacros, StreamMacros}
-import com.amazon.milan.program.StreamExpression
+import com.amazon.milan.program.{SlidingRecordWindow, StreamExpression}
 
 import scala.language.experimental.macros
 
 
 /**
- * Represents the result of a group by operation.
+ * Represents the result of a group by operation where the key is specified.
  *
  * @param expr The Milan expression representing the group by operation.
  * @tparam T    The type of the stream.
  * @tparam TKey The type of the group key.
  */
-class GroupedStream[T, TKey](val expr: StreamExpression) extends GroupOperations[T, TKey] {
+class GroupedStream[T, TKey](val expr: StreamExpression) extends KeyedGroupOperations[T, TKey] {
   /**
-   * Specifies that for any following aggregate operations, only the latest record for each selector value will be
-   * included in the aggregate calculation.
+   * Gets a copy of this [[GroupedStream]] object with the specified name assigned.
    *
-   * @param selector A function that computes the value that must be unique in the group.
-   * @tparam TVal The type of value computed.
-   * @return A [[GroupedStream]] with the uniqueness constraint applied to each group.
+   * @param name The name to assign.
+   * @return A copy of the stream with the specified name assigned.
    */
-  def unique[TVal](selector: T => TVal): GroupedStream[T, TKey] = macro GroupedStreamMacros.unique[T, TKey, TVal]
+  def withName(name: String): GroupedStream[T, TKey] = {
+    new GroupedStream[T, TKey](this.expr.withName(name))
+  }
+
+  /**
+   * Gets a copy of this [[GroupedStream]] object with the specified ID assigned.
+   *
+   * @param id The ID to assign.
+   * @return A copy of the stream with the specified ID assigned.
+   */
+  def withId(id: String): GroupedStream[T, TKey] = {
+    new GroupedStream[T, TKey](this.expr.withId(id))
+  }
 
   /**
    * Defines a tumbling window over a date/time that is extracted from stream records.
@@ -33,9 +44,9 @@ class GroupedStream[T, TKey](val expr: StreamExpression) extends GroupOperations
    * @param windowPeriod  The length of a window.
    * @param offset        By default windows are aligned with the epoch, 1970-01-01.
    *                      This offset shifts the window alignment to the specified duration after the epoch.
-   * @return A [[WindowedStream]] representing the result of the windowing operation.
+   * @return A [[TimeWindowedStream]] representing the result of the windowing operation.
    */
-  def tumblingWindow(dateExtractor: T => Instant, windowPeriod: Duration, offset: Duration): WindowedStream[T] = macro StreamMacros.tumblingWindow[T]
+  def tumblingWindow(dateExtractor: T => Instant, windowPeriod: Duration, offset: Duration): TimeWindowedStream[T] = macro StreamMacros.tumblingWindow[T]
 
   /**
    * Defines a sliding window over a date/time that is extracted from stream records.
@@ -45,9 +56,9 @@ class GroupedStream[T, TKey](val expr: StreamExpression) extends GroupOperations
    * @param slide         The distance (in time) between window start times.
    * @param offset        By default windows are aligned with the epoch, 1970-01-01.
    *                      This offset shifts the window alignment to the specified duration after the epoch.
-   * @return A [[WindowedStream]] representing the result of the windowing operation.
+   * @return A [[TimeWindowedStream]] representing the result of the windowing operation.
    */
-  def slidingWindow(dateExtractor: T => Instant, windowSize: Duration, slide: Duration, offset: Duration): WindowedStream[T] = macro StreamMacros.slidingWindow[T]
+  def slidingWindow(dateExtractor: T => Instant, windowSize: Duration, slide: Duration, offset: Duration): TimeWindowedStream[T] = macro StreamMacros.slidingWindow[T]
 
   /**
    * Maps each stream of grouped records to another stream.
@@ -59,11 +70,25 @@ class GroupedStream[T, TKey](val expr: StreamExpression) extends GroupOperations
   def map[TOut](f: (TKey, Stream[T]) => Stream[TOut]): GroupedStream[TOut, TKey] = macro GroupedStreamMacros.map[T, TKey, TOut]
 
   /**
-   * Maps each stream of grouped records to another stream, and combines all output streams into a single stream.
+   * Defines a window containing the latest records from every group.
    *
-   * @param f A function that maps each stream of grouped records to another stream.
-   * @tparam TOut The output record type.
-   * @return A [[Stream]] containing all of the output records from all groups.
+   * @param windowSize The window size.
+   * @return A [[WindowedStream]] representing the result of the windowing operation.
    */
-  def flatMap[TOut](f: (TKey, Stream[T]) => Stream[TOut]): Stream[TOut] = macro GroupedStreamMacros.flatMap[T, TKey, TOut]
+  def recordWindow(windowSize: Int): WindowedStream[T] = {
+    val id = Id.newId()
+    val outputExpr = new SlidingRecordWindow(this.expr, windowSize, id, id, this.expr.recordType.toStream.toGrouped)
+    new WindowedStream[T](outputExpr)
+  }
+}
+
+
+/**
+ * Represents the result of a grouping operation.
+ *
+ * @param expr The expression representing the grouping operation.
+ * @tparam T The type of stream records.
+ */
+class UnkeyedGroupedStream[T](val expr: StreamExpression) extends UnkeyedGroupOperations[T] {
+
 }

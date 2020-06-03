@@ -116,6 +116,8 @@ class IntStringRecord(val recordId: String, val i: Int, val s: String) {
     this(Id.newId(), i, s)
   }
 
+  override def toString: String = s"""IntStringRecord(${this.i}, ${if (this.s == null) "null" else '"' + this.s + '"'})"""
+
   override def equals(obj: Any): Boolean = obj match {
     case o: IntStringRecord => this.i == o.i && this.s == o.s
     case _ => false

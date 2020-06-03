@@ -6,6 +6,10 @@ import scala.collection.immutable.HashSet
 object DataFormatFlags extends Enumeration {
   type DataFormatFlags = Value
 
+  /**
+   * Specifies that a data reader should fail if a property is encountered in the data that does not match a property
+   * of the destination type.
+   */
   val FailOnUnknownProperties = Value
 
   val None: ValueSet = DataFormatFlags.ValueSet.empty

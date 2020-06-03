@@ -17,6 +17,7 @@ package object types {
   val Long = new NumericTypeDescriptor[Long]("Long")
   val String = new BasicTypeDescriptor[String]("String")
   val Nothing = new BasicTypeDescriptor[Nothing]("Nothing")
+  val Unit = new TupleTypeDescriptor[Product]("Product", List(), List())
 
   def stream(recordType: TypeDescriptor[_]): StreamTypeDescriptor = {
     new DataStreamTypeDescriptor(recordType)

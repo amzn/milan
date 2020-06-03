@@ -126,10 +126,12 @@ package object typeutil {
     }
   }
 
-  implicit class TypeDescriptorExtensions[T](typeDesc: TypeDescriptor[T]) {
+  implicit class TypeUtilTypeDescriptorExtensions[_](typeDesc: TypeDescriptor[_]) {
     def isCollection: Boolean = this.typeDesc.isInstanceOf[CollectionTypeDescriptor[_]]
 
     def isTuple: Boolean = this.typeDesc.isInstanceOf[TupleTypeDescriptor[_]]
+
+    def isNamedTuple: Boolean = this.isTuple && this.typeDesc.fields.nonEmpty
 
     def isNumeric: Boolean = this.typeDesc.isInstanceOf[NumericTypeDescriptor[_]]
 
@@ -137,9 +139,13 @@ package object typeutil {
 
     def asStream: StreamTypeDescriptor = this.typeDesc.asInstanceOf[StreamTypeDescriptor]
 
-    def toIterable: TypeDescriptor[Iterable[T]] = TypeDescriptor.iterableOf[T](this.typeDesc)
+    def toIterable: TypeDescriptor[Iterable[_]] = TypeDescriptor.iterableOf[Any](this.typeDesc.asInstanceOf[TypeDescriptor[Any]])
+
+    def toOption: TypeDescriptor[Option[_]] = TypeDescriptor.optionOf[Any](this.typeDesc)
 
     def toStream: DataStreamTypeDescriptor = new DataStreamTypeDescriptor(this.typeDesc)
+
+    def toGrouped: GroupedStreamTypeDescriptor = new GroupedStreamTypeDescriptor(this.typeDesc)
   }
 
 }

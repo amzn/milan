@@ -2,7 +2,7 @@ package com.amazon.milan.program
 
 import com.amazon.milan.program.internal.TreeMacros
 import com.amazon.milan.serialization.{ScalaObjectMapper, TypeInfoProvider, TypedJsonDeserializer, TypedJsonSerializer}
-import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, TypeDescriptor}
+import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
@@ -43,76 +43,6 @@ object Tree {
   private def escape(str: String): String = {
     jsonMapper.writeValueAsString(str)
   }
-
-  /**
-   * Gets the [[StreamExpression]] nodes in a tree where type argument is a record type and not a stream.
-   *
-   * @param tree An expression tree.
-   * @return A sequence of all of the [[StreamExpression]] nodes in the tree.
-   */
-  def getDataStreams(tree: Tree): Iterable[StreamExpression] = {
-    tree match {
-      case s: StreamExpression if this.isDataStream(s) =>
-        Seq(s)
-
-      case _ =>
-        tree.getChildren.flatMap(this.getDataStreams)
-    }
-  }
-
-  def isDataStream(tree: Tree): Boolean = {
-    tree.tpe.isInstanceOf[DataStreamTypeDescriptor]
-  }
-
-  /**
-   * Gets a copy of an expression tree with any child [[StreamExpression]] nodes replaced with [[Ref]]
-   * nodes.
-   *
-   * @param tree An expression tree.
-   * @return A copy of the expression tree with graph nodes replaced with references.
-   */
-  def replaceChildStreamsWithReferences(tree: Tree): Tree = {
-    val newChildren = tree.getChildren.map(this.replaceStreamsWithReferences).toList
-    tree.replaceChildren(newChildren)
-  }
-
-  /**
-   * Replaces any [[Ref]] nodes in an expression tree with actual nodes from a collection of nodes.
-   *
-   * @param tree  The tree to replace the references in.
-   * @param nodes The actual nodes to use as replacements for the references, keyed by node ID.
-   * @return A copy of the input tree with any references replaced with actual nodes.
-   */
-  def replaceRefsWithActual(tree: Tree,
-                            nodes: Map[String, StreamExpression]): Tree = {
-    tree match {
-      case Ref(nodeId) =>
-        val node = nodes(nodeId)
-        this.replaceRefsWithActual(node, nodes)
-
-      case _ =>
-        val newChildren = tree.getChildren.map(child => this.replaceRefsWithActual(child, nodes)).toList
-        tree.replaceChildren(newChildren)
-    }
-  }
-
-
-  /**
-   * Gets a copy of an expression tree with [[StreamExpression]] nodes replaced with [[Ref]] nodes.
-   *
-   * @param tree An expression tree.
-   * @return A copy of the expression tree with graph nodes replaced with references.
-   */
-  private def replaceStreamsWithReferences(tree: Tree): Tree = {
-    tree match {
-      case s: StreamExpression if this.isDataStream(s) =>
-        Ref(s.nodeId)
-
-      case _ =>
-        val newChildren = tree.getChildren.map(this.replaceStreamsWithReferences).toList
-        tree.replaceChildren(newChildren)
-    }
-  }
 }
 
 
@@ -138,6 +68,8 @@ abstract class Tree extends Serializable with TypeInfoProvider {
   def getChildren: Iterable[Tree] = List()
 
   def replaceChildren(children: List[Tree]): Tree = this
+
+  def copy(): Tree = this.replaceChildren(this.getChildren.toList)
 
   override def toString: String = {
     val cls = getClass

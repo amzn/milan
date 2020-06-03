@@ -1,17 +1,20 @@
 package com.amazon.milan
 
-import com.amazon.milan.typeutil.TypeDescriptor
-
 import scala.language.implicitConversions
 
 
 package object program {
 
   implicit class SelectExpressionExtensions(select: SelectExpression) {
-    def getRootTermName: String = {
+    /**
+     * Gets the root qualifier in a series of nested Select expressions.
+     *
+     * @return The first SelectField qualifier that is not a SelectField expression.
+     */
+    def getRootQualifier: Tree = {
       this.select match {
-        case SelectTerm(termName) => termName
-        case SelectField(qualifier, _) => qualifier.getRootTermName
+        case SelectField(qualifier: SelectField, _) => qualifier.getRootQualifier
+        case root => root
       }
     }
 
@@ -34,29 +37,6 @@ package object program {
           }
       }
     }
-
-    /**
-     * Replaces the root term of a select expression with a different select expression.
-     *
-     * @param replacement The replacement for the root term.
-     * @return A new [[SelectExpression]] that is equivalent to this one but with the root term replaced.
-     */
-    def replaceRootTermName(replacement: SelectExpression): SelectExpression = {
-      this.select match {
-        case _: SelectTerm =>
-          replacement
-
-        case SelectField(qualifier, name) =>
-          SelectField(qualifier.replaceRootTermName(replacement), name)
-      }
-    }
-  }
-
-  implicit class TypeDescriptorExtensions(ty: TypeDescriptor[_]) {
-    /**
-     * Gets whether the type being described represents the records on a tuple stream.
-     */
-    def isTupleStreamType: Boolean = ty.isTuple && ty.fields.nonEmpty
   }
 
   implicit class TreeExtensions(tree: Tree) {

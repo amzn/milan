@@ -1,28 +1,18 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.amazon.milan</groupId>
     <artifactId>milan-lang</artifactId>
     <version>0.8-SNAPSHOT</version>
     <name>${project.artifactId}</name>
     <description>Project Milan - language, infrastructure, and tools for data-first systems.</description>
-    <inceptionYear>2018</inceptionYear>
+    <inceptionYear>2019</inceptionYear>
     <packaging>jar</packaging>
 
-    <properties>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
-        <encoding>UTF-8</encoding>
-        <scala.version>2.12.10</scala.version>
-        <scala.compat.version>2.12</scala.compat.version>
-        <spec2.version>4.2.0</spec2.version>
-        <aws.sdk.version>2.10.25</aws.sdk.version>
-        <slf4j.version>1.7.25</slf4j.version>
-        <log4j.version>2.11.1</log4j.version>
-        <jackson.version>2.10.0</jackson.version>
-        <scala.logging.version>3.9.2</scala.logging.version>
-        <milan.version>0.8-SNAPSHOT</milan.version>
-    </properties>
+    <parent>
+        <groupId>com.amazon.milan</groupId>
+        <artifactId>milan-parent</artifactId>
+        <version>0.8-SNAPSHOT</version>
+    </parent>
 
     <dependencies>
         <dependency>

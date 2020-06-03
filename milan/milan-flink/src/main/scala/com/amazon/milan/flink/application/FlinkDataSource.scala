@@ -3,7 +3,7 @@ package com.amazon.milan.flink.application
 import com.amazon.milan.flink.MilanFlinkConfiguration
 import com.amazon.milan.serialization.{GenericTypedJsonDeserializer, SetGenericTypeInfo}
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import org.apache.flink.streaming.api.datastream.DataStreamSource
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 
 
@@ -17,7 +17,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
  */
 @JsonDeserialize(using = classOf[DataSourceDeserializer])
 trait FlinkDataSource[T] extends SetGenericTypeInfo with Serializable {
-  def addDataSource(env: StreamExecutionEnvironment): DataStreamSource[T]
+  def addDataSource(env: StreamExecutionEnvironment): SingleOutputStreamOperator[T]
 
   def getSourceTypeName: String = getClass.getSimpleName
 }

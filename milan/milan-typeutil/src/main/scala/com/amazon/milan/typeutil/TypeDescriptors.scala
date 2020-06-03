@@ -37,12 +37,36 @@ final class TupleTypeDescriptor[T](val typeName: String,
   }
 }
 
+object TupleTypeDescriptor {
+  def unapply(arg: TupleTypeDescriptor[_]): Option[List[TypeDescriptor[_]]] = Some(arg.genericArguments)
+}
 
+
+/**
+ * [[TypeDescriptor]] implementation to use for constructing custom type descriptors.
+ *
+ * @param typeName         The name of the type, not including generic arguments.
+ * @param genericArguments The generic arguments of the type.
+ * @param fields           The fieldsof the type.
+ * @tparam T The type being described.
+ */
 @JsonSerialize
 @JsonDeserialize
 final class ObjectTypeDescriptor[T](val typeName: String,
                                     val genericArguments: List[TypeDescriptor[_]],
                                     val fields: List[FieldDescriptor[_]]) extends TypeDescriptor[T] {
+  assert(!typeName.matches("^Tuple[0-9]+$"))
+}
+
+
+/**
+ * [[TypeDescriptor]] implementation used for generated type descriptors, e.g. by using `TypeDescriptor.of`.
+ */
+@JsonSerialize
+@JsonDeserialize
+final class GeneratedTypeDescriptor[T](val typeName: String,
+                                       val genericArguments: List[TypeDescriptor[_]],
+                                       val fields: List[FieldDescriptor[_]]) extends TypeDescriptor[T] {
   assert(!typeName.matches("^Tuple[0-9]+$"))
 }
 
@@ -76,7 +100,7 @@ final class DataStreamTypeDescriptor(val recordType: TypeDescriptor[_]) extends 
   override val genericArguments: List[TypeDescriptor[_]] = List(this.recordType)
 }
 
-object StreamTypeDescriptor {
+object DataStreamTypeDescriptor {
   def unapply(arg: StreamTypeDescriptor): Option[TypeDescriptor[_]] = Some(arg.recordType)
 }
 

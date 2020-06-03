@@ -18,6 +18,10 @@ trait ArgReducingAggregateFunction {
 
 object aggregation {
 
+  object count {
+    def apply(): Long = throw new NotImplementedError()
+  }
+
   object sum extends ReducingAggregateFunction
 
   object min extends ReducingAggregateFunction

@@ -47,9 +47,9 @@ class FlinkSingletonMemorySink[T](val sinkId: String, var recordTypeDescriptor: 
     this.recordTypeDescriptor = genericArgs.head.asInstanceOf[TypeDescriptor[T]]
   }
 
-  override def getSinkFunction: SinkFunction[_] = {
+  override def getSinkFunction: SinkFunction[T] = {
     if (this.recordTypeDescriptor.isTuple) {
-      new TupleSingletonMemorySinkFunction[T](sinkId, recordTypeDescriptor)
+      new TupleSingletonMemorySinkFunction[T](sinkId, recordTypeDescriptor).asInstanceOf[SinkFunction[T]]
     }
     else {
       new SingletonMemorySinkFunction[T](this.sinkId)

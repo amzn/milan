@@ -1,5 +1,6 @@
 package com.amazon.milan.serialization
 
+import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper, SerializationFeature}
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
@@ -14,6 +15,7 @@ class ScalaObjectMapper(config: DataFormatConfiguration) extends ObjectMapper {
   this.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, config.isEnabled(DataFormatFlags.FailOnUnknownProperties))
   this.configure(SerializationFeature.WRITE_ENUMS_USING_TO_STRING, true)
   this.configure(DeserializationFeature.READ_ENUMS_USING_TO_STRING, true)
+  this.configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET, false)
 
   def this() {
     this(DataFormatConfiguration.default)

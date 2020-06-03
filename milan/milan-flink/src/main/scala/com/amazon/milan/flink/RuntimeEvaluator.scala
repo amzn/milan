@@ -1,12 +1,9 @@
 package com.amazon.milan.flink
 
-import com.amazon.milan.flink.compiler.FlinkCompilationException
-import com.amazon.milan.flink.components.{ParameterizedTypeInfo, TupleStreamTypeInformation}
+import com.amazon.milan.flink.types.{ArrayRecordTypeInformation, ParameterizedTypeInfo, ScalaTupleTypeInformation}
 import com.amazon.milan.typeutil.TypeDescriptor
 import com.typesafe.scalalogging.Logger
 import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.api.java.tuple.Tuple
-import org.apache.flink.api.java.typeutils.TupleTypeInfo
 import org.slf4j.LoggerFactory
 
 import scala.reflect.runtime.universe
@@ -14,7 +11,11 @@ import scala.reflect.{ClassTag, classTag}
 import scala.tools.reflect.ToolBox
 
 
-class RuntimeEvaluationException(message: String, cause: Throwable) extends Exception(message, cause)
+class RuntimeEvaluationException(message: String, cause: Throwable) extends Exception(message, cause) {
+  def this(message: String) {
+    this(message, null)
+  }
+}
 
 object RuntimeEvaluator {
   val default: RuntimeEvaluator = new RuntimeEvaluator()
@@ -308,10 +309,10 @@ class RuntimeEvaluator(classLoader: ClassLoader) {
   }
 
   def createTypeInformation[T](typeDescriptor: TypeDescriptor[T]): TypeInformation[T] = {
-    if (typeDescriptor.isTuple && typeDescriptor.fields.nonEmpty) {
+    if (typeDescriptor.isNamedTuple) {
       // This is a tuple type with named fields, which means it's a record type for a stream.
       // For this we use TupleStreamTypeInformation.s
-      TupleStreamTypeInformation.createFromFields(typeDescriptor.fields).asInstanceOf[TypeInformation[T]]
+      ArrayRecordTypeInformation.createFromFields(typeDescriptor.fields).asInstanceOf[TypeInformation[T]]
     }
     else if (typeDescriptor.isTuple) {
       this.createTupleTypeInformation(typeDescriptor.genericArguments).asInstanceOf[TypeInformation[T]]
@@ -332,26 +333,21 @@ class RuntimeEvaluator(classLoader: ClassLoader) {
     }
   }
 
-  def createTupleTypeInformation[T <: Tuple](elementTypes: List[TypeDescriptor[_]]): TypeInformation[T] = {
-    val className = TypeUtil.getTupleClassName(elementTypes.length)
-    val cls = findClass(className).asInstanceOf[Class[T]]
+  def createTupleTypeInformation[T >: Null <: Product : ClassTag](elementTypes: List[TypeDescriptor[_]]): TypeInformation[T] = {
     val elementTypeInfo = elementTypes.map(typeDesc => this.createTypeInformation(typeDesc))
-    new TupleTypeInfo[T](cls, elementTypeInfo: _*)
+    new ScalaTupleTypeInformation[T](elementTypeInfo.toArray)
   }
 
   def createTypeInformation(className: String): TypeInformation[_] = {
     val correctTypeName = this.getCorrectClassName(className)
 
-    if (correctTypeName.contains(FlinkTypeNames.tuple)) {
-      throw new IllegalArgumentException("Tuple types created by runtime evaluation are not serializable.")
-    }
-    else if (correctTypeName.startsWith("Stream[")) {
+    if (correctTypeName.startsWith("Stream[")) {
       throw new IllegalArgumentException("Attempted to create TypeInformation for non-existant Stream type.")
     }
 
     val typeInformation = evalFunction[TypeInformation[_]](s"org.apache.flink.api.scala.createTypeInformation[$correctTypeName]")
     if (typeInformation.getClass.getName.contains("__wrapper")) {
-      throw new FlinkCompilationException(s"Couldn't create a valid TypeInformation for '$className' (renamed to '$correctTypeName').")
+      throw new RuntimeEvaluationException(s"Couldn't create a valid TypeInformation for '$className' (renamed to '$correctTypeName').")
     }
 
     typeInformation

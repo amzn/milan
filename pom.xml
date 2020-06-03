@@ -6,7 +6,7 @@
     <version>0.8-SNAPSHOT</version>
     <name>${project.artifactId}</name>
     <description>Project Milan - language, infrastructure, and tools for data-first systems.</description>
-    <inceptionYear>2018</inceptionYear>
+    <inceptionYear>2019</inceptionYear>
     <packaging>pom</packaging>
 
     <modules>

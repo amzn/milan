@@ -49,7 +49,12 @@ trait TypeDescriptor[T] extends TypeInfoProvider with Serializable {
    * @param name The name of a field.
    * @return The [[FieldDescriptor]] for the field.
    */
-  def getField(name: String): FieldDescriptor[_] = this.tryGetField(name).get
+  def getField(name: String): FieldDescriptor[_] = {
+    this.tryGetField(name) match {
+      case Some(field) => field
+      case None => throw new IllegalArgumentException(s"A field named '$name' does not exist in the type '${this.fullName}'.")
+    }
+  }
 
   /**
    * Gets whether a field with the specified name exists for the type.
@@ -154,6 +159,14 @@ object TypeDescriptor {
 
   def createTuple[T](elementTypes: List[TypeDescriptor[_]]): TupleTypeDescriptor[T] = {
     this.createTuple[T]("Tuple", elementTypes)
+  }
+
+  def augmentTuple(tuple: TupleTypeDescriptor[_], newElementType: TypeDescriptor[_]): TupleTypeDescriptor[_] = {
+    this.createTuple[Product](tuple.genericArguments :+ newElementType)
+  }
+
+  def optionOf[T](valueType: TypeDescriptor[_]): ObjectTypeDescriptor[Option[T]] = {
+    new ObjectTypeDescriptor[Option[T]]("Option", List(valueType), List())
   }
 
   def iterableOf[T](elementType: TypeDescriptor[T]): TypeDescriptor[Iterable[T]] = {

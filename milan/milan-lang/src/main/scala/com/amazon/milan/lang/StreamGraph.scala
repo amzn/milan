@@ -1,6 +1,7 @@
 package com.amazon.milan.lang
 
-import com.amazon.milan.program.{Ref, StreamExpression, Tree}
+import com.amazon.milan.program.{Ref, SingleInputStreamExpression, StreamExpression, Tree, TwoInputStreamExpression}
+import com.amazon.milan.typeutil.DataStreamTypeDescriptor
 import com.fasterxml.jackson.annotation.{JsonCreator, JsonIgnore}
 
 import scala.language.experimental.macros
@@ -74,16 +75,32 @@ class StreamGraph(var streamsById: Map[String, StreamExpression]) {
       return
     }
 
-    // First add any child graph nodes as separate entries in the database.
-    stream.getChildren
-      .flatMap(Tree.getDataStreams)
-      .foreach(this.addWithReferences)
+    // First add any child streams as separate entries in the database.
+    this.getInputStreams(stream).foreach(this.addWithReferences)
 
     // Get a version of the node with child nodes replaced with references.
     // This prevents us from deep-copying any nodes.
-    val exprWithReferences = Tree.replaceChildStreamsWithReferences(stream).asInstanceOf[StreamExpression]
+    val exprWithReferences = this.replaceChildStreamsWithReferences(stream)
 
-    this.streamsById = this.streamsById + (stream.nodeId -> exprWithReferences)
+    if (this.isDataStream(stream)) {
+      this.streamsById = this.streamsById + (stream.nodeId -> exprWithReferences)
+    }
+  }
+
+  /**
+   * Gets any stream inputs to stream expressions.
+   */
+  private def getInputStreams(stream: StreamExpression): List[StreamExpression] = {
+    def streamOrEmpty(expr: Tree): List[StreamExpression] = expr match {
+      case s: StreamExpression => List(s)
+      case _ => List()
+    }
+
+    stream match {
+      case SingleInputStreamExpression(input) => streamOrEmpty(input)
+      case TwoInputStreamExpression(left, right) => streamOrEmpty(left) ++ streamOrEmpty(right)
+      case _ => List()
+    }
   }
 
   /**
@@ -123,6 +140,41 @@ class StreamGraph(var streamsById: Map[String, StreamExpression]) {
   private def dereferenceStreamExpression(expr: StreamExpression): StreamExpression = {
     this.dereferenceExpressionTree(expr).asInstanceOf[StreamExpression]
   }
+
+  /**
+   * Gets a copy of an expression tree with any input [[StreamExpression]] nodes replaced with [[Ref]]
+   * nodes.
+   *
+   * @param stream A straem expression.
+   * @return A copy of the expression tree with graph nodes replaced with references.
+   */
+  def replaceChildStreamsWithReferences(stream: StreamExpression): StreamExpression = {
+    val refs = this.getInputStreams(stream).map(this.replaceStreamsWithReferences)
+    val newChildren = refs ++ stream.getChildren.toList.drop(refs.length)
+    stream.replaceChildren(newChildren).asInstanceOf[StreamExpression]
+  }
+
+  /**
+   * Gets a copy of an expression tree with [[StreamExpression]] nodes replaced with [[Ref]] nodes.
+   *
+   * @param stream A stream expression tree.
+   * @return A copy of the expression tree with stream expressions replaced with references.
+   */
+  private def replaceStreamsWithReferences(stream: StreamExpression): StreamExpression = {
+    if (this.isDataStream(stream)) {
+      Ref(stream.nodeId)
+    }
+    else {
+      this.replaceChildStreamsWithReferences(stream)
+    }
+  }
+
+  /**
+   * Gets whether a stream expression represents a data stream (as opposed to a grouped, joined, or some other logical
+   * stream).
+   */
+  private def isDataStream(stream: StreamExpression): Boolean =
+    stream.tpe.isInstanceOf[DataStreamTypeDescriptor]
 
   override def equals(obj: Any): Boolean = {
     obj match {

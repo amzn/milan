@@ -1,33 +1,29 @@
 package com.amazon.milan.lang.internal
 
-import com.amazon.milan.Id
-import com.amazon.milan.lang.WindowedStream
-import com.amazon.milan.program.internal.MappedStreamHost
-import com.amazon.milan.program.{GroupingExpression, UniqueBy}
-import com.amazon.milan.typeutil.TypeInfoHost
+import com.amazon.milan.lang.Stream
+import com.amazon.milan.program.internal.{ConvertExpressionHost, MappedStreamHost}
+import com.amazon.milan.typeutil.TypeDescriptor
 
 import scala.reflect.macros.whitebox
 
 
-class WindowedStreamMacros(val c: whitebox.Context) extends TypeInfoHost with FieldStatementHost with MappedStreamHost {
+class WindowedStreamMacros(val c: whitebox.Context)
+  extends ConvertExpressionHost
+    with MappedStreamHost {
 
   import c.universe._
 
-  def unique[T: c.WeakTypeTag, TVal: c.WeakTypeTag](selector: c.Expr[T => TVal]): c.Expr[WindowedStream[T]] = {
-    val selectFunc = getMilanFunction(selector.tree)
-    val outNodeId = Id.newId()
+  def apply[T: c.WeakTypeTag, TOut: c.WeakTypeTag](f: c.Expr[Iterable[T] => TOut]): c.Expr[Stream[TOut]] = {
+    val applyFunction = getMilanFunction(f.tree)
+    val streamMapExpr = this.createStreamMap[TOut](applyFunction, q"")
 
-    val inputExprVal = TermName(c.freshName())
-    val streamExprVal = TermName(c.freshName())
-    val inputRecordTypeVal = TermName(c.freshName())
+    val exprVal = TermName(c.freshName("expr"))
 
     val tree =
       q"""
-          val $inputExprVal = ${c.prefix}.expr
-          val $inputRecordTypeVal = $inputExprVal.recordType
-          val $streamExprVal = new ${typeOf[UniqueBy]}($inputExprVal.asInstanceOf[${typeOf[GroupingExpression]}], $selectFunc, $outNodeId, $outNodeId, $inputRecordTypeVal)
-          new ${weakTypeOf[WindowedStream[T]]}($streamExprVal)
-        """
-    c.Expr[WindowedStream[T]](tree)
+          val $exprVal = $streamMapExpr
+          new ${weakTypeOf[Stream[TOut]]}($exprVal, $exprVal.recordType.asInstanceOf[${weakTypeOf[TypeDescriptor[TOut]]}])
+       """
+    c.Expr[Stream[TOut]](tree)
   }
 }

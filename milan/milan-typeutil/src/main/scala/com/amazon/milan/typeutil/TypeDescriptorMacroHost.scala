@@ -21,7 +21,8 @@ trait TypeDescriptorMacroHost extends TypeInfoHost with LiftTypeDescriptorHost {
     typeOf[Float] -> types.Float,
     typeOf[Int] -> types.Int,
     typeOf[Long] -> types.Long,
-    typeOf[String] -> types.String
+    typeOf[String] -> types.String,
+    typeOf[java.lang.String] -> types.String
   )
 
   /**
@@ -76,7 +77,7 @@ trait TypeDescriptorMacroHost extends TypeInfoHost with LiftTypeDescriptorHost {
     val fieldDescriptors = fields.map {
       case (fieldName, fieldType) =>
         val fieldTypeDescriptor = this.getTypeDescriptorImpl[Any](fieldType)
-        q"new com.amazon.milan.typeutil.FieldDescriptor[${fieldType}]($fieldName, $fieldTypeDescriptor.asInstanceOf[com.amazon.milan.typeutil.TypeDescriptor[$fieldType]])"
+        q"new com.amazon.milan.typeutil.FieldDescriptor[$fieldType]($fieldName, $fieldTypeDescriptor.asInstanceOf[com.amazon.milan.typeutil.TypeDescriptor[$fieldType]])"
     }
 
     val genericArgs = fields.map { case (_, fieldType) => this.getTypeDescriptorImpl[Any](fieldType) }
@@ -92,9 +93,7 @@ trait TypeDescriptorMacroHost extends TypeInfoHost with LiftTypeDescriptorHost {
    */
   def isTuple(ty: c.Type): Boolean = {
     val fullName = ty.typeSymbol.fullName
-
-    fullName.startsWith("scala.Tuple") ||
-      fullName.startsWith("org.apache.flink.api.java.tuple.Tuple")
+    fullName.startsWith("scala.Tuple")
   }
 
   private def getTypeDescriptorImpl[T](ty: c.Type): TypeDescriptor[T] = {
@@ -124,13 +123,15 @@ trait TypeDescriptorMacroHost extends TypeInfoHost with LiftTypeDescriptorHost {
       }
 
     if (isTuple(ty)) {
-      new TupleTypeDescriptor[T](typeName, genericArgs, fields)
+      // We don't actually want the fields from the Tuple class.
+      // Only records with named fields specified by users should have tuple type descriptors with fields.
+      new TupleTypeDescriptor[T](typeName, genericArgs, List())
     }
     else if (isCollection(ty)) {
       new CollectionTypeDescriptor[T](typeName, genericArgs)
     }
     else {
-      new ObjectTypeDescriptor[T](typeName, genericArgs, fields)
+      new GeneratedTypeDescriptor[T](typeName, genericArgs, fields)
     }
   }
 

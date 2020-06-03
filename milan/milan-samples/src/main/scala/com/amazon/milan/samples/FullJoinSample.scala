@@ -3,11 +3,7 @@ package com.amazon.milan.samples
 import com.amazon.milan.application.ApplicationConfiguration
 import com.amazon.milan.application.sinks.SingletonMemorySink
 import com.amazon.milan.application.sources.ListDataSource
-import com.amazon.milan.flink.compiler.FlinkCompiler
 import com.amazon.milan.lang._
-import com.typesafe.scalalogging.Logger
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
-import org.slf4j.LoggerFactory
 
 
 object FullJoinSample {
@@ -24,10 +20,11 @@ object FullJoinSample {
     // The input to the functions provided in the select statement are the latest records to arrive on the input streams.
     // Note that at this point either of the input records could be null if no records have arrived on those streams.
     // We could prevent this by adding "l != null && r != null" to the join condition above.
-    val output = joined.select(
-      ((l: KeyValueRecord, r: KeyValueRecord) => if (l == null) r.key else l.key) as "key",
-      ((l: KeyValueRecord, _: KeyValueRecord) => l) as "left",
-      ((_: KeyValueRecord, r: KeyValueRecord) => r) as "right").withName("output")
+    val output = joined.select((l, r) => fields(
+      field("key", if (l == null) r.key else l.key),
+      field("left", l),
+      field("right", r)
+    )).withName("output")
 
     // Create a stream graph, passing in the output stream. Upstream dependencies are added automatically.
     val graph = new StreamGraph(output)
@@ -44,18 +41,18 @@ object FullJoinSample {
     val outputSink = new SingletonMemorySink[output.RecordType]()
     config.addSink(output, outputSink)
 
-    // Compile and run.
-    val env = StreamExecutionEnvironment.getExecutionEnvironment
-    FlinkCompiler.defaultCompiler.compile(graph, config, env)
-
-    env.execute()
+    // TODO: compile and execute.
+    //    val env = StreamExecutionEnvironment.getExecutionEnvironment
+    //    FlinkCompiler.defaultCompiler.compile(graph, config, env)
+    //
+    //    env.execute()
 
     // Sometimes it takes a second for the records to arrive at the sink after the execution finishes.
-    Thread.sleep(1000)
+    //    Thread.sleep(1000)
 
-    val logger = Logger(LoggerFactory.getLogger(getClass))
+    //    val logger = Logger(LoggerFactory.getLogger(getClass))
 
-    logger.info("Output Records:")
-    outputSink.getValues.foreach(r => logger.info(r.toString()))
+    //    logger.info("Output Records:")
+    //    outputSink.getValues.foreach(r => logger.info(r.toString()))
   }
 }

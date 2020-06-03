@@ -19,7 +19,7 @@ object ProgramValidation {
    * @param function A function definition.
    */
   def validateNoShadowedArguments(function: FunctionDef): Unit = {
-    validateNoShadowedArguments(function.expr, function.arguments.toSet)
+    validateNoShadowedArguments(function.body, function.arguments.map(_.name).toSet)
   }
 
   /**

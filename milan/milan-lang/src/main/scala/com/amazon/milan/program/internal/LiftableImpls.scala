@@ -31,7 +31,9 @@ trait LiftableImpls extends ProgramTypeNamesHost with LiftTypeDescriptorHost {
 
   implicit val liftCreateInstance: Liftable[CreateInstance] = { t => q"new ${typeOf[CreateInstance]}(${t.ty}, ${t.args})" }
 
-  implicit val liftFunctionDef: Liftable[FunctionDef] = { t => q"new ${typeOf[FunctionDef]}(${t.arguments}, ${t.expr})" }
+  implicit val liftValueDef: Liftable[ValueDef] = { t => q"new ${typeOf[ValueDef]}(${t.name})" }
+
+  implicit val liftFunctionDef: Liftable[FunctionDef] = { t => q"new ${typeOf[FunctionDef]}(${t.arguments}, ${t.body})" }
 
   implicit val liftIsNull: Liftable[IsNull] = { t => q"new ${typeOf[IsNull]}(${t.expr})" }
 
@@ -44,6 +46,8 @@ trait LiftableImpls extends ProgramTypeNamesHost with LiftTypeDescriptorHost {
   implicit val liftSelectField: Liftable[SelectField] = { t => q"new ${typeOf[SelectField]}(${t.qualifier}, ${t.fieldName})" }
 
   implicit val liftSelectTerm: Liftable[SelectTerm] = { t => q"new ${typeOf[SelectTerm]}(${t.termName})" }
+
+  implicit val liftTupleElement: Liftable[TupleElement] = { t => q"new ${typeOf[TupleElement]}(${t.target}, ${t.index})" }
 
   implicit val liftSelectExpression: Liftable[SelectExpression] = { tree =>
     tree match {
@@ -61,7 +65,9 @@ trait LiftableImpls extends ProgramTypeNamesHost with LiftTypeDescriptorHost {
   implicit val liftAnd: Liftable[And] = { t => q"new ${typeOf[And]}(${t.left}, ${t.right})" }
   implicit val liftEquals: Liftable[Equals] = { t => q"new ${typeOf[Equals]}(${t.left}, ${t.right})" }
   implicit val liftGreaterThan: Liftable[GreaterThan] = { t => q"new ${typeOf[GreaterThan]}(${t.left}, ${t.right})" }
+  implicit val liftGreaterThanOrEqual: Liftable[GreaterThanOrEqual] = { t => q"new ${typeOf[GreaterThanOrEqual]}(${t.left}, ${t.right})" }
   implicit val liftLessThan: Liftable[LessThan] = { t => q"new ${typeOf[LessThan]}(${t.left}, ${t.right})" }
+  implicit val liftLessThanOrEqual: Liftable[LessThanOrEqual] = { t => q"new ${typeOf[LessThanOrEqual]}(${t.left}, ${t.right})" }
 
   implicit val liftBinaryLogicalOperator: Liftable[BinaryLogicalOperator] = { tree =>
     tree match {
@@ -72,6 +78,7 @@ trait LiftableImpls extends ProgramTypeNamesHost with LiftTypeDescriptorHost {
     }
   }
 
+  implicit val liftCount: Liftable[Count] = { t => q"new ${typeOf[Count]}()" }
   implicit val liftSum: Liftable[Sum] = { t => q"new ${typeOf[Sum]}(${t.expr})" }
   implicit val liftMin: Liftable[Min] = { t => q"new ${typeOf[Min]}(${t.expr})" }
   implicit val liftMax: Liftable[Max] = { t => q"new ${typeOf[Max]}(${t.expr})" }
@@ -82,6 +89,7 @@ trait LiftableImpls extends ProgramTypeNamesHost with LiftTypeDescriptorHost {
 
   implicit val liftAggregateExpression: Liftable[AggregateExpression] = { tree =>
     tree match {
+      case t: Count => liftCount(t)
       case t: Sum => liftSum(t)
       case t: Min => liftMin(t)
       case t: Max => liftMax(t)
@@ -92,18 +100,10 @@ trait LiftableImpls extends ProgramTypeNamesHost with LiftTypeDescriptorHost {
     }
   }
 
-  implicit val liftMapRecord: Liftable[MapRecord] = { t => q"new ${typeOf[MapRecord]}(${t.source}, ${t.expr}, ${t.nodeId}, ${t.nodeName})" }
-  implicit val liftMapFields: Liftable[MapFields] = { t => q"new ${typeOf[MapFields]}(${t.source}, ${t.fields}, ${t.nodeId}, ${t.nodeName})" }
-
-  implicit val liftMapExpression: Liftable[MapExpression] = { tree =>
-    tree match {
-      case t: MapRecord => liftMapRecord(t)
-      case t: MapFields => liftMapFields(t)
-    }
-  }
-
-  implicit val liftLeftJoin: Liftable[LeftJoin] = { t => q"new ${typeOf[LeftJoin]}(${t.left}, ${t.right}, ${t.nodeId}, ${t.nodeName})" }
-  implicit val liftFullJoin: Liftable[FullJoin] = { t => q"new ${typeOf[FullJoin]}(${t.left}, ${t.right}, ${t.nodeId}, ${t.nodeName})" }
+  implicit val liftStreamMap: Liftable[StreamMap] = { t => q"new ${typeOf[StreamMap]}(${t.source}, ${t.expr}, ${t.nodeId}, ${t.nodeName}, ${t.tpe})" }
+  implicit val liftFlatMap: Liftable[FlatMap] = { t => q"new ${typeOf[FlatMap]}(${t.source}, ${t.expr}, ${t.nodeId}, ${t.nodeName}, ${t.tpe})" }
+  implicit val liftLeftJoin: Liftable[LeftJoin] = { t => q"new ${typeOf[LeftJoin]}(${t.left}, ${t.right}, ${t.nodeId}, ${t.nodeName}, ${t.tpe})" }
+  implicit val liftFullJoin: Liftable[FullJoin] = { t => q"new ${typeOf[FullJoin]}(${t.left}, ${t.right}, ${t.nodeId}, ${t.nodeName}, ${t.tpe})" }
 
   implicit val liftJoinNodeExpression: Liftable[JoinExpression] = { tree =>
     tree match {
@@ -112,9 +112,9 @@ trait LiftableImpls extends ProgramTypeNamesHost with LiftTypeDescriptorHost {
     }
   }
 
-  implicit val liftGroupBy: Liftable[GroupBy] = { t => q"new ${typeOf[GroupBy]}(${t.source}, ${t.expr}, ${t.nodeId}, ${t.nodeName})" }
-  implicit val liftTumblingWindow: Liftable[TumblingWindow] = { t => q"new ${typeOf[TumblingWindow]}(${t.source}, ${t.period}, ${t.offset}, ${t.nodeId}, ${t.nodeName})" }
-  implicit val liftSlidingWindow: Liftable[SlidingWindow] = { t => q"new ${typeOf[SlidingWindow]}(${t.source}, ${t.size}, ${t.slide}, ${t.offset}, ${t.nodeId}, ${t.nodeName})" }
+  implicit val liftGroupBy: Liftable[GroupBy] = { t => q"new ${typeOf[GroupBy]}(${t.source}, ${t.expr}, ${t.nodeId}, ${t.nodeName}, ${t.tpe})" }
+  implicit val liftTumblingWindow: Liftable[TumblingWindow] = { t => q"new ${typeOf[TumblingWindow]}(${t.source}, ${t.period}, ${t.offset}, ${t.nodeId}, ${t.nodeName}, ${t.tpe})" }
+  implicit val liftSlidingWindow: Liftable[SlidingWindow] = { t => q"new ${typeOf[SlidingWindow]}(${t.source}, ${t.size}, ${t.slide}, ${t.offset}, ${t.nodeId}, ${t.nodeName}, ${t.tpe})" }
 
   implicit val liftGroupingExpression: Liftable[GroupingExpression] = { tree =>
     tree match {
@@ -124,20 +124,38 @@ trait LiftableImpls extends ProgramTypeNamesHost with LiftTypeDescriptorHost {
     }
   }
 
+  implicit val liftStreamArgMax: Liftable[StreamArgMax] = { t => q"new ${typeOf[StreamArgMax]}(${t.source}, ${t.argExpr}, ${t.nodeId}, ${t.nodeName}, ${t.tpe})" }
+  implicit val liftStreamArgMin: Liftable[StreamArgMin] = { t => q"new ${typeOf[StreamArgMin]}(${t.source}, ${t.argExpr}, ${t.nodeId}, ${t.nodeName}, ${t.tpe})" }
+
+  implicit val liftArgCompareExpression: Liftable[ArgCompareExpression] = { tree =>
+    tree match {
+      case t: StreamArgMax => liftStreamArgMax(t)
+      case t: StreamArgMin => liftStreamArgMin(t)
+    }
+  }
+
+  implicit val liftScanExpression: Liftable[ScanExpression] = { tree =>
+    tree match {
+      case t: ArgCompareExpression => liftArgCompareExpression(t)
+    }
+  }
+
   implicit val liftRef: Liftable[Ref] = { t => q"new ${typeOf[Ref]}(${t.nodeId}, ${t.nodeName})" }
-  implicit val liftFieldDefinition: Liftable[FieldDefinition] = { t => q"new ${typeOf[FieldDefinition]}(${t.fieldName}, ${t.expr})" }
-  implicit val liftFilter: Liftable[Filter] = { t => q"new ${typeOf[Filter]}(${t.source}, ${t.predicate}, ${t.nodeId}, ${t.nodeName})" }
-  implicit val liftUniqueBy: Liftable[UniqueBy] = { t => q"new ${typeOf[UniqueBy]}(${t.source}, ${t.expr}, ${t.nodeId}, ${t.nodeName})" }
+  implicit val liftFilter: Liftable[Filter] = { t => q"new ${typeOf[Filter]}(${t.source}, ${t.predicate}, ${t.nodeId}, ${t.nodeName}, ${t.tpe})" }
+  implicit val liftLast: Liftable[Last] = { t => q"new ${typeOf[Last]}(${t.source}, ${t.nodeId}, ${t.nodeName}, ${t.tpe})" }
+  implicit val liftLeftWindowedJoin: Liftable[LeftWindowedJoin] = { t => q"new ${typeOf[LeftWindowedJoin]}(${t.left}, ${t.right}, ${t.nodeId}, ${t.nodeName}, ${t.tpe})" }
 
   implicit val liftStreamExpression: Liftable[StreamExpression] = { tree =>
     tree match {
       case t: Filter => liftFilter(t)
-      case t: MapExpression => liftMapExpression(t)
-      case t: FieldDefinition => liftFieldDefinition(t)
-      case t: UniqueBy => liftUniqueBy(t)
+      case t: FlatMap => liftFlatMap(t)
+      case t: StreamMap => liftStreamMap(t)
       case t: JoinExpression => liftJoinNodeExpression(t)
       case t: GroupingExpression => liftGroupingExpression(t)
       case t: Ref => liftRef(t)
+      case t: Last => liftLast(t)
+      case t: ScanExpression => liftScanExpression(t)
+      case t: LeftWindowedJoin => liftLeftWindowedJoin(t)
     }
   }
 
@@ -159,6 +177,7 @@ trait LiftableImpls extends ProgramTypeNamesHost with LiftTypeDescriptorHost {
       case t: SelectExpression => liftSelectExpression(t)
       case t: StreamExpression => liftStreamExpression(t)
       case t: Tuple => liftTuple(t)
+      case t: TupleElement => liftTupleElement(t)
       case t: Unpack => liftUnpack(t)
     }
   }

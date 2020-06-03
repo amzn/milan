@@ -132,13 +132,15 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
 
     val context = new ScalarFunctionBodyExpressionContext(argNames, new BaseExpressionContext)
     val milanExpr = getMilanExpressionTree(context, body)
-    val tree = q"new ${typeOf[FunctionDef]}($argNames, $milanExpr)"
+
+    val argDefs = argNames.map(ValueDef.named)
+    val tree = q"new ${typeOf[FunctionDef]}($argDefs, $milanExpr)"
     c.Expr[FunctionDef](tree)
   }
 
   private def getMilanExpressionTree(context: ExpressionContext,
                                      body: c.universe.Tree): c.Expr[program.Tree] = {
-    val typeConversionTargetTypes = Set("Long", "Int", "String", "Double", "Float")
+    val typeConversionTargetTypes = Set("Int", "Long", "String", "Boolean", "Float", "Double")
 
     def convert(value: Trees#Tree): c.Expr[program.Tree] =
       getMilanExpressionTree(context, value.asInstanceOf[c.universe.Tree])
@@ -149,40 +151,61 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
     def convertTypeDescriptor(tree: Trees#Tree): TypeDescriptor[_] =
       getTypeDescriptor(tree.asInstanceOf[c.universe.Tree])
 
+    def isFunctionCall(tree: Trees#Tree, functionName: String): Boolean = {
+      val functionReference = this.getFunctionReferenceFromTree(tree.asInstanceOf[c.universe.Tree])
+      val functionReferenceName = s"${functionReference.objectTypeName}.${functionReference.functionName}"
+      functionName == functionReferenceName
+    }
+
     val outputTree =
       body match {
-        case q"$operand == null  " =>
+        case q"$operand == null" =>
           q"new ${typeOf[IsNull]}(${convert(operand)})"
 
-        case q"$operand != null  " =>
+        case q"$operand != null" =>
           q"new ${typeOf[Not]}(new ${typeOf[IsNull]}(${convert(operand)}))"
 
-        case q"$leftOperand != $rightOperand " =>
+        case q"$leftOperand != $rightOperand" =>
           q"new ${typeOf[Not]}(new ${typeOf[Equals]}(${convert(leftOperand)}, ${convert(rightOperand)}))"
 
-        case q"$leftOperand == $rightOperand " =>
+        case q"$leftOperand == $rightOperand" =>
           q"new ${typeOf[Equals]}(${convert(leftOperand)}, ${convert(rightOperand)})"
 
-        case q"$leftOperand && $rightOperand " =>
+        case q"$leftOperand && $rightOperand" =>
           q"new ${typeOf[And]}(${convert(leftOperand)}, ${convert(rightOperand)})"
 
-        case q"$leftOperand > $rightOperand " =>
+        case q"$leftOperand > $rightOperand" =>
           q"new ${typeOf[GreaterThan]}(${convert(leftOperand)}, ${convert(rightOperand)})"
 
-        case q"$leftOperand < $rightOperand " =>
+        case q"$leftOperand >= $rightOperand" =>
+          q"new ${typeOf[GreaterThanOrEqual]}(${convert(leftOperand)}, ${convert(rightOperand)})"
+
+        case q"$leftOperand < $rightOperand" =>
           q"new ${typeOf[LessThan]}(${convert(leftOperand)}, ${convert(rightOperand)})"
 
-        case q"$leftOperand + $rightOperand " =>
+        case q"$leftOperand <= $rightOperand" =>
+          q"new ${typeOf[LessThanOrEqual]}(${convert(leftOperand)}, ${convert(rightOperand)})"
+
+        case q"$leftOperand + $rightOperand" =>
           q"new ${typeOf[Plus]}(${convert(leftOperand)}, ${convert(rightOperand)})"
 
-        case q"$leftOperand - $rightOperand " =>
+        case q"$leftOperand - $rightOperand" =>
           q"new ${typeOf[Minus]}(${convert(leftOperand)}, ${convert(rightOperand)})"
 
-        case q"new $ty(..$args)  " =>
+        case q"new $ty(..$args)" =>
           q"new ${typeOf[CreateInstance]}(${convertTypeDescriptor(ty)}, ${convertList(args)})"
 
-        case Select(qualifier, TermName(name)) if name.startsWith("to") && typeConversionTargetTypes.contains(name.substring(2)) =>
-          q"new ${typeOf[ConvertType]}(${convert(qualifier)}, ${TypeDescriptor.forTypeName[Any](name.substring(2))})"
+        case q"$fun(..$fields)" if isFunctionCall(fun, "com.amazon.milan.lang.package.fields") =>
+          q"new ${typeOf[NamedFields]}(${convertList(fields)})"
+
+        case q"$fun($name, $expr)" if isFunctionCall(fun, "com.amazon.milan.lang.package.field") =>
+          q"new ${typeOf[NamedField]}($name, ${convert(expr)})"
+
+        case q"$arg.$method" if method.isInstanceOf[TermName] && method.toString().startsWith("to") && typeConversionTargetTypes.contains(method.toString().substring(2)) =>
+          q"new ${typeOf[ConvertType]}(${this.getConvertTypeTarget(context, arg.asInstanceOf[c.universe.Tree])}, ${TypeDescriptor.forTypeName[Any](method.toString().substring(2))})"
+
+        case Apply(Select(qualifier, TermName(name)), _) if name.startsWith("to") && typeConversionTargetTypes.contains(name.substring(2)) =>
+          q"new ${typeOf[ConvertType]}(${this.getConvertTypeTarget(context, qualifier)}, ${TypeDescriptor.forTypeName[Any](name.substring(2))})"
 
         case Ident(TermName(name)) if context.isArgument(name) =>
           q"${SelectTerm(name)}"
@@ -213,6 +236,16 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
       }
 
     c.Expr[program.Tree](outputTree)
+  }
+
+  private def getConvertTypeTarget(context: ExpressionContext, target: c.universe.Tree): c.Expr[program.Tree] = {
+    target match {
+      case q"scala.Predef.augmentString($term)" =>
+        this.getMilanExpressionTree(context, term.asInstanceOf[c.universe.Tree])
+
+      case _ =>
+        this.getMilanExpressionTree(context, target)
+    }
   }
 
   /**
@@ -284,6 +317,10 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
     if (functionReference.objectTypeName == "builtin") {
       this.getBuiltinFunction(functionReference, argsList)
     }
+    else if (TypeDescriptor.isTupleTypeName(functionReference.objectTypeName) && functionReference.functionName == "apply") {
+      // Tuple application becomes the Milan Tuple expression.
+      q"new ${typeOf[Tuple]}($argsList)"
+    }
     else {
       val outType = this.createTypeInfo[Any](apply.tpe)
       q"new ${typeOf[ApplyFunction]}($functionReference, $argsList, ${outType.toTypeDescriptor})"
@@ -324,7 +361,7 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
 
     // match statements can be converted into a single Unpack expression because we only allow
     // a single match case and no case guards.
-    val q"(..$caseArgs)  " = casePattern
+    val q"(..$caseArgs)" = casePattern
     val argNames = getCaseArgNames(caseArgs.map(_.asInstanceOf[c.universe.Tree])).toList
 
     // Create a nested context with the new case arg names.
@@ -368,6 +405,7 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
       case "aggregation.mean" => q"new ${typeOf[Mean]}(${args.head})"
       case "aggregation.argmin" => q"new ${typeOf[ArgMin]}(new ${typeOf[Tuple]}($args))"
       case "aggregation.argmax" => q"new ${typeOf[ArgMax]}(new ${typeOf[Tuple]}($args))"
+      case "aggregation.count" => q"new ${typeOf[Count]}()"
       case unknown => throw new InvalidProgramException(s"Unrecognized built-in function '$unknown'.")
     }
   }

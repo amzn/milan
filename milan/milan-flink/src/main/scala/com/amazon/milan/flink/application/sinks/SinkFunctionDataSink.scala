@@ -11,5 +11,5 @@ class SinkFunctionDataSink[T](sinkFunction: SinkFunction[T]) extends FlinkDataSi
     throw new NotImplementedError("You shouldn't be here.")
   }
 
-  override def getSinkFunction: SinkFunction[_] = this.sinkFunction
+  override def getSinkFunction: SinkFunction[T] = this.sinkFunction
 }

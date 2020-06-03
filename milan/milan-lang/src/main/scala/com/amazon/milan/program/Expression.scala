@@ -78,6 +78,54 @@ object Duration {
 
 
 /**
+ * An expression that represents a named field.
+ */
+@JsonSerialize
+@JsonDeserialize
+class NamedField(val fieldName: String, val expr: Tree) extends Tree {
+  override def getChildren: Iterable[Tree] = Seq(this.expr)
+
+  override def replaceChildren(children: List[Tree]): Tree =
+    new NamedField(this.fieldName, children.head)
+
+  override def equals(obj: Any): Boolean = obj match {
+    case NamedField(n, e) => this.fieldName.equals(n) && this.expr.equals(e)
+    case _ => false
+  }
+}
+
+object NamedField {
+  def apply(fieldName: String, expr: Tree): NamedField = new NamedField(fieldName, expr)
+
+  def unapply(arg: NamedField): Option[(String, Tree)] = Some((arg.fieldName, arg.expr))
+}
+
+
+/**
+ * An expression that constructs a tuple where the elements have associated names.
+ */
+@JsonSerialize
+@JsonDeserialize
+class NamedFields(val fields: List[NamedField]) extends Tree {
+  override def getChildren: Iterable[Tree] = this.fields
+
+  override def replaceChildren(children: List[Tree]): Tree =
+    new NamedFields(children.map(_.asInstanceOf[NamedField]))
+
+  override def equals(obj: Any): Boolean = obj match {
+    case NamedFields(f) => this.fields.equals(f)
+    case _ => false
+  }
+}
+
+object NamedFields {
+  def apply(fields: List[NamedField]): NamedFields = new NamedFields(fields)
+
+  def unapply(arg: NamedFields): Option[List[NamedField]] = Some(arg.fields)
+}
+
+
+/**
  * An expression representing an if-else statement.
  *
  * @param condition A condition expression.
@@ -171,11 +219,11 @@ trait SelectExpression extends Tree
  */
 @JsonSerialize
 @JsonDeserialize
-class SelectField(val qualifier: SelectExpression, val fieldName: String) extends SelectExpression {
+class SelectField(val qualifier: Tree, val fieldName: String) extends SelectExpression {
   override def getChildren: Iterable[Tree] = Seq(this.qualifier)
 
   override def replaceChildren(children: List[Tree]): Tree =
-    SelectField(children.head.asInstanceOf[SelectExpression], this.fieldName)
+    SelectField(children.head, this.fieldName)
 
   override def equals(obj: Any): Boolean = obj match {
     case SelectField(a, f) => this.qualifier.equals(a) && this.fieldName.equals(f)
@@ -184,9 +232,9 @@ class SelectField(val qualifier: SelectExpression, val fieldName: String) extend
 }
 
 object SelectField {
-  def apply(qualifier: SelectExpression, fieldName: String): SelectField = new SelectField(qualifier, fieldName)
+  def apply(qualifier: Tree, fieldName: String): SelectField = new SelectField(qualifier, fieldName)
 
-  def unapply(arg: SelectField): Option[(SelectExpression, String)] = Some((arg.qualifier, arg.fieldName))
+  def unapply(arg: SelectField): Option[(Tree, String)] = Some((arg.qualifier, arg.fieldName))
 }
 
 
@@ -218,48 +266,129 @@ object SelectTerm {
  */
 @JsonSerialize
 @JsonDeserialize
-class Unpack(val target: SelectTerm, val names: List[String], val body: Tree) extends Tree {
+class Unpack(val target: Tree, val names: List[String], val body: Tree) extends Tree {
   override def getChildren: Iterable[Tree] = List(target, body)
 
   override def replaceChildren(children: List[Tree]): Tree =
-    Unpack(children(0).asInstanceOf[SelectTerm], this.names, children(1))
+    Unpack(children(0), this.names, children(1))
 
   override def equals(obj: Any): Boolean = obj match {
-    case Unpack(v, n, b) => this.target.equals(v) && this.names.equals(n) && this.body.equals(body)
+    case Unpack(v, n, b) => this.target.equals(v) && this.names.equals(n) && this.body.equals(b)
     case _ => false
   }
 }
 
 object Unpack {
-  def apply(target: SelectTerm, valueNames: List[String], body: Tree): Unpack = new Unpack(target, valueNames, body)
+  def apply(target: Tree, valueNames: List[String], body: Tree): Unpack = new Unpack(target, valueNames, body)
 
-  def unapply(arg: Unpack): Option[(SelectTerm, List[String], Tree)] = Some(arg.target, arg.names, arg.body)
+  def unapply(arg: Unpack): Option[(Tree, List[String], Tree)] = Some(arg.target, arg.names, arg.body)
 }
 
 
 /**
- * An expression representing a function.
+ * Gets a single element from a tuple.
  *
- * @param arguments The names of the arguments of the function.
- * @param expr      The function expression.
+ * @param target An expression that returns a tuple.
+ * @param index  An expression that returns the zero-based index of the element to get.
+ */
+class TupleElement(val target: Tree, val index: Int) extends Tree {
+  override def getChildren: Iterable[Tree] = Seq(this.target)
+
+  override def replaceChildren(children: List[Tree]): Tree =
+    TupleElement(children.head, this.index)
+
+  override def equals(obj: Any): Boolean = obj match {
+    case TupleElement(t, i) => this.target.equals(t) && this.index.equals(i)
+    case _ => false
+  }
+}
+
+object TupleElement {
+  def apply(target: Tree, index: Int): TupleElement = new TupleElement(target, index)
+
+  def unapply(arg: TupleElement): Option[(Tree, Int)] = Some((arg.target, arg.index))
+}
+
+
+/**
+ * An expression representing a named value.
+ *
+ * @param name The name of the value.
  */
 @JsonSerialize
 @JsonDeserialize
-class FunctionDef(val arguments: List[String], val expr: Tree) extends Tree {
-  override def getChildren: Iterable[Tree] = List(expr)
+class ValueDef(val name: String) extends Tree {
+  def this(name: String, ty: TypeDescriptor[_]) {
+    this(name)
+    this.tpe = ty
+  }
 
-  override def replaceChildren(children: List[Tree]): Tree = FunctionDef(this.arguments, children.head)
+  override def replaceChildren(children: List[Tree]): Tree = new ValueDef(this.name, this.tpe)
 
   override def equals(obj: Any): Boolean = obj match {
-    case FunctionDef(a, e) => this.arguments.equals(a) && this.expr.equals(e)
+    case ValueDef(n, t) => this.name == n && (this.tpe == null || t == null || this.tpe.equals(t))
+    case _ => false
+  }
+}
+
+object ValueDef {
+  def apply(name: String, ty: TypeDescriptor[_]): ValueDef = new ValueDef(name, ty)
+
+  def named(name: String): ValueDef = new ValueDef(name)
+
+  def unapply(arg: ValueDef): Option[(String, TypeDescriptor[_])] = Some((arg.name, arg.tpe))
+}
+
+
+/**
+ * An expression representing a function definition.
+ *
+ * @param arguments The names of the arguments of the function.
+ * @param body      The function body.
+ */
+@JsonSerialize
+@JsonDeserialize
+class FunctionDef(val arguments: List[ValueDef], val body: Tree) extends Tree {
+  def withArgumentTypes(argumentTypes: List[TypeDescriptor[_]]): FunctionDef = {
+    if (argumentTypes.length != arguments.length) {
+      throw new IllegalArgumentException("Argument type list must be the same size as the function arguments.")
+    }
+
+    val newArguments = arguments.zip(argumentTypes).map { case (arg, argType) => ValueDef(arg.name, argType) }
+    val newFunctionDef = new FunctionDef(newArguments, this.body)
+    newFunctionDef.tpe = this.tpe
+
+    newFunctionDef
+  }
+
+  /**
+   * Gets a copy of this [[FunctionDef]] with the return type changed.
+   */
+  def withReturnType(returnType: TypeDescriptor[_]): FunctionDef = {
+    val copy = FunctionDef(this.arguments, this.body)
+    copy.tpe = returnType
+    copy
+  }
+
+  override def getChildren: Iterable[Tree] = arguments ++ List(body)
+
+  override def replaceChildren(children: List[Tree]): Tree =
+    FunctionDef(this.arguments.take(this.arguments.length), children.last)
+
+  override def equals(obj: Any): Boolean = obj match {
+    case FunctionDef(a, e) => this.arguments.equals(a) && this.body.equals(e)
     case _ => false
   }
 }
 
 object FunctionDef {
-  def apply(arguments: List[String], expr: Tree): FunctionDef = new FunctionDef(arguments, expr)
+  def create(argumentNames: List[String], expr: Tree): FunctionDef = {
+    new FunctionDef(argumentNames.map(ValueDef.named), expr)
+  }
 
-  def unapply(arg: FunctionDef): Option[(List[String], Tree)] = Some((arg.arguments, arg.expr))
+  def apply(arguments: List[ValueDef], expr: Tree): FunctionDef = new FunctionDef(arguments, expr)
+
+  def unapply(arg: FunctionDef): Option[(List[ValueDef], Tree)] = Some((arg.arguments, arg.body))
 }
 
 
@@ -494,6 +623,22 @@ object GreaterThan {
 }
 
 
+class GreaterThanOrEqual(val left: Tree, val right: Tree) extends BinaryLogicalOperator {
+  override def replaceChildren(children: List[Tree]): Tree = GreaterThanOrEqual(children(0), children(1))
+
+  override def equals(obj: Any): Boolean = obj match {
+    case GreaterThanOrEqual(l, r) => this.left.equals(l) && this.right.equals(r)
+    case _ => false
+  }
+}
+
+object GreaterThanOrEqual {
+  def apply(left: Tree, right: Tree): GreaterThanOrEqual = new GreaterThanOrEqual(left, right)
+
+  def unapply(arg: GreaterThanOrEqual): Option[(Tree, Tree)] = Some((arg.left, arg.right))
+}
+
+
 class LessThan(val left: Tree, val right: Tree) extends BinaryLogicalOperator {
   override def replaceChildren(children: List[Tree]): Tree = LessThan(children(0), children(1))
 
@@ -507,4 +652,48 @@ object LessThan {
   def apply(left: Tree, right: Tree): Tree = new LessThan(left, right)
 
   def unapply(arg: LessThan): Option[(Tree, Tree)] = Some(arg.left, arg.right)
+}
+
+
+class LessThanOrEqual(val left: Tree, val right: Tree) extends BinaryLogicalOperator {
+  override def replaceChildren(children: List[Tree]): Tree = LessThanOrEqual(children(0), children(1))
+
+  override def equals(obj: Any): Boolean = obj match {
+    case LessThanOrEqual(l, r) => this.left.equals(l) && this.right.equals(r)
+    case _ => false
+  }
+}
+
+object LessThanOrEqual {
+  def apply(left: Tree, right: Tree): Tree = new LessThanOrEqual(left, right)
+
+  def unapply(arg: LessThanOrEqual): Option[(Tree, Tree)] = Some(arg.left, arg.right)
+}
+
+
+/**
+ * An expression that branches based on the value of an Option returned by the input expression.
+ *
+ * @param input  An expression.
+ * @param ifSome A function to evaluate if the input expression returns a value.
+ *               It must take a single argument which is the value of the option.
+ * @param ifNone A function to evaluate if the input expression returns an empty option.
+ *               It must take no arguments.
+ */
+class MapOption(val input: Tree, val ifSome: FunctionDef, val ifNone: FunctionDef) extends Tree {
+  override def getChildren: Iterable[Tree] = Seq(this.input, this.ifSome, this.ifNone)
+
+  override def replaceChildren(children: List[Tree]): Tree =
+    MapOption(children(0), children(1).asInstanceOf[FunctionDef], children(2).asInstanceOf[FunctionDef])
+
+  override def equals(obj: Any): Boolean = obj match {
+    case MapOption(i, s, n) => this.input.equals(i) && this.ifSome.equals(s) && this.ifNone.equals(n)
+    case _ => false
+  }
+}
+
+object MapOption {
+  def apply(input: Tree, ifSome: FunctionDef, ifNone: FunctionDef): MapOption = new MapOption(input, ifSome, ifNone)
+
+  def unapply(arg: MapOption): Option[(Tree, FunctionDef, FunctionDef)] = Some((arg.input, arg.ifSome, arg.ifNone))
 }

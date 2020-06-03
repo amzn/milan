@@ -1,6 +1,6 @@
 package com.amazon.milan.application.sources
 
-import com.amazon.milan.dataformats.DataFormat
+import com.amazon.milan.dataformats.DataInputFormat
 import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 import org.apache.commons.lang.StringUtils
@@ -10,8 +10,13 @@ import org.apache.commons.lang.StringUtils
 @JsonDeserialize
 class S3DataSource[T: TypeDescriptor](bucket: String,
                                       key: String,
-                                      dataFormat: DataFormat[T])
-  extends FileDataSource[T](S3DataSource.getS3Url(bucket, key), dataFormat) {
+                                      dataFormat: DataInputFormat[T],
+                                      configuration: FileDataSource.Configuration)
+  extends FileDataSource[T](S3DataSource.getS3Url(bucket, key), dataFormat, configuration) {
+
+  def this(bucket: String, key: String, dataFormat: DataInputFormat[T]) {
+    this(bucket, key, dataFormat, FileDataSource.Configuration.default)
+  }
 }
 
 

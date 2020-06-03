@@ -49,6 +49,11 @@ trait StreamExpression extends Tree {
 @JsonSerialize
 @JsonDeserialize
 class Marker(val id: String) extends StreamExpression {
+  def this(id: String, resultType: StreamTypeDescriptor) {
+    this(id)
+    this.tpe = resultType
+  }
+
   override val nodeId: String = this.id
 
   override val nodeName: String = this.id
@@ -125,27 +130,83 @@ object Ref {
 }
 
 
-trait MapExpression extends StreamExpression {
-  val source: Tree
+/**
+ * Represents a cycle in the graph.
+ *
+ * @param source      The upstream input to the cycle.
+ * @param cycleNodeId The ID of the downstream node that feeds back into the cycle.
+ */
+@JsonSerialize
+@JsonDeserialize
+class Cycle(val source: Tree, var cycleNodeId: String, val nodeId: String, val nodeName: String)
+  extends SingleInputStreamExpression {
+
+  def this(source: Tree, cycleNodeId: String, nodeId: String) {
+    this(source, cycleNodeId, nodeId, nodeId)
+  }
+
+  def this(source: Tree, cycleNodeId: String) {
+    this(source, cycleNodeId, Id.newId())
+  }
+
+  def this(source: Tree, cycleNodeId: String, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
+    this(source, cycleNodeId, nodeId, nodeName)
+    this.tpe = resultType
+  }
+
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new Cycle(this.source, this.cycleNodeId, id, name, this.tpe)
+
+  override def replaceChildren(children: List[Tree]): Tree =
+    new Cycle(this.source, this.cycleNodeId, this.nodeId, this.nodeName, this.tpe)
+
+  override def toString: String = s"${this.expressionType}(${this.source}, ${this.cycleNodeId})"
 }
 
-object MapExpression {
-  def unapply(arg: MapExpression): Option[Tree] = Some(arg.source)
+object Cycle {
+  def apply(source: Tree, cycleNodeId: String): Cycle = new Cycle(source, cycleNodeId)
+
+  def unapply(arg: Cycle): Option[(Tree, String)] = Some((arg.source, arg.cycleNodeId))
 }
 
 
 /**
- * An expression representing a map operation that results in a stream of objects.
+ * Trait that identifies stream expressions that have a single stream as input.
+ */
+trait SingleInputStreamExpression extends StreamExpression {
+  val source: Tree
+}
+
+object SingleInputStreamExpression {
+  def unapply(arg: SingleInputStreamExpression): Option[Tree] = Some(arg.source)
+}
+
+
+/**
+ * Trait that identifies stream expressions that have two streams as input.
+ */
+trait TwoInputStreamExpression extends StreamExpression {
+  val left: Tree
+  val right: Tree
+}
+
+object TwoInputStreamExpression {
+  def unapply(arg: TwoInputStreamExpression): Option[(Tree, Tree)] = Some((arg.left, arg.right))
+}
+
+
+/**
+ * An expression representing an aggregation operation on a grouping.
  *
  * @param source The input to the map operation.
  * @param expr   The function that defines the operation.
  */
 @JsonSerialize
 @JsonDeserialize
-class MapRecord(val source: Tree,
+class Aggregate(val source: Tree,
                 val expr: FunctionDef,
                 val nodeId: String,
-                val nodeName: String) extends MapExpression {
+                val nodeName: String) extends SingleInputStreamExpression {
 
   def this(source: Tree, expr: FunctionDef, nodeId: String) {
     this(source, expr, nodeId, nodeId)
@@ -165,12 +226,12 @@ class MapRecord(val source: Tree,
   }
 
   override def withNameAndId(name: String, id: String): StreamExpression =
-    new MapRecord(this.source, this.expr, id, name, this.tpe)
+    new Aggregate(this.source, this.expr, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(source, expr)
 
   override def replaceChildren(children: List[Tree]): Tree =
-    new MapRecord(
+    new Aggregate(
       children(0),
       children(1).asInstanceOf[FunctionDef],
       this.nodeId,
@@ -180,138 +241,98 @@ class MapRecord(val source: Tree,
   override def toString: String = s"${this.expressionType}(${this.source}, ${this.expr})"
 
   override def equals(obj: Any): Boolean = obj match {
-    case MapRecord(s, e) => this.source.equals(s) && this.expr.equals(e)
+    case Aggregate(s, e) => this.source.equals(s) && this.expr.equals(e)
     case _ => false
   }
 }
 
-object MapRecord {
-  def apply(source: Tree, expr: FunctionDef): MapRecord = new MapRecord(source, expr)
+object Aggregate {
+  def apply(source: Tree, expr: FunctionDef): Aggregate = new Aggregate(source, expr)
 
-  def unapply(arg: MapRecord): Option[(Tree, FunctionDef)] = Some((arg.source, arg.expr))
+  def unapply(arg: Aggregate): Option[(Tree, FunctionDef)] = Some((arg.source, arg.expr))
 }
 
 
 /**
- * The definition of how a named field is computed using a function of one or more input streams.
- *
- * @param fieldName The name of the field.
- * @param expr      The function that defines how the field is computed.
- */
-@JsonSerialize
-@JsonDeserialize
-class FieldDefinition(val fieldName: String, val expr: FunctionDef) extends Tree {
-  override def getChildren: Iterable[Tree] = Seq(expr)
-
-  override def replaceChildren(children: List[Tree]): Tree =
-    FieldDefinition(this.fieldName, children.head.asInstanceOf[FunctionDef])
-
-  override def equals(obj: Any): Boolean = obj match {
-    case FieldDefinition(n, e) => this.fieldName.equals(n) && this.expr.equals(e)
-    case _ => false
-  }
-}
-
-object FieldDefinition {
-  def apply(fieldName: String, expr: FunctionDef): FieldDefinition = new FieldDefinition(fieldName, expr)
-
-  def unapply(arg: FieldDefinition): Option[(String, FunctionDef)] = Some((arg.fieldName, arg.expr))
-}
-
-
-/**
- * An expression representing a map operation that results in a stream of named fields.
- *
- * @param source The input to the map operation.
- * @param fields The output fields.
- */
-@JsonSerialize
-@JsonDeserialize
-class MapFields(val source: StreamExpression,
-                val fields: List[FieldDefinition],
-                val nodeId: String,
-                val nodeName: String) extends MapExpression {
-
-  def this(source: StreamExpression, fields: List[FieldDefinition], nodeId: String) {
-    this(source, fields, nodeId, nodeId)
-  }
-
-  def this(source: StreamExpression, fields: List[FieldDefinition]) {
-    this(source, fields, Id.newId())
-  }
-
-  def this(source: StreamExpression,
-           fields: List[FieldDefinition],
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(source, fields, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new MapFields(this.source, this.fields, id, name, this.tpe)
-
-  override def getChildren: Iterable[Tree] = Seq(source) ++ fields
-
-  override def replaceChildren(children: List[Tree]): Tree =
-    new MapFields(
-      children.head.asInstanceOf[StreamExpression],
-      children.tail.map(_.asInstanceOf[FieldDefinition]),
-      this.nodeId,
-      this.nodeName,
-      this.tpe)
-
-  override def toString: String = s"${this.expressionType}(${this.source}, List(${this.fields.mkString(",")}))"
-
-  override def equals(obj: Any): Boolean = obj match {
-    case MapFields(s, f) => this.source.equals(s) && this.fields.equals(f)
-    case _ => false
-  }
-}
-
-object MapFields {
-  def apply(source: StreamExpression, fields: List[FieldDefinition]): MapFields =
-    new MapFields(source, fields)
-
-  def unapply(arg: MapFields): Option[(StreamExpression, List[FieldDefinition])] = Some((arg.source, arg.fields))
-}
-
-
-/**
- * Base trait for FlatMap expressions.
- */
-trait FlatMapExpression extends StreamExpression {
-  val source: StreamExpression
-}
-
-object FlatMapExpression {
-  def unapply(arg: FlatMapExpression): Option[Tree] = Some(arg.source)
-}
-
-
-/**
- * An expression representing a flatmap operation that results in a stream of objects.
+ * An expression representing a map operation on a stream.
  *
  * @param source The input to the map operation.
  * @param expr   The function that defines the operation.
  */
 @JsonSerialize
 @JsonDeserialize
-class FlatMap(val source: StreamExpression,
-              val expr: FunctionDef,
-              val nodeId: String,
-              val nodeName: String) extends FlatMapExpression {
+class StreamMap(val source: Tree,
+                val expr: FunctionDef,
+                val nodeId: String,
+                val nodeName: String) extends SingleInputStreamExpression {
 
-  def this(source: StreamExpression, expr: FunctionDef, nodeId: String) {
+  def this(source: Tree, expr: FunctionDef, nodeId: String) {
     this(source, expr, nodeId, nodeId)
   }
 
-  def this(source: StreamExpression, expr: FunctionDef) {
+  def this(source: Tree, expr: FunctionDef) {
     this(source, expr, Id.newId())
   }
 
-  def this(source: StreamExpression,
+  def this(source: Tree,
+           expr: FunctionDef,
+           nodeId: String,
+           nodeName: String,
+           resultType: TypeDescriptor[_]) {
+    this(source, expr, nodeId, nodeName)
+    this.tpe = resultType
+  }
+
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new StreamMap(this.source, this.expr, id, name, this.tpe)
+
+  override def getChildren: Iterable[Tree] = Seq(source, expr)
+
+  override def replaceChildren(children: List[Tree]): Tree =
+    new StreamMap(
+      children(0),
+      children(1).asInstanceOf[FunctionDef],
+      this.nodeId,
+      this.nodeName,
+      this.tpe)
+
+  override def toString: String = s"${this.expressionType}(${this.source}, ${this.expr})"
+
+  override def equals(obj: Any): Boolean = obj match {
+    case StreamMap(s, e) => this.source.equals(s) && this.expr.equals(e)
+    case _ => false
+  }
+}
+
+object StreamMap {
+  def apply(source: Tree, expr: FunctionDef): StreamMap = new StreamMap(source, expr)
+
+  def unapply(arg: StreamMap): Option[(Tree, FunctionDef)] = Some((arg.source, arg.expr))
+}
+
+
+/**
+ * An expression representing a flatmap operation that results in a stream of objects.
+ *
+ * @param source The input to the flatmap operation.
+ * @param expr   The function that defines the operation.
+ */
+@JsonSerialize
+@JsonDeserialize
+class FlatMap(val source: Tree,
+              val expr: FunctionDef,
+              val nodeId: String,
+              val nodeName: String) extends SingleInputStreamExpression {
+
+  def this(source: Tree, expr: FunctionDef, nodeId: String) {
+    this(source, expr, nodeId, nodeId)
+  }
+
+  def this(source: Tree, expr: FunctionDef) {
+    this(source, expr, Id.newId())
+  }
+
+  def this(source: Tree,
            expr: FunctionDef,
            nodeId: String,
            nodeName: String,
@@ -323,15 +344,17 @@ class FlatMap(val source: StreamExpression,
   override def withNameAndId(name: String, id: String): StreamExpression =
     new FlatMap(this.source, this.expr, id, name, this.tpe)
 
-  override def getChildren: Iterable[Tree] = List(source, expr)
+  override def getChildren: Iterable[Tree] = Seq(source, expr)
 
   override def replaceChildren(children: List[Tree]): Tree =
     new FlatMap(
-      children(0).asInstanceOf[StreamExpression],
+      children(0),
       children(1).asInstanceOf[FunctionDef],
       this.nodeId,
       this.nodeName,
       this.tpe)
+
+  override def toString: String = s"${this.expressionType}(${this.source}, ${this.expr})"
 
   override def equals(obj: Any): Boolean = obj match {
     case FlatMap(s, e) => this.source.equals(s) && this.expr.equals(e)
@@ -340,140 +363,9 @@ class FlatMap(val source: StreamExpression,
 }
 
 object FlatMap {
-  def apply(source: StreamExpression, expr: FunctionDef): FlatMap = new FlatMap(source, expr)
+  def apply(source: Tree, expr: FunctionDef): FlatMap = new FlatMap(source, expr)
 
-  def unapply(arg: FlatMap): Option[(StreamExpression, FunctionDef)] = Some((arg.source, arg.expr))
-}
-
-
-trait JoinExpression extends StreamExpression {
-  val left: StreamExpression
-  val right: StreamExpression
-}
-
-object JoinExpression {
-  def unapply(arg: JoinExpression): Option[(StreamExpression, StreamExpression)] =
-    Some((arg.left, arg.right))
-}
-
-
-/**
- * An expression representing a left join operation.
- *
- * @param left  The left input stream.
- * @param right The right input stream.
- */
-@JsonSerialize
-@JsonDeserialize
-class LeftJoin(val left: StreamExpression,
-               val right: StreamExpression,
-               val nodeId: String,
-               val nodeName: String) extends JoinExpression {
-
-  def this(left: StreamExpression, right: StreamExpression, nodeId: String) {
-    this(left, right, nodeId, nodeId)
-  }
-
-  def this(left: StreamExpression, right: StreamExpression) {
-    this(left, right, Id.newId())
-  }
-
-  def this(left: StreamExpression,
-           right: StreamExpression,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(left, right, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new LeftJoin(this.left, this.right, id, name, this.tpe)
-
-  override def getChildren: Iterable[Tree] = Seq(this.left, this.right)
-
-  override def replaceChildren(children: List[Tree]): Tree =
-    new LeftJoin(
-      children(0).asInstanceOf[StreamExpression],
-      children(1).asInstanceOf[StreamExpression],
-      this.nodeId,
-      this.nodeName,
-      this.tpe)
-
-  override def toString: String = s"${this.expressionType}(${this.left}, ${this.right})"
-
-  override def equals(obj: Any): Boolean = obj match {
-    case LeftJoin(l, r) => this.left.equals(l) && this.right.equals(r)
-    case _ => false
-  }
-}
-
-object LeftJoin {
-  def apply(left: StreamExpression, right: StreamExpression): LeftJoin =
-    new LeftJoin(left, right)
-
-  def unapply(arg: LeftJoin): Option[(StreamExpression, StreamExpression)] =
-    Some((arg.left, arg.right))
-}
-
-
-/**
- * An expression representing a full join operation.
- *
- * @param left  The left input stream.
- * @param right The right input stream.
- */
-@JsonSerialize
-@JsonDeserialize
-class FullJoin(val left: StreamExpression,
-               val right: StreamExpression,
-               val nodeId: String,
-               val nodeName: String) extends JoinExpression {
-
-  def this(left: StreamExpression, right: StreamExpression, nodeId: String) {
-    this(left, right, nodeId, nodeId)
-  }
-
-  def this(left: StreamExpression, right: StreamExpression) {
-    this(left, right, Id.newId())
-  }
-
-  def this(left: StreamExpression,
-           right: StreamExpression,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(left, right, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new FullJoin(this.left, this.right, id, name, this.tpe)
-
-  override def getChildren: Iterable[Tree] = Seq(this.left, this.right)
-
-  override def replaceChildren(children: List[Tree]): Tree =
-    new FullJoin(
-      children(0).asInstanceOf[StreamExpression],
-      children(1).asInstanceOf[StreamExpression],
-      this.nodeId,
-      this.nodeName,
-      this.tpe)
-
-  override def toString: String = s"${this.expressionType}(${this.left}, ${this.right})"
-
-  override def equals(obj: Any): Boolean = obj match {
-    case FullJoin(l, r) => this.left.equals(l) && this.right.equals(r)
-    case _ => false
-  }
-}
-
-object FullJoin {
-  def apply(left: StreamExpression, right: StreamExpression): FullJoin =
-    new FullJoin(left, right)
-
-  def unapply(arg: FullJoin): Option[(StreamExpression, StreamExpression)] =
-    Some((arg.left, arg.right))
+  def unapply(arg: FlatMap): Option[(Tree, FunctionDef)] = Some((arg.source, arg.expr))
 }
 
 
@@ -485,20 +377,20 @@ object FullJoin {
  */
 @JsonSerialize
 @JsonDeserialize
-class Filter(val source: StreamExpression,
+class Filter(val source: Tree,
              val predicate: FunctionDef,
              val nodeId: String,
-             val nodeName: String) extends StreamExpression {
+             val nodeName: String) extends SingleInputStreamExpression {
 
-  def this(source: StreamExpression, predicate: FunctionDef, nodeId: String) {
+  def this(source: Tree, predicate: FunctionDef, nodeId: String) {
     this(source, predicate, nodeId, nodeId)
   }
 
-  def this(source: StreamExpression, predicate: FunctionDef) {
+  def this(source: Tree, predicate: FunctionDef) {
     this(source, predicate, Id.newId())
   }
 
-  def this(source: StreamExpression,
+  def this(source: Tree,
            predicate: FunctionDef,
            nodeId: String,
            nodeName: String,
@@ -514,7 +406,7 @@ class Filter(val source: StreamExpression,
 
   override def replaceChildren(children: List[Tree]): Tree =
     new Filter(
-      children(0).asInstanceOf[StreamExpression],
+      children(0),
       children(1).asInstanceOf[FunctionDef],
       this.nodeId,
       this.nodeName)
@@ -528,380 +420,277 @@ class Filter(val source: StreamExpression,
 }
 
 object Filter {
-  def apply(source: StreamExpression, predicate: FunctionDef): Filter = new Filter(source, predicate)
+  def apply(source: Tree, predicate: FunctionDef): Filter = new Filter(source, predicate)
 
-  def unapply(arg: Filter): Option[(StreamExpression, FunctionDef)] = Some((arg.source, arg.predicate))
-}
-
-
-trait GroupingExpression extends StreamExpression {
-  val source: StreamExpression
-  val expr: FunctionDef
-
-  /**
-   * Gets the record type of the input stream that is being grouped.
-   */
-  @JsonIgnore
-  def getInputRecordType: TypeDescriptor[_] = {
-    source match {
-      case g: GroupingExpression => g.getInputRecordType
-      case s: StreamExpression => s.recordType
-      case _ => throw new InvalidProgramException("The source of a grouping expression must be another grouping expression or a data stream.")
-    }
-  }
-}
-
-object GroupingExpression {
-  def unapply(arg: GroupingExpression): Option[(StreamExpression, FunctionDef)] = Some((arg.source, arg.expr))
+  def unapply(arg: Filter): Option[(Tree, FunctionDef)] = Some((arg.source, arg.predicate))
 }
 
 
 /**
- * An expression representing a group-by operation.
+ * Base trait for stream expressions that simplify to scan operations.
+ */
+trait ScanExpression extends SingleInputStreamExpression {
+}
+
+object ScanExpression {
+  def unapply(arg: ScanExpression): Option[Tree] = Some(arg.source)
+}
+
+
+/**
+ * Base trait for scan expressions that extract an argument from records.
+ */
+trait ArgCompareExpression extends ScanExpression {
+  val argExpr: FunctionDef
+}
+
+object ArgCompareExpression {
+  def unapply(arg: ArgCompareExpression): Option[(Tree, FunctionDef)] = Some((arg.source, arg.argExpr))
+}
+
+
+/**
+ * An expression that outputs
  *
- * @param source The input to the group-by operation.
- * @param expr   A function that defines how group keys are extracted from input records.
+ * @param source  The input stream expression.
+ * @param argExpr An expression that computes the argument that is used to compare records.
  */
 @JsonSerialize
 @JsonDeserialize
-class GroupBy(val source: StreamExpression,
-              val expr: FunctionDef,
-              val nodeId: String,
-              val nodeName: String) extends GroupingExpression {
-
-  def this(source: StreamExpression, expr: FunctionDef, nodeId: String) {
-    this(source, expr, nodeId, nodeId)
+class StreamArgMax(val source: Tree,
+                   val argExpr: FunctionDef,
+                   val nodeId: String,
+                   val nodeName: String) extends ArgCompareExpression {
+  def this(source: Tree, argExpr: FunctionDef, nodeId: String) {
+    this(source, argExpr, nodeId, nodeId)
   }
 
-  def this(source: StreamExpression, expr: FunctionDef) {
-    this(source, expr, Id.newId())
+  def this(source: Tree, argExpr: FunctionDef) {
+    this(source, argExpr, Id.newId())
   }
 
-  def this(source: StreamExpression,
-           expr: FunctionDef,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(source, expr, nodeId, nodeName)
+  def this(source: Tree, argExpr: FunctionDef, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
+    this(source, argExpr, nodeId, nodeName)
     this.tpe = resultType
   }
 
   override def withNameAndId(name: String, id: String): StreamExpression =
-    new GroupBy(this.source, this.expr, id, name, this.tpe)
+    new StreamArgMax(this.source, this.argExpr, id, name, this.tpe)
 
-  override def getChildren: Iterable[Tree] = Seq(this.source, this.expr)
+  override def getChildren: Iterable[Tree] = Seq(this.source, this.argExpr)
 
   override def replaceChildren(children: List[Tree]): Tree =
-    new GroupBy(
-      children(0).asInstanceOf[StreamExpression],
-      children(1).asInstanceOf[FunctionDef],
-      this.nodeId,
-      this.nodeName,
-      this.tpe)
+    new StreamArgMax(children(0), children(1).asInstanceOf[FunctionDef], this.nodeId, this.nodeName, this.tpe)
 
-  override def toString: String = s"${this.expressionType}(${this.source}, ${this.expr})"
+  override def toString: String = s"${this.expressionType}(${this.source}, ${this.argExpr})"
 
   override def equals(obj: Any): Boolean = obj match {
-    case GroupBy(s, e) => this.source.equals(s) && this.expr.equals(e)
+    case StreamArgMax(s, e) => this.source.equals(s) && this.argExpr.equals(e)
     case _ => false
   }
 }
 
-object GroupBy {
-  def apply(source: StreamExpression, expr: FunctionDef): GroupBy = new GroupBy(source, expr)
+object StreamArgMax {
+  def apply(source: Tree, argExpr: FunctionDef): StreamArgMax = new StreamArgMax(source, argExpr)
 
-  def unapply(arg: GroupBy): Option[(StreamExpression, FunctionDef)] = Some((arg.source, arg.expr))
-}
-
-
-trait WindowExpression extends GroupingExpression
-
-object WindowExpression {
-  def unapply(arg: WindowExpression): Option[(StreamExpression, FunctionDef)] = Some((arg.source, arg.expr))
-}
-
-
-trait TimeWindowExpression extends WindowExpression {
-  val size: Duration
-  val offset: Duration
-}
-
-object TimeWindowExpression {
-  def unapply(arg: TimeWindowExpression): Option[(StreamExpression, FunctionDef, Duration, Duration)] = Some((arg.source, arg.expr, arg.size, arg.offset))
+  def unapply(arg: StreamArgMax): Option[(Tree, FunctionDef)] = Some((arg.source, arg.argExpr))
 }
 
 
 /**
- * An expression representing a tumbling window operation.
+ * An expression that outputs
  *
- * @param source The input to the tumbling window operation.
- * @param period The period of the window.
- * @param offset By default windows are aligned with the epoch, 1970-01-01.
- *               This offset shifts the window alignment to the specified duration after the epoch.
+ * @param source  The input stream expression.
+ * @param argExpr An expression that computes the argument that is used to compare records.
  */
 @JsonSerialize
 @JsonDeserialize
-class TumblingWindow(val source: StreamExpression,
-                     val dateExtractor: FunctionDef,
-                     val period: Duration,
-                     val offset: Duration,
-                     val nodeId: String,
-                     val nodeName: String) extends TimeWindowExpression {
-
-  val expr: FunctionDef = this.dateExtractor
-  val size: Duration = this.period
-
-  def this(source: StreamExpression, dateExtractor: FunctionDef, period: Duration, offset: Duration, nodeId: String) {
-    this(source, dateExtractor, period, offset, nodeId, nodeId)
+class StreamArgMin(val source: Tree,
+                   val argExpr: FunctionDef,
+                   val nodeId: String,
+                   val nodeName: String) extends ArgCompareExpression {
+  def this(source: Tree, argExpr: FunctionDef, nodeId: String) {
+    this(source, argExpr, nodeId, nodeId)
   }
 
-  def this(source: StreamExpression, dateExtractor: FunctionDef, period: Duration, offset: Duration) {
-    this(source, dateExtractor, period, offset, Id.newId())
+  def this(source: Tree, argExpr: FunctionDef) {
+    this(source, argExpr, Id.newId())
   }
 
-  def this(source: StreamExpression,
-           dateExtractor: FunctionDef,
-           period: Duration,
-           offset: Duration,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(source, dateExtractor, period, offset, nodeId, nodeName)
+  def this(source: Tree, argExpr: FunctionDef, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
+    this(source, argExpr, nodeId, nodeName)
     this.tpe = resultType
   }
 
   override def withNameAndId(name: String, id: String): StreamExpression =
-    new TumblingWindow(this.source, this.dateExtractor, this.period, this.offset, id, name, this.tpe)
+    new StreamArgMin(this.source, this.argExpr, id, name, this.tpe)
 
-  override def getChildren: Iterable[Tree] = Seq(this.source, this.dateExtractor, this.period, this.offset)
+  override def getChildren: Iterable[Tree] = Seq(this.source, this.argExpr)
 
   override def replaceChildren(children: List[Tree]): Tree =
-    new TumblingWindow(
-      children(0).asInstanceOf[StreamExpression],
-      children(1).asInstanceOf[FunctionDef],
-      children(2).asInstanceOf[Duration],
-      children(3).asInstanceOf[Duration],
-      this.nodeId,
-      this.nodeName,
-      this.tpe)
+    new StreamArgMin(children(0), children(1).asInstanceOf[FunctionDef], this.nodeId, this.nodeName, this.tpe)
 
-  override def toString: String = s"${this.expressionType}(${this.source}, ${this.dateExtractor}, ${this.period}, ${this.offset})"
+  override def toString: String = s"${this.expressionType}(${this.source}, ${this.argExpr})"
 
   override def equals(obj: Any): Boolean = obj match {
-    case TumblingWindow(s, e, p, o) => this.source.equals(s) && this.dateExtractor.equals(e) && this.period.equals(p) && this.offset.equals(o)
+    case StreamArgMin(s, e) => this.source.equals(s) && this.argExpr.equals(e)
     case _ => false
   }
 }
 
-object TumblingWindow {
-  def apply(source: StreamExpression, dateExtractor: FunctionDef, period: Duration, offset: Duration): TumblingWindow =
-    new TumblingWindow(source, dateExtractor, period, offset)
+object StreamArgMin {
+  def apply(source: Tree, argExpr: FunctionDef): StreamArgMin = new StreamArgMin(source, argExpr)
 
-  def unapply(arg: TumblingWindow): Option[(StreamExpression, FunctionDef, Duration, Duration)] =
-    Some((arg.source, arg.dateExtractor, arg.period, arg.offset))
+  def unapply(arg: StreamArgMin): Option[(Tree, FunctionDef)] = Some((arg.source, arg.argExpr))
 }
 
 
 /**
- * An expression representing a tumbling window operation.
- *
- * @param source The input to the tumbling window operation.
- * @param size   The length of a window.
- * @param slide  The distance (in time) between window start times.
- * @param offset By default windows are aligned with the epoch, 1970-01-01.
- *               This offset shifts the window alignment to the specified duration after the epoch.
+ * Trait for scan expressions that compute an argument for each input record, and produce an output record
+ * based on the argument type and input type.
  */
-@JsonSerialize
-@JsonDeserialize
-class SlidingWindow(val source: StreamExpression,
-                    val dateExtractor: FunctionDef,
-                    val size: Duration,
-                    val slide: Duration,
-                    val offset: Duration,
-                    val nodeId: String,
-                    val nodeName: String) extends TimeWindowExpression {
-
-  val expr: FunctionDef = this.dateExtractor
-
-  def this(source: StreamExpression, dateExtractor: FunctionDef, size: Duration, slide: Duration, offset: Duration, nodeId: String) {
-    this(source, dateExtractor, size, slide, offset, nodeId, nodeId)
-  }
-
-  def this(source: StreamExpression, dateExtractor: FunctionDef, size: Duration, slide: Duration, offset: Duration) {
-    this(source, dateExtractor, size, slide, offset, Id.newId())
-  }
-
-  def this(source: StreamExpression,
-           dateExtractor: FunctionDef,
-           size: Duration,
-           slide: Duration,
-           offset: Duration,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(source, dateExtractor, size, slide, offset, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new SlidingWindow(this.source, this.dateExtractor, this.size, this.slide, this.offset, id, name, this.tpe)
-
-  override def getChildren: Iterable[Tree] = Seq(this.source, this.dateExtractor, this.size, this.slide, this.offset)
-
-  override def replaceChildren(children: List[Tree]): Tree =
-    new SlidingWindow(
-      children(0).asInstanceOf[StreamExpression],
-      children(1).asInstanceOf[FunctionDef],
-      children(2).asInstanceOf[Duration],
-      children(3).asInstanceOf[Duration],
-      children(4).asInstanceOf[Duration],
-      this.nodeId,
-      this.nodeName,
-      this.tpe)
-
-  override def toString: String = s"${this.expressionType}(${this.source}, ${this.dateExtractor}, ${this.size}, ${this.slide}, ${this.offset})"
-
-  override def equals(obj: Any): Boolean = obj match {
-    case SlidingWindow(so, de, sz, sl, of) =>
-      this.source.equals(so) &&
-        this.dateExtractor.equals(de) &&
-        this.size.equals(sz) &&
-        this.slide.equals(sl) &&
-        this.offset.equals(of)
-
-    case _ =>
-      false
-  }
-}
-
-object SlidingWindow {
-  def apply(source: StreamExpression, dateExtractor: FunctionDef, size: Duration, slide: Duration, offset: Duration): SlidingWindow =
-    new SlidingWindow(source, dateExtractor, size, slide, offset)
-
-  def unapply(arg: SlidingWindow): Option[(StreamExpression, FunctionDef, Duration, Duration, Duration)] =
-    Some((arg.source, arg.dateExtractor, arg.size, arg.slide, arg.offset))
+trait ArgScanExpression extends ScanExpression {
+  val argExpr: FunctionDef
+  val outputExpr: FunctionDef
 }
 
 
 /**
- * An expression representing an operation that produces a window containing the latest record for every value of a key.
- *
- * @param source        The input to the operation.
- * @param dateExtractor A function that extracts timestamps from input records.
- * @param keyFunc       A function that extracts keys from input records.
+ * An expression that computes a cumulative sum of values extracted from stream records, and produces
+ * an output stream using a function of those values.
  */
 @JsonSerialize
 @JsonDeserialize
-class LatestBy(val source: StreamExpression,
-               val dateExtractor: FunctionDef,
-               val keyFunc: FunctionDef,
-               val nodeId: String,
-               val nodeName: String) extends WindowExpression {
-
-  val expr: FunctionDef = keyFunc
-
-  def this(source: StreamExpression, dateExtractor: FunctionDef, keyFunc: FunctionDef, nodeId: String) {
-    this(source, dateExtractor, keyFunc, nodeId, nodeId)
+class SumBy(val source: Tree,
+            val argExpr: FunctionDef,
+            val outputExpr: FunctionDef,
+            val nodeId: String,
+            val nodeName: String) extends ArgScanExpression {
+  def this(source: Tree, argExpr: FunctionDef, outputExpr: FunctionDef, nodeId: String) {
+    this(source, argExpr, outputExpr, nodeId, nodeId)
   }
 
-  def this(source: StreamExpression, dateExtractor: FunctionDef, keyFunc: FunctionDef) {
-    this(source, dateExtractor, keyFunc, Id.newId())
+  def this(source: Tree, argExpr: FunctionDef, outputExpr: FunctionDef) {
+    this(source, argExpr, outputExpr, Id.newId())
   }
 
-  def this(source: StreamExpression,
-           dateExtractor: FunctionDef,
-           keyFunc: FunctionDef,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(source, dateExtractor, keyFunc, nodeId, nodeName)
+  def this(source: Tree, argExpr: FunctionDef, outputExpr: FunctionDef, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
+    this(source, argExpr, outputExpr, nodeId, nodeName)
     this.tpe = resultType
   }
 
   override def withNameAndId(name: String, id: String): StreamExpression =
-    new LatestBy(this.source, this.dateExtractor, this.keyFunc, id, name, this.tpe)
+    new SumBy(this.source, this.argExpr, this.outputExpr, id, name, this.tpe)
 
-  override def getChildren: Iterable[Tree] = Seq(this.source, this.dateExtractor, this.keyFunc)
+  override def getChildren: Iterable[Tree] = Seq(this.source, this.argExpr, this.outputExpr)
 
   override def replaceChildren(children: List[Tree]): Tree =
-    new LatestBy(
-      children(0).asInstanceOf[StreamExpression],
+    new SumBy(
+      children(0),
       children(1).asInstanceOf[FunctionDef],
       children(2).asInstanceOf[FunctionDef],
       this.nodeId,
       this.nodeName,
       this.tpe)
 
-  override def toString: String = s"${this.expressionType}(${this.source}, ${this.dateExtractor}, ${this.keyFunc})"
+  override def toString: String = s"${this.expressionType}(${this.source}, ${this.argExpr}, ${this.outputExpr})"
 
   override def equals(obj: Any): Boolean = obj match {
-    case LatestBy(s, d, k) => this.source.equals(s) && this.dateExtractor.equals(d) && this.keyFunc.equals(k)
+    case SumBy(s, a, o) => this.source.equals(s) && this.argExpr.equals(a) && this.outputExpr.equals(o)
     case _ => false
   }
 }
 
-object LatestBy {
-  def apply(source: StreamExpression, dateExtractor: FunctionDef, keyFunc: FunctionDef): LatestBy =
-    new LatestBy(source, dateExtractor, keyFunc)
+object SumBy {
+  def apply(source: Tree, argExpr: FunctionDef, outputExpr: FunctionDef): SumBy = new SumBy(source, argExpr, outputExpr)
 
-  def unapply(arg: LatestBy): Option[(StreamExpression, FunctionDef, FunctionDef)] =
-    Some((arg.source, arg.dateExtractor, arg.keyFunc))
+  def unapply(arg: SumBy): Option[(Tree, FunctionDef, FunctionDef)] = Some((arg.source, arg.argExpr, arg.outputExpr))
 }
 
 
-/**
- * An expression representing a uniqueness constraint on a grouping.
- *
- * @param source The grouping expression on which the uniqueness constraint will be applied.
- * @param expr   A function that defines the key extracted from records that will be unique in the output.
- */
 @JsonSerialize
 @JsonDeserialize
-class UniqueBy(val source: StreamExpression,
-               val expr: FunctionDef,
-               val nodeId: String,
-               val nodeName: String) extends GroupingExpression {
+class Last(val source: Tree,
+           val nodeId: String,
+           val nodeName: String) extends SingleInputStreamExpression {
 
-  def this(source: StreamExpression, expr: FunctionDef, nodeId: String) {
-    this(source, expr, nodeId, nodeId)
+  def this(source: Tree, nodeId: String) {
+    this(source, nodeId, nodeId)
   }
 
-  def this(source: StreamExpression, expr: FunctionDef) {
-    this(source, expr, Id.newId())
+  def this(source: Tree) {
+    this(source, Id.newId())
   }
 
-  def this(source: StreamExpression,
-           expr: FunctionDef,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(source, expr, nodeId, nodeName)
+  def this(source: Tree, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
+    this(source, nodeId, nodeId)
     this.tpe = resultType
   }
 
   override def withNameAndId(name: String, id: String): StreamExpression =
-    new UniqueBy(this.source, this.expr, id, nodeName, this.tpe)
+    new Last(this.source, id, name, this.tpe)
 
-  override def getChildren: Iterable[Tree] = Seq(this.source, this.expr)
+  override def getChildren: Iterable[Tree] = Seq(this.source)
 
   override def replaceChildren(children: List[Tree]): Tree =
-    new UniqueBy(
-      children(0).asInstanceOf[StreamExpression],
-      children(1).asInstanceOf[FunctionDef],
-      this.nodeId,
-      this.nodeName,
-      this.tpe)
+    new Last(children.head, this.nodeId, this.nodeName, this.tpe)
 
-  override def toString: String = s"${this.expressionType}(${this.source}, ${this.expr})"
+  override def toString: String = s"${this.expressionType}(${this.source})"
 
   override def equals(obj: Any): Boolean = obj match {
-    case UniqueBy(s, e) => this.source.equals(s) && this.expr.equals(e)
+    case Last(s) => this.source.equals(s)
     case _ => false
   }
 }
 
-object UniqueBy {
-  def apply(source: StreamExpression, expr: FunctionDef): UniqueBy = new UniqueBy(source, expr)
 
-  def unapply(arg: UniqueBy): Option[(StreamExpression, FunctionDef)] = Some((arg.source, arg.expr))
+object Last {
+  def apply(source: Tree): Last = new Last(source)
+
+  def unapply(arg: Last): Option[Tree] = Some(arg.source)
+}
+
+
+/**
+ * Represents a stream that includes records from two input streams.
+ */
+class Union(val left: Tree,
+            val right: Tree,
+            val nodeId: String,
+            val nodeName: String)
+  extends TwoInputStreamExpression {
+
+  def this(left: Tree, right: Tree, nodeId: String) {
+    this(left, right, nodeId, nodeId)
+  }
+
+  def this(left: Tree, right: Tree) {
+    this(left, right, Id.newId())
+  }
+
+  def this(left: Tree, right: Tree, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
+    this(left, right, nodeId, nodeName)
+    this.tpe = resultType
+  }
+
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new Union(this.left, this.right, id, name, this.tpe)
+
+  override def getChildren: Iterable[Tree] = Seq(this.left, this.right)
+
+  override def replaceChildren(children: List[Tree]): Tree =
+    new Union(children(0), children(1), this.nodeId, this.nodeName, this.tpe)
+
+  override def toString: String = s"${this.expressionType}(${this.left}, ${this.right})"
+
+  override def equals(obj: Any): Boolean = obj match {
+    case Union(l, r) => this.left.equals(l) && this.right.equals(r)
+    case _ => false
+  }
+}
+
+object Union {
+  def apply(left: Tree, right: Tree): Union = new Union(left, right)
+
+  def unapply(arg: Union): Option[(Tree, Tree)] = Some((arg.left, arg.right))
 }

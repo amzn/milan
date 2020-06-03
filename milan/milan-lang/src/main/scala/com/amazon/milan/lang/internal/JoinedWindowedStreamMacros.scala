@@ -3,13 +3,15 @@ package com.amazon.milan.lang.internal
 import com.amazon.milan.Id
 import com.amazon.milan.lang.{LeftJoinedWindowedStream, Stream}
 import com.amazon.milan.program.internal.ConvertExpressionHost
-import com.amazon.milan.program.{FlatMap, FunctionDef, LeftJoin}
+import com.amazon.milan.program.{FlatMap, FunctionDef, LeftWindowedJoin}
 import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, TypeDescriptor}
 
 import scala.reflect.macros.whitebox
 
 
-class JoinedWindowedStreamMacros(val c: whitebox.Context) extends StreamMacroHost with ConvertExpressionHost with FieldStatementHost {
+class JoinedWindowedStreamMacros(val c: whitebox.Context)
+  extends StreamMacroHost
+    with ConvertExpressionHost {
 
   import c.universe._
 
@@ -18,7 +20,7 @@ class JoinedWindowedStreamMacros(val c: whitebox.Context) extends StreamMacroHos
 
     val applyFunctionExpr = getMilanFunction(applyFunction.tree)
 
-    val inputStreamVal = TermName(c.freshName())
+    val inputStreamVal = TermName(c.freshName("inputStream"))
     val outputTypeInfo = getTypeDescriptor[TOut]
 
     val tree =
@@ -42,7 +44,7 @@ object JoinedWindowedStreamUtil {
     val leftInputExpr = inputStream.leftInput.expr
     val rightInputExpr = inputStream.rightInput.expr
 
-    val joinExpr = new LeftJoin(leftInputExpr, rightInputExpr, null)
+    val joinExpr = LeftWindowedJoin(leftInputExpr, rightInputExpr)
     val outputStreamType = new DataStreamTypeDescriptor(outputRecordType)
     val mapExpr = new FlatMap(joinExpr, applyFunction, outNodeId, outNodeId, outputStreamType)
 

@@ -24,7 +24,7 @@ trait FilteredStreamHost extends ConvertExpressionHost with ProgramTypeNamesHost
   def createdFilteredStream[T: c.WeakTypeTag](predicate: c.Expr[T => Boolean]): c.Expr[Filter] = {
     val outputNodeId = Id.newId()
     val predicateExpression = getMilanFunction(predicate.tree)
-    val inputExprVal = TermName(c.freshName())
+    val inputExprVal = TermName(c.freshName("inputExpr"))
 
     val tree =
       q"""

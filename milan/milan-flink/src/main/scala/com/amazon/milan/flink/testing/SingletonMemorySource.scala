@@ -58,7 +58,7 @@ object SingletonMemorySource {
    * A data sink that adds items to a memory source.
    */
   class DataSink[T](sourceId: String) extends FlinkDataSink[T] with SinkFunction[T] {
-    override def getSinkFunction: SinkFunction[_] = this
+    override def getSinkFunction: SinkFunction[T] = this
 
     override def setGenericArguments(genericArgs: List[TypeDescriptor[_]]): Unit = ()
 

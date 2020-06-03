@@ -20,9 +20,13 @@ object ArrayRecord {
  * Record type for tuple streams when Milan applications are compiled to Flink.
  * This must be a POJO type.
  */
-class ArrayRecord(var recordId: String, var values: Array[Any]) {
+class ArrayRecord(var recordId: String, var values: Array[Any]) extends Product {
   def this() {
     this("", Array())
+  }
+
+  def this(values: Array[Any]) {
+    this(Id.newId(), values)
   }
 
   def apply(index: Int): Any = this.values(index)
@@ -32,4 +36,10 @@ class ArrayRecord(var recordId: String, var values: Array[Any]) {
   def sameElements(other: ArrayRecord): Boolean = this.values.sameElements(other.values)
 
   def sameElements(other: Array[Any]): Boolean = this.values.sameElements(other)
+
+  override def productElement(n: Int): Any = this.values(n)
+
+  override def productArity: Int = this.values.length
+
+  override def canEqual(that: Any): Boolean = that.isInstanceOf[ArrayRecord]
 }

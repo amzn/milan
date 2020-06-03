@@ -40,7 +40,7 @@ class TestJoin {
     val join = left.fullJoin(right)
     val where = join.where((l, r) => l.key == r.key)
 
-    val Filter(FullJoin(leftInput, rightInput), condition) = where.expr
+    val FullJoin(leftInput, rightInput, condition) = where.expr
     assertEquals(left.expr, leftInput)
     assertEquals(right.expr, rightInput)
 
@@ -57,10 +57,10 @@ class TestJoin {
     val where = join.where((l, r) => l.key == r.key)
     val select = where.select((l, r) => TestJoin.joinRecords(l, r))
 
-    val mapExpr = select.expr.asInstanceOf[MapRecord]
+    val mapExpr = select.expr.asInstanceOf[StreamMap]
     assertEquals(where.expr, mapExpr.source)
 
-    val FunctionDef(List("l", "r"), ApplyFunction(FunctionReference(objectTypeName, "joinRecords"), List(SelectTerm("l"), SelectTerm("r")), _)) = mapExpr.expr
+    val FunctionDef(List(ValueDef("l", _), ValueDef("r", _)), ApplyFunction(FunctionReference(objectTypeName, "joinRecords"), List(SelectTerm("l"), SelectTerm("r")), _)) = mapExpr.expr
     assertEquals(classOf[TestJoin].getName, objectTypeName)
   }
 
@@ -71,13 +71,13 @@ class TestJoin {
 
     val join = left.fullJoin(right)
     val where = join.where((l, r) => l.key == r.key)
-    val select = where.select(
-      ((l: KeyValueRecord, r: KeyValueRecord) => TestJoin.joinRecords(l, r)) as "j")
+    val select = where.select((l, r) => fields(field("j", TestJoin.joinRecords(l, r))))
 
-    val mapExpr = select.expr.asInstanceOf[MapFields]
+    val mapExpr = select.expr.asInstanceOf[StreamMap]
     assertEquals(where.expr, mapExpr.source)
 
-    val List(FieldDefinition("j", FunctionDef(List("l", "r"), ApplyFunction(FunctionReference(objectTypeName, "joinRecords"), List(SelectTerm("l"), SelectTerm("r")), _)))) = mapExpr.fields
+
+    val FunctionDef(List(ValueDef("l", _), ValueDef("r", _)), NamedFields(List(NamedField("j", ApplyFunction(FunctionReference(objectTypeName, "joinRecords"), List(SelectTerm("l"), SelectTerm("r")), _))))) = mapExpr.expr
     assertEquals(classOf[TestJoin].getName, objectTypeName)
   }
 
@@ -93,9 +93,9 @@ class TestJoin {
       FieldDescriptor("right", TypeDescriptor.of[IntKeyValueRecord]))
     assertEquals(expectedFields, output.recordType.fields)
 
-    val MapFields(_, fields) = output.expr
-    val FieldDefinition("left", FunctionDef(List("l", "r"), SelectTerm("l"))) = fields.head
-    val FieldDefinition("right", FunctionDef(List("l", "r"), SelectTerm("r"))) = fields.last
+    val StreamMap(_, FunctionDef(_, NamedFields(fields))) = output.expr
+    val NamedField("left", SelectTerm("l")) = fields.head
+    val NamedField("right", SelectTerm("r")) = fields.last
   }
 
   @Test
@@ -113,10 +113,10 @@ class TestJoin {
       FieldDescriptor("b", types.Long))
     assertEquals(expectedFields, output.recordType.fields)
 
-    val MapFields(_, fields) = output.expr
-    val FieldDefinition("left", FunctionDef(List("l", "r"), SelectTerm("l"))) = fields.head
-    val FieldDefinition("a", FunctionDef(List("l", "r"), SelectField(SelectTerm("r"), "a"))) = fields(1)
-    val FieldDefinition("b", FunctionDef(List("l", "r"), SelectField(SelectTerm("r"), "b"))) = fields(2)
+    val StreamMap(_, FunctionDef(_, NamedFields(fields))) = output.expr
+    val NamedField("left", SelectTerm("l")) = fields.head
+    val NamedField("a", SelectField(SelectTerm("r"), "a")) = fields(1)
+    val NamedField("b", SelectField(SelectTerm("r"), "b")) = fields(2)
   }
 
   @Test
@@ -134,10 +134,10 @@ class TestJoin {
       FieldDescriptor("right", TypeDescriptor.of[IntKeyValueRecord]))
     assertEquals(expectedFields, output.recordType.fields)
 
-    val MapFields(_, fields) = output.expr
-    val FieldDefinition("a", FunctionDef(List("l", "r"), SelectField(SelectTerm("l"), "a"))) = fields.head
-    val FieldDefinition("b", FunctionDef(List("l", "r"), SelectField(SelectTerm("l"), "b"))) = fields(1)
-    val FieldDefinition("right", FunctionDef(List("l", "r"), SelectTerm("r"))) = fields(2)
+    val StreamMap(_, FunctionDef(_, NamedFields(fields))) = output.expr
+    val NamedField("a", SelectField(SelectTerm("l"), "a")) = fields.head
+    val NamedField("b", SelectField(SelectTerm("l"), "b")) = fields(1)
+    val NamedField("right", SelectTerm("r")) = fields(2)
   }
 
   @Test
@@ -158,10 +158,10 @@ class TestJoin {
       FieldDescriptor("d", types.Double))
     assertEquals(expectedFields, output.recordType.fields)
 
-    val MapFields(_, fields) = output.expr
-    val FieldDefinition("a", FunctionDef(List("l", "r"), SelectField(SelectTerm("l"), "a"))) = fields.head
-    val FieldDefinition("b", FunctionDef(List("l", "r"), SelectField(SelectTerm("l"), "b"))) = fields(1)
-    val FieldDefinition("c", FunctionDef(List("l", "r"), SelectField(SelectTerm("r"), "c"))) = fields(2)
-    val FieldDefinition("d", FunctionDef(List("l", "r"), SelectField(SelectTerm("r"), "d"))) = fields(3)
+    val StreamMap(_, FunctionDef(_, NamedFields(fields))) = output.expr
+    val NamedField("a", SelectField(SelectTerm("l"), "a")) = fields.head
+    val NamedField("b", SelectField(SelectTerm("l"), "b")) = fields(1)
+    val NamedField("c", SelectField(SelectTerm("r"), "c")) = fields(2)
+    val NamedField("d", SelectField(SelectTerm("r"), "d")) = fields(3)
   }
 }

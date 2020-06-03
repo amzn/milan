@@ -27,11 +27,11 @@ object ProgramValidation {
   def validateSelectFromGroupByFunction(function: FunctionDef): Unit = {
     validateFunction(function, 2)
 
-    def isKeyArg(argName: String): Boolean = argName == function.arguments.head
+    def isKeyArg(argName: String): Boolean = argName == function.arguments.head.name
 
     def validateInsideAggregateFunction(tree: Tree): Unit = {
       tree match {
-        case _: AggregateExpression =>
+        case _: UnaryAggregateExpression =>
           throw new InvalidProgramException("Aggregate function calls cannot be nested.")
 
         case SelectTerm(argName) if isKeyArg(argName) =>
@@ -44,7 +44,7 @@ object ProgramValidation {
 
     def validateOutsideAggregateFunction(tree: Tree): Unit = {
       tree match {
-        case a: AggregateExpression =>
+        case a: UnaryAggregateExpression =>
           validateInsideAggregateFunction(a.expr)
 
         case _ =>
@@ -52,6 +52,6 @@ object ProgramValidation {
       }
     }
 
-    validateOutsideAggregateFunction(function.expr)
+    validateOutsideAggregateFunction(function.body)
   }
 }

@@ -4,14 +4,11 @@ import java.time.Duration
 import java.util.concurrent.TimeoutException
 
 import com.amazon.milan.Id
-import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
 import com.amazon.milan.flink.application.FlinkApplicationConfiguration
 import com.amazon.milan.flink.application.sinks.FlinkSingletonMemorySink
 import com.amazon.milan.flink.application.sources.{FlinkListDataSource, SourceFunctionDataSource}
-import com.amazon.milan.flink.compiler.FlinkCompiler
 import com.amazon.milan.flink.testing.SingletonMemorySource
-import com.amazon.milan.lang.{Stream, StreamGraph}
-import com.amazon.milan.serialization.ScalaObjectMapper
+import com.amazon.milan.lang.Stream
 import com.amazon.milan.testing.Concurrent
 import com.amazon.milan.types.LineageRecord
 import com.amazon.milan.typeutil.TypeDescriptor
@@ -26,28 +23,17 @@ package object testing {
   implicit def extendStreamExecutionEnvironment(env: StreamExecutionEnvironment): StreamExecutionEnvironmentExtensions =
     new StreamExecutionEnvironmentExtensions(env)
 
-  /**
-   * Serializes a graph and application configuration as an [[ApplicationInstance]] and invokes the Flink compiler
-   * using the serialized instance.
-   *
-   * @param graph             A stream graph.
-   * @param config            An application configuration.
-   * @param targetEnvironment A Flink streaming environment to be used as the compilation target.
-   */
-  def compileFromSerialized(graph: StreamGraph,
-                            config: ApplicationConfiguration,
-                            targetEnvironment: StreamExecutionEnvironment): Unit = {
-    val application = new Application(graph)
-    val instance = new ApplicationInstance(application, config)
-    val json = ScalaObjectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(instance)
-    FlinkCompiler.defaultCompiler.compileFromInstanceJson(json, targetEnvironment)
-  }
-
   implicit def extendApplicationConfiguration(data: FlinkApplicationConfiguration): FlinkApplicationConfigurationExtensions =
     new FlinkApplicationConfigurationExtensions(data)
 
   implicit def extendFuture[T](future: Future[T]): FutureExtensions[T] =
     new FutureExtensions[T](future)
+
+  implicit class DurationExtensions(d: Duration) {
+    def toConcurrent: scala.concurrent.duration.Duration =
+      scala.concurrent.duration.Duration(this.d.toMillis, scala.concurrent.duration.MILLISECONDS)
+  }
+
 }
 
 

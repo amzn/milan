@@ -46,7 +46,7 @@ object Concurrent {
    */
   def executeAsyncAndWait(action: () => Any,
                           predicate: () => Boolean,
-                          shutdown: () => Any,
+                          shutdown: Thread => Any,
                           timeout: Duration): Boolean = {
     val runnable = new Runnable {
       override def run(): Unit = action()
@@ -62,7 +62,7 @@ object Concurrent {
     this.waitInternal(predicate, timeout)
 
     // Execute the shutdown logic.
-    shutdown()
+    shutdown(executionThread)
 
     // How long we can wait for the thread to gracefully shutdown.
     val shutdownTimeout = Duration.between(Instant.now(), stopTime)
@@ -92,7 +92,7 @@ object Concurrent {
   def executeAsyncAndWait(action: () => Any,
                           predicate: () => Boolean,
                           timeout: Duration): Boolean = {
-    this.executeAsyncAndWait(action, predicate, () => (), timeout)
+    this.executeAsyncAndWait(action, predicate, _ => (), timeout)
   }
 
   /**

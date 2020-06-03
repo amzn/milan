@@ -2,7 +2,7 @@ package com.amazon.milan.storage.aws
 
 import java.io.ByteArrayInputStream
 
-import com.amazon.milan.dataformats.DataFormat
+import com.amazon.milan.dataformats.DataInputFormat
 import com.amazon.milan.storage.IO
 import com.amazonaws.services.s3.AmazonS3URI
 import com.typesafe.scalalogging.Logger
@@ -37,7 +37,7 @@ object S3Util {
   def readAllRecords[T](s3Client: S3Client,
                         bucket: String,
                         prefix: String,
-                        dataFormat: DataFormat[T]): TraversableOnce[T] = {
+                        dataFormat: DataInputFormat[T]): TraversableOnce[T] = {
     this.logger.info(s"Reading records from objects in bucket '$bucket' with prefix '$prefix'.")
 
     s3Client.listAllObjects(bucket, prefix)
@@ -57,7 +57,7 @@ object S3Util {
   private def readS3File[T](s3Client: S3Client,
                             bucket: String,
                             key: String,
-                            dataFormat: DataFormat[T]): TraversableOnce[T] = {
+                            dataFormat: DataInputFormat[T]): TraversableOnce[T] = {
     this.logger.info(s"Reading records in file '$bucket/$key'.")
 
     val obj = s3Client.getObject(GetObjectRequest.builder().bucket(bucket).key(key).build())

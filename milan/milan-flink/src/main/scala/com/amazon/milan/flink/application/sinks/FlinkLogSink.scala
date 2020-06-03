@@ -14,7 +14,7 @@ class FlinkLogSink[T] extends FlinkDataSink[T] {
   override def setGenericArguments(genericArgs: List[TypeDescriptor[_]]): Unit = {
   }
 
-  override def getSinkFunction: SinkFunction[_] = {
+  override def getSinkFunction: SinkFunction[T] = {
     new LogSinkFunction[T]
   }
 }

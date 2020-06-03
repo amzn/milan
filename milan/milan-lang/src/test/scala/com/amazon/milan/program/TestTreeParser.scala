@@ -8,8 +8,8 @@ import org.junit.Test
 class TestTreeParser {
   @Test
   def test_TreeParser_Parse_WithFunctionTree_ReturnsMatchingTreeStructure(): Unit = {
-    val tree = TreeParser.parse[FunctionDef]("FunctionDef(List(\"x\", \"y\"), Equals(SelectTerm(\"x\"), SelectTerm(\"y\")))")
-    val FunctionDef(List("x", "y"), Equals(SelectTerm("x"), SelectTerm("y"))) = tree
+    val tree = TreeParser.parse[FunctionDef]("FunctionDef(List(ValueDef(\"x\"), ValueDef(\"y\")), Equals(SelectTerm(\"x\"), SelectTerm(\"y\")))")
+    val FunctionDef(List(ValueDef("x", _), ValueDef("y", _)), Equals(SelectTerm("x"), SelectTerm("y"))) = tree
   }
 
   @Test

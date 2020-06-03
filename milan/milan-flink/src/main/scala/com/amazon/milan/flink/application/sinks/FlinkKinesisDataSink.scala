@@ -35,7 +35,7 @@ class FlinkKinesisDataSink[T](val streamName: String,
   override def setGenericArguments(genericArgs: List[TypeDescriptor[_]]): Unit = {
   }
 
-  override def getSinkFunction: SinkFunction[_] = {
+  override def getSinkFunction: SinkFunction[T] = {
     this.logger.info(s"Creating Kinesis producer for stream '${this.streamName}'.")
     val config = this.getProducerProperties
 

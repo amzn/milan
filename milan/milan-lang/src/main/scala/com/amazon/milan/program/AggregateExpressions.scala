@@ -5,17 +5,20 @@ import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize
 
 
 trait AggregateExpression extends Tree {
+}
+
+trait UnaryAggregateExpression extends AggregateExpression {
   val expr: Tree
 }
 
-object AggregateExpression {
-  def unapply(arg: AggregateExpression): Option[Tree] = Some(arg.expr)
+object UnaryAggregateExpression {
+  def unapply(arg: UnaryAggregateExpression): Option[Tree] = Some(arg.expr)
 }
 
 
 @JsonSerialize
 @JsonDeserialize
-class Sum(val expr: Tree) extends AggregateExpression {
+class Sum(val expr: Tree) extends UnaryAggregateExpression {
   override def getChildren: Iterable[Tree] = Seq(expr)
 
   override def replaceChildren(children: List[Tree]): Tree = Sum(children.head)
@@ -35,7 +38,7 @@ object Sum {
 
 @JsonSerialize
 @JsonDeserialize
-class Max(val expr: Tree) extends AggregateExpression {
+class Max(val expr: Tree) extends UnaryAggregateExpression {
   override def getChildren: Iterable[Tree] = Seq(expr)
 
   override def replaceChildren(children: List[Tree]): Tree = Max(children.head)
@@ -55,7 +58,7 @@ object Max {
 
 @JsonSerialize
 @JsonDeserialize
-class Min(val expr: Tree) extends AggregateExpression {
+class Min(val expr: Tree) extends UnaryAggregateExpression {
   override def getChildren: Iterable[Tree] = Seq(expr)
 
   override def replaceChildren(children: List[Tree]): Tree = Min(children.head)
@@ -73,7 +76,7 @@ object Min {
 }
 
 
-trait ArgAggregateExpression extends AggregateExpression {
+trait ArgAggregateExpression extends UnaryAggregateExpression {
   val expr: Tuple
 }
 
@@ -124,7 +127,7 @@ object ArgMin {
 
 @JsonSerialize
 @JsonDeserialize
-class Mean(val expr: Tree) extends AggregateExpression {
+class Mean(val expr: Tree) extends UnaryAggregateExpression {
   this.tpe = types.Double
 
   override def getChildren: Iterable[Tree] = Seq(expr)
@@ -146,7 +149,7 @@ object Mean {
 
 @JsonSerialize
 @JsonDeserialize
-class First(val expr: Tree) extends AggregateExpression {
+class First(val expr: Tree) extends UnaryAggregateExpression {
   override def getChildren: Iterable[Tree] = Seq(expr)
 
   override def replaceChildren(children: List[Tree]): Tree = First(children.head)
@@ -161,4 +164,20 @@ object First {
   def apply(expr: Tree): First = new First(expr)
 
   def unapply(arg: First): Option[Tree] = Some(arg.expr)
+}
+
+
+@JsonSerialize
+@JsonDeserialize
+class Count() extends AggregateExpression {
+  this.tpe = types.Long
+
+  override def equals(obj: Any): Boolean = obj match {
+    case _: Count => true
+    case _ => false
+  }
+}
+
+object Count {
+  def apply(): Count = new Count()
 }

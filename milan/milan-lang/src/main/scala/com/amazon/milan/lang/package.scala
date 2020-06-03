@@ -5,15 +5,16 @@ import scala.language.implicitConversions
 
 
 package object lang {
-  /**
-   * Implicit conversion from an anonymous function of one argument to a [[FunctionExtensions]], which contains the
-   * as(name) method allowing users to create a [[FieldStatement]].
-   */
-  implicit def extendFunction[TIn, TOut](f: TIn => TOut): FunctionExtensions[TIn, TOut] = new FunctionExtensions[TIn, TOut](f)
+  def fields[T](field1: FieldExpression[T]): Tuple1[T] = throw new NotImplementedError()
+
+  def fields[T1, T2](field1: FieldExpression[T1], field2: FieldExpression[T2]): (T1, T2) = throw new NotImplementedError()
+
+  def fields[T1, T2, T3](field1: FieldExpression[T1],
+                         field2: FieldExpression[T2],
+                         field3: FieldExpression[T3]): (T1, T2, T3) = throw new NotImplementedError()
 
   /**
-   * Implicit conversion from an anonymous function of two arguments to a [[Function2Extensions]], which contains the
-   * as(name) method allowing users to create a [[Function2FieldStatement]].
+   * Defines a named field with the specified value.
    */
-  implicit def extendFunction2[TLeft, TRight, TOut](f: (TLeft, TRight) => TOut): Function2Extensions[TLeft, TRight, TOut] = new Function2Extensions[TLeft, TRight, TOut](f)
+  def field[T](name: String, value: T): FieldExpression[T] = FieldExpression(name, value)
 }

@@ -37,7 +37,7 @@ class TestObjectStream {
     val mapped = input.map(StaticMapFunctions.mapInputRecord(_))
 
     // Extract out the AST node for the mapped stream.
-    val MapRecord(source, FunctionDef(_, ApplyFunction(FunctionReference(mapFunctionTypeName, mapFunctionMethodName), _, _))) = mapped.expr
+    val StreamMap(source, FunctionDef(_, ApplyFunction(FunctionReference(mapFunctionTypeName, mapFunctionMethodName), _, _))) = mapped.expr
     val outputTypeName = classOf[IntRecord].getTypeName.replace("$", ".")
     assertEquals(input.expr, source)
     assertEquals("mapInputRecord", mapFunctionMethodName)
@@ -49,7 +49,7 @@ class TestObjectStream {
     val input = Stream.of[IntRecord]
     val mapped = input.map(r => TestObjectStream.makeOutput(r.i))
 
-    val MapRecord(source, FunctionDef(_, ApplyFunction(_, args, _))) = mapped.expr
+    val StreamMap(source, FunctionDef(_, ApplyFunction(_, args, _))) = mapped.expr
 
     assertEquals(input.expr, source)
 
@@ -61,17 +61,17 @@ class TestObjectStream {
   @Test
   def test_ObjectStream_Map_WithTupleMapWithOneField_ReturnsTupleStreamWithExpectedNode(): Unit = {
     val input = Stream.of[IntRecord]
-    val mapped = input.map(((r: IntRecord) => TestObjectStream.makeOutput(r.i)) as "x")
+    val mapped = input.map(r => fields(field("x", TestObjectStream.makeOutput(r.i))))
 
-    val MapFields(source, fields) = mapped.expr
+    val StreamMap(source, FunctionDef(_, NamedFields(fieldList))) = mapped.expr
 
     assertEquals(input.expr, source)
-    assertEquals(1, fields.length)
+    assertEquals(1, fieldList.length)
 
-    val fieldExpr = fields.head
+    val fieldExpr = fieldList.head
     assertEquals("x", fieldExpr.fieldName)
 
-    val FunctionDef(_, ApplyFunction(_, args, _)) = fieldExpr.expr
+    val ApplyFunction(_, args, _) = fieldExpr.expr
     val SelectField(SelectTerm(argName), fieldName) = args.head
     assertEquals("r", argName)
     assertEquals("i", fieldName)
@@ -84,25 +84,26 @@ class TestObjectStream {
   @Test
   def test_ObjectStream_Map_WithTupleMapWithTwoFields_ReturnsTupleStreamWithExpectedNode(): Unit = {
     val input = Stream.of[IntRecord]
-    val mapped = input.map(
-      ((r: IntRecord) => TestObjectStream.makeOutput(r.i)) as "x",
-      ((r: IntRecord) => TestObjectStream.makeOutput(r.i)) as "y")
+    val mapped = input.map(r => fields(
+      field("x", TestObjectStream.makeOutput(r.i)),
+      field("y", TestObjectStream.makeOutput(r.i))
+    ))
 
-    val MapFields(source, fields) = mapped.expr
+    val StreamMap(source, FunctionDef(_, NamedFields(fieldList))) = mapped.expr
 
     assertEquals(input.expr, source)
-    assertEquals(2, fields.length)
+    assertEquals(2, fieldList.length)
 
-    val List(fieldExpr1, fieldExpr2) = fields
+    val List(fieldExpr1, fieldExpr2) = fieldList
     assertEquals("x", fieldExpr1.fieldName)
     assertEquals("y", fieldExpr2.fieldName)
 
-    val FunctionDef(_, ApplyFunction(_, args1, _)) = fieldExpr1.expr
+    val ApplyFunction(_, args1, _) = fieldExpr1.expr
     val SelectField(SelectTerm(argName1), fieldName1) = args1.head
     assertEquals("r", argName1)
     assertEquals("i", fieldName1)
 
-    val FunctionDef(_, ApplyFunction(_, args2, _)) = fieldExpr2.expr
+    val ApplyFunction(_, args2, _) = fieldExpr2.expr
     val SelectField(SelectTerm(argName2), fieldName2) = args2.head
     assertEquals("r", argName2)
     assertEquals("i", fieldName2)
@@ -141,17 +142,17 @@ class TestObjectStream {
     val left =
       leftInput
         .toField("left")
-        .addField(((t: Tuple1[IntRecord]) => t match {
-          case Tuple1(r) => r.i
-        }) as "left_i")
+        .addFields(t => fields(
+          field("left_i", t match { case Tuple1(r) => r.i })
+        ))
 
     val rightInput = Stream.of[IntRecord]
     val right =
       rightInput
         .toField("right")
-        .addField(((t: Tuple1[IntRecord]) => t match {
-          case Tuple1(r) => r.i
-        }) as "right_i")
+        .addFields(t => fields(
+          field("right_i", t match { case Tuple1(r) => r.i })
+        ))
 
     left.leftJoin(right)
       .where((l, r) =>

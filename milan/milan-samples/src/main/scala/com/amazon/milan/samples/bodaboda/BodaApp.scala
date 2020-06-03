@@ -17,7 +17,7 @@ object BodaApp {
 
     // Driver status changes and driver location come in separate streams, we'll join them together to create a stream
     // of up-to-date driver information.
-    val driverStatus = Stream.of[DriverStatus].withId("driver_status")
+    val driverStatus = Stream.of[DriverStatus].withId("external_driver_status")
 
     val driverLocation = Stream.of[DriverLocation].withId("driver_location")
 
@@ -27,9 +27,12 @@ object BodaApp {
     // Ride state events.
     val rideEvents = Stream.of[RideEvent].withId("ride_events")
 
+    // Create a feedback loop for driver status updates that we generate later on.
+    val driverStatusCycle = driverStatus.beginCycle()
+
     // Derive a stream that contains up-to-date information on each driver.
     // Join the status with the location to create this driver info stream.
-    val driverInfo = driverStatus
+    val driverInfo = driverStatusCycle
       .fullJoin(driverLocation)
       .where((status, loc) => status.driverId == loc.driverId && status != null && loc != null)
       .select((status, loc) => BodaApp.getDriverInfo(status, loc))
@@ -37,7 +40,14 @@ object BodaApp {
 
     // In order to assign drivers to ride requests we'll need the latest information for each driver.
     // We'll then join that with the stream of requests to allocate a driver.
-    val latestDriverInfo = driverInfo.latestBy(info => info.updateTime, info => info.driverId)
+    def maxByUpdateTime(driverGroup: Stream[DriverInformation]): Stream[DriverInformation] =
+      driverGroup.maxBy(info => info.updateTime)
+
+    val latestDriverInfo =
+      driverInfo
+        .groupBy(info => info.driverId)
+        .map((_, group) => maxByUpdateTime(group))
+        .recordWindow(1)
 
     // There is a pretty bad race condition here, which is that we could easily allocate a driver twice.
     // The solution is probably some form of optimistic concurrency, where we allow a double allocation
@@ -54,6 +64,9 @@ object BodaApp {
     val driverAllocations = allocatedRides
       .map(ride => new DriverStatus(ride.driverId, Instant.now(), DriverStatus.ASSIGNED))
       .withId("driver_allocations")
+
+    // Send the driver status changes back to the beginning so we can update the driver information.
+    driverStatusCycle.closeCycle(driverAllocations)
 
     // Use a full join to update the ride info whenever we get a state event.
     val rideInfo = rideEvents
@@ -146,7 +159,7 @@ object BodaApp {
                          inputDriverLocation: Stream[DriverLocation],
                          inputRideRequests: Stream[RideRequest],
                          inputRideEvents: Stream[RideEvent],
-                         outputDrierInfo: Stream[DriverInformation],
+                         outputDriverInfo: Stream[DriverInformation],
                          outputDriverAllocations: Stream[DriverStatus],
                          outputRideInfo: Stream[RideInformation],
                          outputRideWaitTimes: Stream[RideWaitInfo])

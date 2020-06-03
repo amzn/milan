@@ -1,11 +1,11 @@
 package com.amazon.milan.flink
 
+import com.amazon.milan.flink.types.ScalaTupleTypeInformation
 import org.apache.flink.api.common.typeinfo.{TypeInformation, Types}
-import org.apache.flink.api.java.tuple.Tuple
 import org.apache.flink.api.java.typeutils.TupleTypeInfo
 import org.apache.flink.api.scala.typeutils.OptionTypeInfo
 
-import scala.reflect.{ClassTag, classTag}
+import scala.reflect.ClassTag
 
 
 object TypeUtil {
@@ -75,8 +75,14 @@ object TypeUtil {
    * @param elementCount The number of tuple elements.
    * @return The tuple class name.
    */
-  def getTupleClassName(elementCount: Int) =
-    s"${FlinkTypeNames.tuple}$elementCount"
+  def getTupleClassName(elementCount: Int): String = {
+    if (elementCount == 0) {
+      "Product"
+    }
+    else {
+      s"Tuple$elementCount"
+    }
+  }
 
   /**
    * Gets the name of the Flink tuple type with the specified element types.
@@ -84,18 +90,31 @@ object TypeUtil {
    * @param elementTypes The names of the tuple element types.
    * @return The name of the tuple type with the specified element types.
    */
-  def getTupleTypeName(elementTypes: Seq[String]): String =
-    getTupleClassName(elementTypes.length) + elementTypes.mkString("[", ", ", "]")
+  def getTupleTypeName(elementTypes: List[String]): String = {
+    if (elementTypes.isEmpty) {
+      getTupleClassName(elementTypes.length)
+    }
+    else {
+      getTupleClassName(elementTypes.length) + elementTypes.mkString("[", ", ", "]")
+    }
+  }
 
   /**
    * Create a [[TypeInformation]] for a tuple of the specified element types.
    *
    * @param elementTypes [[TypeInformation]] values representing the element types.
-   * @tparam T The type of the tuple. This should be one of the org.apache.flink.api.java.tuple.Tuple classes.
+   * @tparam T The type of the tuple.
    * @return A [[TupleTypeInfo]] representing the type of a tuple with the specified elements.
    */
-  def createTupleTypeInfo[T <: Tuple : ClassTag](elementTypes: TypeInformation[_]*): TupleTypeInfo[T] = {
-    new TupleTypeInfo[T](classTag[T].runtimeClass.asInstanceOf[Class[T]], elementTypes: _*)
+  def createTupleTypeInfo[T >: Null <: Product : ClassTag](elementTypes: TypeInformation[_]*): ScalaTupleTypeInformation[T] = {
+    new ScalaTupleTypeInformation[T](elementTypes.toArray)
+  }
+
+  /**
+   * Create a [[TypeInformation]] for a tuple of the specified element types.
+   */
+  def createTupleTypeInfo[T1, T2](elementType1: TypeInformation[T1], elementType2: TypeInformation[T2]): ScalaTupleTypeInformation[(T1, T2)] = {
+    new ScalaTupleTypeInformation[(T1, T2)](Array(elementType1, elementType2))
   }
 
   /**

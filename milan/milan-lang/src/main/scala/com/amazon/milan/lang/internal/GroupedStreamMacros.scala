@@ -2,104 +2,56 @@ package com.amazon.milan.lang.internal
 
 import java.util.UUID
 
-import com.amazon.milan.lang.{Function2FieldStatement, GroupedStream, Stream}
-import com.amazon.milan.program.{ArgMax, FunctionDef, GroupingExpression, MapExpression, MapFields, MapRecord, Marker, SelectTerm, StreamExpression, Tuple, UniqueBy}
-import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, TypeDescriptor, TypeInfoHost}
+import com.amazon.milan.lang.{GroupedStream, Stream}
+import com.amazon.milan.program.{FlatMap, FunctionDef, Marker, SelectTerm, StreamMap, ValueDef}
+import com.amazon.milan.typeutil.{TypeDescriptor, TypeInfoHost}
 import com.amazon.milan.{Id, program}
 
 import scala.reflect.macros.whitebox
 
 
-class GroupedStreamMacros(val c: whitebox.Context) extends StreamMacroHost with TypeInfoHost with FieldStatementHost {
+class GroupedStreamMacros(val c: whitebox.Context) extends StreamMacroHost with TypeInfoHost {
 
   import c.universe._
 
-  def unique[T: c.WeakTypeTag, TKey: c.WeakTypeTag, TVal: c.WeakTypeTag](selector: c.Expr[T => TVal]): c.Expr[GroupedStream[T, TKey]] = {
-    val selectFunc = getMilanFunction(selector.tree)
-    val outNodeId = Id.newId()
+  def unkeyedSelectObject[T: c.WeakTypeTag, TOut: c.WeakTypeTag](f: c.Expr[T => TOut]): c.Expr[Stream[TOut]] = {
+    this.warnIfNoRecordId[TOut]()
 
-    val inputExprVal = TermName(c.freshName())
-    val streamExprVal = TermName(c.freshName())
+    val aggregateExpression = getMilanFunction(f.tree)
+    val validationExpression = q"com.amazon.milan.program.ProgramValidation.validateMapFunction($aggregateExpression, 1)"
+    val exprTree = this.createAggregate[TOut](aggregateExpression, validationExpression)
+
+    val exprVal = TermName(c.freshName("expr"))
 
     val tree =
       q"""
-          val $inputExprVal = ${c.prefix}.expr
-          val $streamExprVal = new ${typeOf[UniqueBy]}($inputExprVal.asInstanceOf[${typeOf[GroupingExpression]}], $selectFunc, $outNodeId, $outNodeId)
-          new ${weakTypeOf[GroupedStream[T, TKey]]}($streamExprVal)
+          val $exprVal = $exprTree
+          new ${weakTypeOf[Stream[TOut]]}($exprVal, $exprVal.recordType)
        """
-    c.Expr[GroupedStream[T, TKey]](tree)
-  }
-
-  def selectObject[T: c.WeakTypeTag, TKey: c.WeakTypeTag, TOut: c.WeakTypeTag](f: c.Expr[(TKey, T) => TOut]): c.Expr[Stream[TOut]] = {
-    this.warnIfNoRecordId[TOut]()
-
-    def generateValidationExpression(mapFunctionDef: c.Expr[FunctionDef]): c.universe.Tree = {
-      q"com.amazon.milan.lang.internal.ProgramValidation.validateSelectFromGroupByFunction($mapFunctionDef)"
-    }
-
-    val nodeTree = createMappedToRecordStream2[TKey, T, TOut](f, generateValidationExpression)
-    val outputRecordType = createTypeInfo[TOut].toTypeDescriptor
-    val tree = q"new ${weakTypeOf[Stream[TOut]]}($nodeTree, $outputRecordType)"
     c.Expr[Stream[TOut]](tree)
   }
 
-  def selectTuple1[T: c.WeakTypeTag, TKey: c.WeakTypeTag, TF: c.WeakTypeTag](f: c.Expr[Function2FieldStatement[TKey, T, TF]]): c.Expr[Stream[Tuple1[TF]]] = {
-    val streamTypeInfo = createTypeInfo[T]
-    val keyTypeInfo = createTypeInfo[TKey]
-    val expr = getFieldDefinitionForSelectFromGroupBy[T, TKey, TF](streamTypeInfo, keyTypeInfo, f)
-    mapTuple[Tuple1[TF]](List((expr, c.weakTypeOf[TF])))
-  }
+  def keyedSelectObject[T: c.WeakTypeTag, TKey: c.WeakTypeTag, TOut: c.WeakTypeTag](f: c.Expr[(TKey, T) => TOut]): c.Expr[Stream[TOut]] = {
+    this.warnIfNoRecordId[TOut]()
 
-  def selectTuple2[T: c.WeakTypeTag, TKey: c.WeakTypeTag, T1: c.WeakTypeTag, T2: c.WeakTypeTag](f1: c.Expr[Function2FieldStatement[TKey, T, T1]],
-                                                                                                f2: c.Expr[Function2FieldStatement[TKey, T, T2]]): c.Expr[Stream[(T1, T2)]] = {
-    val streamTypeInfo = createTypeInfo[T]
-    val keyTypeInfo = createTypeInfo[TKey]
-    val expr1 = getFieldDefinitionForSelectFromGroupBy[T, TKey, T1](streamTypeInfo, keyTypeInfo, f1)
-    val expr2 = getFieldDefinitionForSelectFromGroupBy[T, TKey, T2](streamTypeInfo, keyTypeInfo, f2)
+    val aggregateExpression = getMilanFunction(f.tree)
+    val validationExpression =
+      q"""
+          com.amazon.milan.program.ProgramValidation.validateMapFunction($aggregateExpression, 2)
+          com.amazon.milan.lang.internal.ProgramValidation.validateSelectFromGroupByFunction($aggregateExpression)
+       """
 
-    val fields = List(
-      (expr1, c.weakTypeOf[T1]),
-      (expr2, c.weakTypeOf[T2])
-    )
-    mapTuple[(T1, T2)](fields)
-  }
+    val exprTree = this.createAggregate[TOut](aggregateExpression, validationExpression)
 
-  def selectTuple3[T: c.WeakTypeTag, TKey: c.WeakTypeTag, T1: c.WeakTypeTag, T2: c.WeakTypeTag, T3: c.WeakTypeTag](f1: c.Expr[Function2FieldStatement[TKey, T, T1]],
-                                                                                                                   f2: c.Expr[Function2FieldStatement[TKey, T, T2]],
-                                                                                                                   f3: c.Expr[Function2FieldStatement[TKey, T, T3]]): c.Expr[Stream[(T1, T2, T3)]] = {
-    val streamTypeInfo = createTypeInfo[T]
-    val keyTypeInfo = createTypeInfo[TKey]
-    val expr1 = getFieldDefinitionForSelectFromGroupBy[T, TKey, T1](streamTypeInfo, keyTypeInfo, f1)
-    val expr2 = getFieldDefinitionForSelectFromGroupBy[T, TKey, T2](streamTypeInfo, keyTypeInfo, f2)
-    val expr3 = getFieldDefinitionForSelectFromGroupBy[T, TKey, T3](streamTypeInfo, keyTypeInfo, f3)
-
-    val fields = List(
-      (expr1, c.weakTypeOf[T1]),
-      (expr2, c.weakTypeOf[T2]),
-      (expr3, c.weakTypeOf[T3])
-    )
-
-    mapTuple[(T1, T2, T3)](fields)
-  }
-
-  def maxBy[T: c.WeakTypeTag, TArg: c.WeakTypeTag](f: c.Expr[T => TArg])
-                                                  (ev: c.Expr[Ordering[TArg]]): c.Expr[Stream[T]] = {
-    // MaxBy is essentially syntactic sugar for select((_, r) => argmax(f(r), r))
-    val argFunctionDef = getMilanFunction(f.tree)
-
-    val inputExprVal = TermName(c.freshName())
-    val mapExprVal = TermName(c.freshName())
-    val recordTypeVal = TermName(c.freshName())
+    val exprVal = TermName(c.freshName("expr"))
 
     val tree =
       q"""
-          val $inputExprVal = ${c.prefix}.expr
-          val $mapExprVal = _root_.com.amazon.milan.lang.internal.GroupedStreamUtil.getMaxByMapExpression($inputExprVal, $argFunctionDef)
-          val $recordTypeVal = $mapExprVal.recordType.asInstanceOf[${weakTypeOf[TypeDescriptor[T]]}]
-          new ${c.weakTypeOf[Stream[T]]}($mapExprVal, $recordTypeVal)
+         val $exprVal = $exprTree
+         new ${weakTypeOf[Stream[TOut]]}($exprVal, $exprVal.recordType.asInstanceOf[${weakTypeOf[TypeDescriptor[TOut]]}])
        """
 
-    c.Expr[Stream[T]](tree)
+    c.Expr[Stream[TOut]](tree)
   }
 
   def map[T: c.WeakTypeTag, TKey: c.WeakTypeTag, TOut: c.WeakTypeTag](f: c.Expr[(TKey, Stream[T]) => Stream[TOut]]): c.Expr[GroupedStream[TOut, TKey]] = {
@@ -109,57 +61,88 @@ class GroupedStreamMacros(val c: whitebox.Context) extends StreamMacroHost with 
       q"com.amazon.milan.lang.internal.ProgramValidation.validateSelectFromGroupByFunction($mapFunctionDef)"
     }
 
-    val mapExpr = this.rewriteMapStreamExpression(f, 1)
-    val sourceVal = TermName(c.freshName())
-    val exprVal = TermName(c.freshName())
+    val mapExpr = this.rewriteKeyedMapStreamExpression(f)
+    val sourceVal = TermName(c.freshName("source"))
+    val exprVal = TermName(c.freshName("expr"))
+
+    val streamType = getGroupedStreamTypeExpr[TOut](mapExpr)
+    val id = Id.newId()
 
     val tree =
       q"""
           val $sourceVal = ${c.prefix}
-          val $exprVal = new ${typeOf[MapRecord]}($sourceVal.expr, $mapExpr)
+          val $exprVal = new ${typeOf[StreamMap]}($sourceVal.expr, $mapExpr, $id, $id, $streamType)
           new ${weakTypeOf[GroupedStream[TOut, TKey]]}($exprVal)
        """
     c.Expr[GroupedStream[TOut, TKey]](tree)
   }
 
-  def flatMap[T: c.WeakTypeTag, TKey: c.WeakTypeTag, TOut: c.WeakTypeTag](f: c.Expr[(TKey, Stream[T]) => Stream[TOut]]): c.Expr[Stream[TOut]] = {
+  def unkeyedFlatMap[T: c.WeakTypeTag, TOut: c.WeakTypeTag](f: c.Expr[Stream[T] => Stream[TOut]]): c.Expr[Stream[TOut]] = {
     this.warnIfNoRecordId[TOut]()
 
-    val mapFunctionExpr = getMilanFunction(f.tree)
-    val outputRecordType = getTypeDescriptor[TOut]
+    val mapExpr = this.rewriteUnkeyedMapStreamExpression(f)
+    this.flatMap[TOut](mapExpr)
+  }
 
-    val mapExprVal = TermName(c.freshName())
+  def keyedFlatMap[T: c.WeakTypeTag, TKey: c.WeakTypeTag, TOut: c.WeakTypeTag](f: c.Expr[(TKey, Stream[T]) => Stream[TOut]]): c.Expr[Stream[TOut]] = {
+    this.warnIfNoRecordId[TOut]()
 
-    val tree =
-      q"""
-          val $mapExprVal = $mapFunctionExpr
-          $mapExprVal.tpe = $outputRecordType
-          new ${weakTypeOf[Stream[TOut]]}($mapExprVal, $outputRecordType)
-       """
-
-    c.Expr[Stream[TOut]](tree)
+    val mapExpr = this.rewriteKeyedMapStreamExpression(f)
+    this.flatMap[TOut](mapExpr)
   }
 
   def flatMapSingle[T: c.WeakTypeTag, TKey: c.WeakTypeTag, TOut: c.WeakTypeTag](f: c.Expr[(TKey, Stream[T]) => TOut]): c.Expr[Stream[TOut]] = {
     c.Expr[Stream[TOut]](q"")
   }
 
-  private def rewriteMapStreamExpression[TKey: c.WeakTypeTag, T: c.WeakTypeTag, TOut: c.WeakTypeTag](f: c.Expr[(TKey, Stream[T]) => Stream[TOut]],
-                                                                                                     streamArgIndex: Int): c.Expr[FunctionDef] = {
-    val Function(args, body) = f.tree
+  private def flatMap[TOut: c.WeakTypeTag](mapExpr: c.Expr[FunctionDef]): c.Expr[Stream[TOut]] = {
+    val sourceVal = TermName(c.freshName("source"))
+    val exprVal = TermName(c.freshName("expr"))
+    val streamType = getStreamTypeExpr[TOut](mapExpr)
+    val id = Id.newId()
+
+    val tree =
+      q"""
+          val $sourceVal = ${c.prefix}
+          val $exprVal = new ${typeOf[FlatMap]}($sourceVal.expr, $mapExpr, $id, $id, $streamType)
+          new ${weakTypeOf[Stream[TOut]]}($exprVal, $exprVal.recordType.asInstanceOf[${weakTypeOf[TypeDescriptor[TOut]]}])
+       """
+
+    c.Expr[Stream[TOut]](tree)
+  }
+
+  private def rewriteUnkeyedMapStreamExpression[T: c.WeakTypeTag, TOut: c.WeakTypeTag](f: c.Expr[Stream[T] => Stream[TOut]]): c.Expr[FunctionDef] = {
+    this.rewriteMapStreamExpression[T](f.tree, 0)
+  }
+
+  private def rewriteKeyedMapStreamExpression[TKey: c.WeakTypeTag, T: c.WeakTypeTag, TOut: c.WeakTypeTag](f: c.Expr[(TKey, Stream[T]) => Stream[TOut]]): c.Expr[FunctionDef] = {
+    this.rewriteMapStreamExpression[T](f.tree, 1)
+  }
+
+  private def rewriteMapStreamExpression[T: c.WeakTypeTag](f: c.Tree, streamArgIndex: Int): c.Expr[FunctionDef] = {
+    val Function(args, body) = f
 
     val argNames = args.map(_.name.toString)
     val streamArgName = argNames(streamArgIndex)
 
     // We need to create a Stream[T] to pass to the body of the map function in order to get back the Milan AST
-    // of the map expression.
+    // of the map expression. We use a Marker object so that we can later figure out where to plug in the the generated
+    // AST.
     val markerId = UUID.randomUUID().toString
-    val inputStreamExpr = q"new ${typeOf[Marker]}($markerId)"
     val recordType = this.getTypeDescriptor[T]
+    val inputStreamExpr = q"new ${typeOf[Marker]}($markerId, ${recordType.toStream})"
     val inputStream = q"new ${weakTypeOf[Stream[T]]}($inputStreamExpr, $recordType)"
+
+    //    c.warning(c.enclosingPosition, s"Old Body: $body")
+    //    c.warning(c.enclosingPosition, s"Old Body: ${showRaw(body)}")
+
     val newBody = this.rewriteMapStreamFunctionBody(body, streamArgName, inputStream)
 
-    val tree = q"new ${typeOf[FunctionDef]}($argNames, _root_.com.amazon.milan.lang.internal.GroupedStreamUtil.replaceMarkerWithArg($newBody.expr, $markerId, $streamArgName))"
+    //    c.warning(c.enclosingPosition, s"New Body: $newBody")
+    //    c.warning(c.enclosingPosition, s"New Body: ${showRaw(newBody)}")
+
+    val argDefs = argNames.map(ValueDef.named)
+    val tree = q"new ${typeOf[FunctionDef]}($argDefs, _root_.com.amazon.milan.lang.internal.GroupedStreamUtil.replaceMarkerWithArg($newBody.expr, $markerId, $streamArgName))"
 
     c.Expr[FunctionDef](tree)
   }
@@ -174,12 +157,22 @@ class GroupedStreamMacros(val c: whitebox.Context) extends StreamMacroHost with 
    * @return A copy of the input tree with the argument references replaced.
    */
   private def rewriteMapStreamFunctionBody(body: Tree, streamArgName: String, inputStreamExpr: Tree): Tree = {
-    def rewrite(args: List[Tree]): List[Tree] =
-      args.map(arg => this.rewriteMapStreamFunctionBody(arg, streamArgName, inputStreamExpr))
+    def rewrite(tree: Tree): Tree =
+      this.rewriteMapStreamFunctionBody(tree, streamArgName, inputStreamExpr)
 
+    def rewriteList(trees: List[Tree]): List[Tree] =
+      trees.map(rewrite)
+
+    // Rewriting the tree to replace argument references is not easy because Scala doesn't provide the "replace children"
+    // operation that Milan trees do. We have to traverse the tree by conditioning on every specific tree type
+    // that we want to support.
     body match {
+      case Apply(fun, args) => Apply(rewrite(fun), rewriteList(args))
       case Ident(TermName(name)) if name == streamArgName => inputStreamExpr
-      case Apply(fun, args) => Apply(fun, rewrite(args))
+      case Block(stats, expr) => Block(rewriteList(stats), rewrite(expr))
+      case Select(qualifier, name) => Select(rewrite(qualifier), name)
+      case TypeApply(fun, args) => TypeApply(fun, rewriteList(args))
+      case ValDef(mods, name, tpt, rhs) => ValDef(mods, name, tpt, rewrite(rhs))
       case other => other
     }
   }
@@ -188,8 +181,6 @@ class GroupedStreamMacros(val c: whitebox.Context) extends StreamMacroHost with 
 
 object GroupedStreamUtil {
   def replaceMarkerWithArg(expr: program.Tree, markerId: String, argName: String): program.Tree = {
-    println(s"$markerId -> $expr")
-
     expr match {
       case Marker(id) if id == markerId =>
         SelectTerm(argName)
@@ -198,35 +189,5 @@ object GroupedStreamUtil {
         val newChildren = expr.getChildren.map(child => this.replaceMarkerWithArg(child, markerId, argName)).toList
         expr.replaceChildren(newChildren)
     }
-  }
-
-  def getMaxByMapExpression(sourceExpr: StreamExpression,
-                            argFunctionDef: FunctionDef): MapExpression = {
-    val inputRecordType = sourceExpr.recordType
-
-    val mapExpr =
-      if (inputRecordType.isTuple) {
-        this.getMaxByMapFieldsExpression(sourceExpr, inputRecordType, argFunctionDef)
-      }
-      else {
-        this.getMaxByMapRecordExpression(sourceExpr, inputRecordType, argFunctionDef)
-      }
-
-    mapExpr
-  }
-
-  private def getMaxByMapFieldsExpression(sourceExpr: StreamExpression,
-                                          inputRecordType: TypeDescriptor[_],
-                                          argFunctionDef: FunctionDef): MapFields = {
-    throw new NotImplementedError()
-  }
-
-  private def getMaxByMapRecordExpression(sourceExpr: StreamExpression,
-                                          inputRecordType: TypeDescriptor[_],
-                                          argFunctionDef: FunctionDef): MapRecord = {
-    val argName = argFunctionDef.arguments.head
-    val mapFunctionDef = FunctionDef(List("_", argName), ArgMax(Tuple(List(argFunctionDef.expr, SelectTerm(argName)))))
-    val id = Id.newId()
-    new MapRecord(sourceExpr, mapFunctionDef, id, id, new DataStreamTypeDescriptor(inputRecordType))
   }
 }

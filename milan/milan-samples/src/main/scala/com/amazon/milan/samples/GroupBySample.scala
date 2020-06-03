@@ -3,12 +3,8 @@ package com.amazon.milan.samples
 import com.amazon.milan.application.ApplicationConfiguration
 import com.amazon.milan.application.sinks.SingletonMemorySink
 import com.amazon.milan.application.sources.ListDataSource
-import com.amazon.milan.flink.compiler.FlinkCompiler
 import com.amazon.milan.lang._
 import com.amazon.milan.lang.aggregation._
-import com.typesafe.scalalogging.Logger
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
-import org.slf4j.LoggerFactory
 
 
 object GroupBySample {
@@ -18,12 +14,10 @@ object GroupBySample {
     // Group by the "key" field and output a tuple stream with two fields.
     // One field is the group key, the other is the sum of the "value" field for all group members.
     val output =
-      input
-        .groupBy(r => r.key)
-        .select(
-          ((key: Int, _: KeyValueRecord) => key) as "key",
-          ((_: Int, r: KeyValueRecord) => sum(r.value)) as "sum")
-        .withName("output")
+    input
+      .groupBy(r => r.key)
+      .select((key, r) => fields(field("key", key), field("sum", sum(r.value))))
+      .withName("output")
 
     val graph = new StreamGraph(output)
 
@@ -36,18 +30,18 @@ object GroupBySample {
     val outputSink = new SingletonMemorySink[output.RecordType]()
     config.addSink(output, outputSink)
 
-    // Compile and run.
-    val env = StreamExecutionEnvironment.getExecutionEnvironment
-    FlinkCompiler.defaultCompiler.compile(graph, config, env)
+    // TODO: compile and execute.
+    //    val env = StreamExecutionEnvironment.getExecutionEnvironment
+    //    FlinkCompiler.defaultCompiler.compile(graph, config, env)
 
-    env.execute()
+    //    env.execute()
 
     // Sometimes it takes a second for the records to arrive at the sink after the execution finishes.
-    Thread.sleep(1000)
+    //    Thread.sleep(1000)
 
-    val logger = Logger(LoggerFactory.getLogger(getClass))
+    //    val logger = Logger(LoggerFactory.getLogger(getClass))
 
-    logger.info("Output Records:")
-    outputSink.getValues.foreach(r => logger.info(r.toString()))
+    //    logger.info("Output Records:")
+    //    outputSink.getValues.foreach(r => logger.info(r.toString()))
   }
 }

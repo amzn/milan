@@ -14,12 +14,20 @@ import scala.language.implicitConversions
 package object applications {
 
   implicit class ApplicationConfigurationExtensions(config: ApplicationConfiguration) {
+    def setListSource[T: TypeDescriptor](stream: Stream[T], runForever: Boolean, values: T*): Unit = {
+      this.config.setSource(stream, new ListDataSource[T](values.toList, runForever))
+    }
+
     def setListSource[T: TypeDescriptor](stream: Stream[T], values: T*): Unit = {
-      this.config.setSource(stream, new ListDataSource[T](values.toList))
+      this.setListSource(stream, false, values: _*)
+    }
+
+    def setListSource[T: TypeDescriptor](streamId: String, runForever: Boolean, values: T*): Unit = {
+      this.config.setSource(streamId, new ListDataSource[T](values.toList, runForever))
     }
 
     def setListSource[T: TypeDescriptor](streamId: String, values: T*): Unit = {
-      this.config.setSource(streamId, new ListDataSource[T](values.toList))
+      this.setListSource(streamId, false, values: _*)
     }
 
     def addMemorySink[T: TypeDescriptor](stream: Stream[T]): SingletonMemorySink[T] = {

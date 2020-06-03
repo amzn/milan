@@ -17,6 +17,8 @@ object FlinkTypeNames {
 
   def typeInformation(t: String) = s"org.apache.flink.api.common.typeinfo.TypeInformation[$t]"
 
+  val typeInformation = "org.apache.flink.api.common.typeinfo.TypeInformation"
+
   val window = "org.apache.flink.streaming.api.windowing.windows.Window"
 
   val timeWindow = "org.apache.flink.streaming.api.windowing.windows.TimeWindow"
@@ -30,6 +32,4 @@ object FlinkTypeNames {
   def processAllWindowFunction(i: String, o: String, w: String) = s"org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction[$i, $o, $w]"
 
   def keySelector(i: String, k: String) = s"org.apache.flink.api.java.functions.KeySelector[$i, $k]"
-
-  val tuple = "org.apache.flink.api.java.tuple.Tuple"
 }

@@ -93,6 +93,13 @@ trait TypeInfoHost {
     }
 
     /**
+     * Gets whether this [[TypeInfo]] refers to a tuple type.
+     */
+    def isTuple: Boolean = {
+      this.getFullName.matches("([^\\[]*\\.)?Tuple\\d{1,2}\\[.*")
+    }
+
+    /**
      * Gets the fully qualified name of the type, without the generic type arguments.
      * Built-in types will not have their packages included (e.g. scala.Int will return Int).
      *

@@ -55,7 +55,7 @@ class ReflectionTypeProvider(classLoader: ClassLoader) extends TypeProvider {
         val alternatives = Seq(
           typeName,
           this.replaceLastDotWithDollar(typeName),
-          s"scala.${typeName}")
+          s"scala.$typeName")
 
         // Return the first Class we find in the sequence of alternative class names.
         alternatives

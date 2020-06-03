@@ -27,6 +27,10 @@ trait LiftTypeDescriptorHost {
     q"new ${weakTypeOf[ObjectTypeDescriptor[T]]}(${t.typeName}, ${t.genericArguments}, ${t.fields})"
   }
 
+  implicit def liftGeneratedTypeDescriptor[T: c.WeakTypeTag]: Liftable[GeneratedTypeDescriptor[T]] = { t =>
+    q"new ${weakTypeOf[GeneratedTypeDescriptor[T]]}(${t.typeName}, ${t.genericArguments}, ${t.fields})"
+  }
+
   implicit def liftCollectionTypeDescriptor[T: c.WeakTypeTag]: Liftable[CollectionTypeDescriptor[T]] = { t =>
     q"new ${weakTypeOf[CollectionTypeDescriptor[T]]}(${t.typeName}, ${t.genericArguments})"
   }
@@ -56,6 +60,7 @@ trait LiftTypeDescriptorHost {
       case t: BasicTypeDescriptor[T] => liftBasicTypeDescriptor[T](c.weakTypeTag[T])(t)
       case t: TupleTypeDescriptor[T] => liftTupleTypeDescriptor(c.weakTypeTag[T])(t)
       case t: ObjectTypeDescriptor[T] => liftObjectTypeDescriptor(c.weakTypeTag[T])(t)
+      case t: GeneratedTypeDescriptor[T] => liftGeneratedTypeDescriptor(c.weakTypeTag[T])(t)
       case t: CollectionTypeDescriptor[T] => liftCollectionTypeDescriptor(c.weakTypeTag[T])(t)
       case t: StreamTypeDescriptor => liftStreamTypeDescriptor(t)
     }

@@ -9,7 +9,7 @@ import scala.language.experimental.macros
 
 @JsonSerialize
 @JsonDeserialize
-class ListDataSource[T: TypeDescriptor](val values: List[T])
+class ListDataSource[T: TypeDescriptor](val values: List[T], val runForever: Boolean = false)
   extends DataSource[T] {
 
   private var recordTypeDescriptor = implicitly[TypeDescriptor[T]]

@@ -1,6 +1,6 @@
 package com.amazon.milan.lang
 
-import com.amazon.milan.program.{ExternalStream, FunctionDef, LatestBy, Ref, SelectField, SelectTerm}
+import com.amazon.milan.program.{ExternalStream, FunctionDef, LatestBy, SelectField, SelectTerm, ValueDef}
 import com.amazon.milan.test.{DateKeyValueRecord, IntStringRecord, Tuple3Record}
 import org.junit.Assert._
 import org.junit.Test
@@ -30,7 +30,7 @@ class TestStream {
     val windowed = input.latestBy(r => r.dateTime, r => r.key)
 
     val LatestBy(ExternalStream("input", "input", _), dateFunc, keyFunc) = windowed.expr
-    val FunctionDef(List("r"), SelectField(SelectTerm("r"), "dateTime")) = dateFunc
-    val FunctionDef(List("r"), SelectField(SelectTerm("r"), "key")) = keyFunc
+    val FunctionDef(List(ValueDef("r", _)), SelectField(SelectTerm("r"), "dateTime")) = dateFunc
+    val FunctionDef(List(ValueDef("r", _)), SelectField(SelectTerm("r"), "key")) = keyFunc
   }
 }

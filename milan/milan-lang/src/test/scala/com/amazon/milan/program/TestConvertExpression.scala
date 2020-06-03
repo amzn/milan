@@ -1,6 +1,6 @@
 package com.amazon.milan.program
 
-import com.amazon.milan.test.{IntKeyValueRecord, IntRecord, KeyValueRecord}
+import com.amazon.milan.test.{IntRecord, KeyValueRecord}
 import com.amazon.milan.typeutil.{TypeDescriptor, types}
 import org.junit.Test
 
@@ -23,19 +23,19 @@ class TestConvertExpression {
       case (x, y) => a == x
     })
 
-    val FunctionDef(List("a", "b"), Unpack(SelectTerm("b"), List("x", "y"), Equals(SelectTerm("a"), SelectTerm("x")))) = tree
+    val FunctionDef(List(ValueDef("a", _), ValueDef("b", _)), Unpack(SelectTerm("b"), List("x", "y"), Equals(SelectTerm("a"), SelectTerm("x")))) = tree
   }
 
   @Test
   def test_ConvertExpression_TwoArgumentFunction_ThatReferencesOneArgument_ReturnsSelectTerm(): Unit = {
     val tree = Tree.fromExpression((a: Int, b: String) => a)
-    val FunctionDef(List("a", "b"), SelectTerm("a")) = tree
+    val FunctionDef(List(ValueDef("a", _), ValueDef("b", _)), SelectTerm("a")) = tree
   }
 
   @Test
   def test_ConvertExpression_OneArgumentFunction_ThatReferencesAFieldOfThatArgument_ReturnsSelectField(): Unit = {
     val tree = Tree.fromExpression((a: IntRecord) => a.i)
-    val FunctionDef(List("a"), SelectField(SelectTerm("a"), "i")) = tree
+    val FunctionDef(List(ValueDef("a", _)), SelectField(SelectTerm("a"), "i")) = tree
   }
 
   @Test
@@ -43,21 +43,21 @@ class TestConvertExpression {
     val tree = Tree.fromExpression((c: KeyValueRecord, ab: (KeyValueRecord, KeyValueRecord)) => ab match {
       case (a, b) => a != null && b != null && c != null
     })
-    val FunctionDef(List("c", "ab"), Unpack(SelectTerm("ab"), List("a", "b"), And(And(Not(IsNull(SelectTerm("a"))), Not(IsNull(SelectTerm("b")))), Not(IsNull(SelectTerm("c")))))) = tree
+    val FunctionDef(List(ValueDef("c", _), ValueDef("ab", _)), Unpack(SelectTerm("ab"), List("a", "b"), And(And(Not(IsNull(SelectTerm("a"))), Not(IsNull(SelectTerm("b")))), Not(IsNull(SelectTerm("c")))))) = tree
   }
 
   @Test
   def test_ConvertExpression_WithSimpleExpressionThatUsesLocalIntVariable_ConvertsVariableValueIntoConstant(): Unit = {
     val threshold = 5
     val tree = Tree.fromExpression((i: Int) => i > threshold)
-    val FunctionDef(List("i"), GreaterThan(SelectTerm("i"), ConstantValue(5, types.Int))) = tree
+    val FunctionDef(List(ValueDef("i", _)), GreaterThan(SelectTerm("i"), ConstantValue(5, types.Int))) = tree
   }
 
   @Test
   def test_ConvertExpression_WithSimpleExpressionThatUsesLocalStringVariable_ConvertsVariableValueIntoConstant(): Unit = {
     val value = "value"
     val tree = Tree.fromExpression((s: String) => s == value)
-    val FunctionDef(List("s"), Equals(SelectTerm("s"), ConstantValue(s, types.String))) = tree
+    val FunctionDef(List(ValueDef("s", _)), Equals(SelectTerm("s"), ConstantValue(s, types.String))) = tree
   }
 
   @Test
@@ -66,7 +66,7 @@ class TestConvertExpression {
     val tree = Tree.fromExpression((t: (Int, Long)) => t match {
       case (i, _) => i > threshold
     })
-    val FunctionDef(List("t"), Unpack(SelectTerm("t"), List("i", "_"), GreaterThan(SelectTerm("i"), ConstantValue(5, types.Int)))) = tree
+    val FunctionDef(List(ValueDef("t", _)), Unpack(SelectTerm("t"), List("i", "_"), GreaterThan(SelectTerm("i"), ConstantValue(5, types.Int)))) = tree
   }
 
   @Test
@@ -75,12 +75,24 @@ class TestConvertExpression {
       Tree.fromExpression((i: Int) => i > threshold)
 
     val tree = getTree(5)
-    val FunctionDef(List("i"), GreaterThan(SelectTerm("i"), ConstantValue(5, types.Int))) = tree
+    val FunctionDef(List(ValueDef("i", _)), GreaterThan(SelectTerm("i"), ConstantValue(5, types.Int))) = tree
   }
 
   @Test
   def test_ConvertExpression_WithConstantVal_ConvertsValueIntoConstant(): Unit = {
     val tree = Tree.fromExpression(TestConvertExpression.ConstantValue)
     val ConstantValue("ConstantValue", types.String) = tree
+  }
+
+  @Test
+  def test_ConvertExpression_IntToString_ProducesConvertTypeExpression(): Unit = {
+    val tree = Tree.fromFunction((i: Int) => i.toString)
+    val FunctionDef(List(ValueDef("i", _)), ConvertType(SelectTerm("i"), types.String)) = tree
+  }
+
+  @Test
+  def test_ConvertExpression_StringToInt_ProducesConvertTypeExpression(): Unit = {
+    val tree = Tree.fromFunction((s: String) => s.toInt)
+    val FunctionDef(List(ValueDef("s", _)), ConvertType(SelectTerm("s"), types.Int)) = tree
   }
 }

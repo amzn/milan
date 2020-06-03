@@ -5,12 +5,8 @@ import java.time.{Duration, Instant}
 import com.amazon.milan.application.ApplicationConfiguration
 import com.amazon.milan.application.sinks.SingletonMemorySink
 import com.amazon.milan.application.sources.ListDataSource
-import com.amazon.milan.flink.compiler.FlinkCompiler
 import com.amazon.milan.lang._
 import com.amazon.milan.lang.aggregation._
-import com.typesafe.scalalogging.Logger
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
-import org.slf4j.LoggerFactory
 
 
 object TimeWindowSample {
@@ -22,10 +18,7 @@ object TimeWindowSample {
     val output =
     input
       .slidingWindow(r => r.dateTime, Duration.ofSeconds(5), Duration.ofSeconds(1), Duration.ZERO)
-      .select(
-        ((windowStart: Instant, _: DateValueRecord) => windowStart) as "windowStart",
-        ((_: Instant, r: DateValueRecord) => sum(r.value)) as "sum"
-      )
+      .select((windowStart, r) => fields(field("windowStart", windowStart), field("sum", sum(r.value))))
 
     val graph = new StreamGraph(output)
 
@@ -39,28 +32,28 @@ object TimeWindowSample {
     val outputSink = new SingletonMemorySink[output.RecordType]()
     config.addSink(output, outputSink)
 
-    // Compile and run.
-    val env = StreamExecutionEnvironment.getExecutionEnvironment
-    FlinkCompiler.defaultCompiler.compile(graph, config, env)
+    // TODO: compile and execute.
+    //    val env = StreamExecutionEnvironment.getExecutionEnvironment
+    //    FlinkCompiler.defaultCompiler.compile(graph, config, env)
 
-    env.execute()
+    //    env.execute()
 
     // Sometimes it takes a second for the records to arrive at the sink after the execution finishes.
-    Thread.sleep(1000)
+    //    Thread.sleep(1000)
 
-    val logger = Logger(LoggerFactory.getLogger(getClass))
+    //    val logger = Logger(LoggerFactory.getLogger(getClass))
 
     // Print the last output for each window.
-    logger.info("Final Windows:")
-    val finalWindows = outputSink.getValues
-      .groupBy { case (windowStart, _) => windowStart }
-      .map {
-        case (windowStart, records) => (windowStart, records.last match {
-          case (_, value) => value
-        })
-      }
-      .toList
-      .sortBy { case (windowStart, _) => windowStart }
-    finalWindows.foreach(o => logger.info(o.toString()))
+    //    logger.info("Final Windows:")
+    //    val finalWindows = outputSink.getValues
+    //      .groupBy { case (windowStart, _) => windowStart }
+    //      .map {
+    //        case (windowStart, records) => (windowStart, records.last match {
+    //          case (_, value) => value
+    //        })
+    //      }
+    //      .toList
+    //      .sortBy { case (windowStart, _) => windowStart }
+    //    finalWindows.foreach(o => logger.info(o.toString()))
   }
 }

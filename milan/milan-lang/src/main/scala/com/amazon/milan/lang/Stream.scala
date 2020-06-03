@@ -4,7 +4,7 @@ import java.time.{Duration, Instant}
 
 import com.amazon.milan.Id
 import com.amazon.milan.lang.internal.StreamMacros
-import com.amazon.milan.program.{FieldDefinition, FunctionDef, MapFields, SelectTerm, StreamExpression}
+import com.amazon.milan.program.{Cycle, FunctionDef, Last, NamedField, SelectTerm, StreamExpression, StreamMap, Union, ValueDef}
 import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, FieldDescriptor, TupleTypeDescriptor, TypeDescriptor, TypeJoiner}
 
 import scala.language.experimental.macros
@@ -62,22 +62,6 @@ class Stream[T](val expr: StreamExpression, val recordType: TypeDescriptor[T]) {
   def map[TOut](f: T => TOut): Stream[TOut] = macro StreamMacros.map[T, TOut]
 
   /**
-   * Define a map relationship between this [[Stream]] and a stream with one field.
-   *
-   * @param f A function that maps the objects on this stream to a named field.
-   * @tparam TF The type of the field.
-   * @return An [[Stream]] representing the output mapped stream.
-   */
-  def map[TF](f: FieldStatement[T, TF]): Stream[Tuple1[TF]] = macro StreamMacros.mapTuple1[T, TF]
-
-  /**
-   * Defines a map relationship between this [[Stream]] and a [[Stream]] stream with two fields.
-   *
-   * @return A [[Stream]] representing the output mapped stream.
-   */
-  def map[TF1, TF2](f1: FieldStatement[T, TF1], f2: FieldStatement[T, TF2]): Stream[(TF1, TF2)] = macro StreamMacros.mapTuple2[T, TF1, TF2]
-
-  /**
    * Converts this [[Stream]] to a [[Stream]] with one field whose values contain the records from
    * this stream.
    *
@@ -85,57 +69,27 @@ class Stream[T](val expr: StreamExpression, val recordType: TypeDescriptor[T]) {
    * @return A [[Stream]] with one field with the specified name.
    */
   def toField(fieldName: String): Stream[Tuple1[T]] = {
-    // Create a MapFields expression that maps the input records into a single field.
-    val fieldDef = FieldDefinition(fieldName, FunctionDef(List("r"), SelectTerm("r")))
+    // Create a map expression that maps the input records into a single field.
+    val mapFunction = FunctionDef(List(ValueDef("r", this.recordType)), NamedField(fieldName, SelectTerm("r")))
     val fieldDescriptor = FieldDescriptor(fieldName, this.recordType)
     val recordType = new TupleTypeDescriptor[Tuple1[T]](List(fieldDescriptor))
 
     val id = Id.newId()
     val outputType = new DataStreamTypeDescriptor(recordType)
-    val mapExpr = new MapFields(this.expr, List(fieldDef), id, id, outputType)
+    val mapExpr = new StreamMap(this.expr, mapFunction, id, id, outputType)
     new Stream[Tuple1[T]](mapExpr, recordType)
   }
 
   /**
-   * Adds a field to the current stream that is computed from record values.
+   * Adds fields to the current stream.
+   * The fields are computed from the record values.
    *
-   * @param f      A [[FieldStatement]] that describes the new field.
+   * @param f      A function that computes the fields from records.
    * @param joiner A [[TypeJoiner]] that can produce the output stream type.
    * @tparam TF The type of the new field.
    * @return A [[Stream]] containing the input records with the new field appended.
    */
-  def addField[TF](f: FieldStatement[T, TF])(implicit joiner: TypeJoiner[T, Tuple1[TF]]): Stream[joiner.OutputType] = macro StreamMacros.addField[T, TF]
-
-  /**
-   * Adds fields to the current stream that are computed from record values.
-   *
-   * @param f1     A [[FieldStatement]] that describes the first new field.
-   * @param f2     A [[FieldStatement]] that describes the second new field.
-   * @param joiner A [[TypeJoiner]] that can produce the output stream type.
-   * @tparam TF1 The type of the first new field.
-   * @tparam TF2 The type of the second new field.
-   * @return A [[Stream]] containing the input records with the new fields appended.
-   */
-  def addFields[TF1, TF2](f1: FieldStatement[T, TF1],
-                          f2: FieldStatement[T, TF2])
-                         (implicit joiner: TypeJoiner[T, (TF1, TF2)]): Stream[joiner.OutputType] = macro StreamMacros.addFields2[T, TF1, TF2]
-
-  /**
-   * Adds fields to the current stream that are computed from record values.
-   *
-   * @param f1     A [[FieldStatement]] that describes the first new field.
-   * @param f2     A [[FieldStatement]] that describes the second new field.
-   * @param f3     A [[FieldStatement]] that describes the third new field.
-   * @param joiner A [[TypeJoiner]] that can produce the output stream type.
-   * @tparam TF1 The type of the first new field.
-   * @tparam TF2 The type of the second new field.
-   * @tparam TF3 The type of the third new field.
-   * @return An[[Stream]] containing the input records with the new fields appended.
-   */
-  def addFields[TF1, TF2, TF3](f1: FieldStatement[T, TF1],
-                               f2: FieldStatement[T, TF2],
-                               f3: FieldStatement[T, TF3])
-                              (implicit joiner: TypeJoiner[T, (TF1, TF2, TF3)]): Stream[joiner.OutputType] = macro StreamMacros.addFields3[T, TF1, TF2, TF3]
+  def addFields[TF <: Product](f: T => TF)(implicit joiner: TypeJoiner[T, TF]): Stream[joiner.OutputType] = macro StreamMacros.addFields[T, TF]
 
   /**
    * Defines a "full outer join" relationship between this stream and another stream.
@@ -177,17 +131,40 @@ class Stream[T](val expr: StreamExpression, val recordType: TypeDescriptor[T]) {
   }
 
   /**
+   * A left-join operation where records from the left stream will wait until a matching record from the
+   * right stream arrives.
+   *
+   * @param other The stream being joined.
+   * @tparam TOther The record type of the other stream.
+   * @return A [[JoinedStream]] representing the joined streams.
+   */
+  def leftInnerJoin[TOther](other: Stream[TOther]): JoinedStream[T, TOther] = {
+    new JoinedStream[T, TOther](this.expr, other.expr, JoinType.LeftInnerJoin)
+  }
+
+  /**
+   * Applies a transformation that only outputs the "last" value seen on a stream.
+   *
+   * @return A [[Stream]] representing the output stream of the final value in the input stream.
+   */
+  def last(): Stream[T] = {
+    val id = Id.newId()
+    val lastExpr = new Last(this.expr, id, id, this.expr.tpe)
+    new Stream[T](lastExpr, this.recordType)
+  }
+
+  /**
    * Defines a stream of a single window that always contains the latest record to arrive for every value of a key.
    *
    * @param dateExtractor A function that extracts a timestamp from input records, which is used to determine which
    *                      record is the latest (most recent).
    * @param keyFunc       A function that extracts a key from input records.
-   * @return A [[WindowedStream]] representing the result of the windowing operation.
+   * @return A [[TimeWindowedStream]] representing the result of the windowing operation.
    * @todo Decide whether this makes sense as a language feature. It feels like join(latestBy).apply is a very specific
    *       construct that ought to be able to be written using more general language primitives. The compiler should
    *       then figure out the best way to execute it.
    */
-  def latestBy[TKey](dateExtractor: T => Instant, keyFunc: T => TKey): WindowedStream[T] = macro StreamMacros.latestBy[T, TKey]
+  def latestBy[TKey](dateExtractor: T => Instant, keyFunc: T => TKey): TimeWindowedStream[T] = macro StreamMacros.latestBy[T, TKey]
 
   /**
    * Defines a grouping over records in the stream.
@@ -205,9 +182,9 @@ class Stream[T](val expr: StreamExpression, val recordType: TypeDescriptor[T]) {
    * @param windowPeriod  The length of a window.
    * @param offset        By default windows are aligned with the epoch, 1970-01-01.
    *                      This offset shifts the window alignment to the specified duration after the epoch.
-   * @return A [[WindowedStream]] representing the result of the windowing operation.
+   * @return A [[TimeWindowedStream]] representing the result of the windowing operation.
    */
-  def tumblingWindow(dateExtractor: T => Instant, windowPeriod: Duration, offset: Duration): WindowedStream[T] = macro StreamMacros.tumblingWindow[T]
+  def tumblingWindow(dateExtractor: T => Instant, windowPeriod: Duration, offset: Duration): TimeWindowedStream[T] = macro StreamMacros.tumblingWindow[T]
 
   /**
    * Defines a stream of sliding windows over a date/time that is extracted from stream records.
@@ -217,9 +194,61 @@ class Stream[T](val expr: StreamExpression, val recordType: TypeDescriptor[T]) {
    * @param slide         The distance (in time) between window start times.
    * @param offset        By default windows are aligned with the epoch, 1970-01-01.
    *                      This offset shifts the window alignment to the specified duration after the epoch.
-   * @return A [[WindowedStream]] representing the result of the windowing operation.
+   * @return A [[TimeWindowedStream]] representing the result of the windowing operation.
    */
-  def slidingWindow(dateExtractor: T => Instant, windowSize: Duration, slide: Duration, offset: Duration): WindowedStream[T] = macro StreamMacros.slidingWindow[T]
+  def slidingWindow(dateExtractor: T => Instant, windowSize: Duration, slide: Duration, offset: Duration): TimeWindowedStream[T] = macro StreamMacros.slidingWindow[T]
+
+  /**
+   * Defines a stream of the records corresponding to the largest value yet seen in the input stream, using an argument
+   * extracted from the input records to compare records.
+   *
+   * @param argExtractor A function that extracts an argument from an input record.
+   * @tparam TArg The argument type.
+   * @return A stream of the records with the largest argument.
+   */
+  def maxBy[TArg](argExtractor: T => TArg): Stream[T] = macro StreamMacros.maxBy[T, TArg]
+
+  /**
+   * Defines a stream of the records corresponding to the smallest value yet seen in the input stream, using an argument
+   * extracted from the input records to compare records.
+   *
+   * @param argExtractor A function that extracts an argument from an input record.
+   * @tparam TArg The argument type.
+   * @return A stream of the records with the smallest argument.
+   */
+  def minBy[TArg](argExtractor: T => TArg): Stream[T] = macro StreamMacros.minBy[T, TArg]
+
+  /**
+   * Defines a stream of records created using the cumulative sum of values computed from the input records.
+   *
+   * @param argExtractor Extracts the argument that is summed.
+   * @param createOutput A function that creates an output record given the current input record and current value of
+   *                     the cumulative sum.
+   * @tparam TArg The argument type.
+   * @tparam TOut The output type.
+   * @return A stream of the cumulative sum values.
+   */
+  def sumBy[TArg, TOut](argExtractor: T => TArg, createOutput: (T, TArg) => TOut): Stream[TOut] = macro StreamMacros.sumBy[T, TArg, TOut]
+
+  /**
+   * Defines a stream that contains the records from this stream and another stream of the same type.
+   *
+   * @param other Another stream.
+   * @return A stream containing records from both streams.
+   */
+  def union(other: Stream[T]): Stream[T] = {
+    val id = Id.newId()
+    new Stream[T](new Union(this.expr, other.expr, id, id, this.expr.tpe), this.recordType)
+  }
+
+  /**
+   * Begins a cycle at this stream. This allows connecting a downstream stream back into the graph at this point.
+   */
+  def beginCycle(): CycleStream[T] = {
+    val id = Id.newId()
+    val cycleExpr = new Cycle(this.expr, "", id, id, this.expr.tpe)
+    new CycleStream[T](cycleExpr, this.recordType)
+  }
 }
 
 
@@ -246,5 +275,7 @@ object Stream {
 object JoinType extends Enumeration {
   type JoinType = Value
 
-  val LeftEnrichmentJoin, FullEnrichmentJoin = Value
+  val LeftEnrichmentJoin: JoinType = Value
+  val FullEnrichmentJoin: JoinType = Value
+  val LeftInnerJoin: JoinType = Value
 }

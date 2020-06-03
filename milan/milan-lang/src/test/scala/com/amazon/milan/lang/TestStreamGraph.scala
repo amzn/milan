@@ -23,7 +23,7 @@ class TestStreamGraph {
   @Test
   def test_StreamGraph_SerializeAndDeserialize_ReturnsEquivalentGraph(): Unit = {
     val input = Stream.of[IntRecord]
-    val mapped = input.map(((r: IntRecord) => r) as "record")
+    val mapped = input.map(r => fields(field("r", r)))
 
     val graph = new StreamGraph(mapped)
 
@@ -39,7 +39,7 @@ class TestStreamGraph {
   @Test
   def test_StreamGraph_GetDereferencedGraph_Then_GetStreams_WithOneStreamAddedWithOneInput_ReturnsBothStreamNodesWithoutReferences(): Unit = {
     val input = Stream.of[IntRecord]
-    val mapped = input.map(((r: IntRecord) => r) as "record")
+    val mapped = input.map(r => fields(field("record", r)))
 
     val graph = new StreamGraph(mapped)
 
@@ -51,7 +51,7 @@ class TestStreamGraph {
   @Test
   def test_StreamGraph_GetDereferencedGraph_Then_GetStreams_AfterDeserialization_WithOneStreamAddedWithOneInput_ReturnsBothStreamNodesWithoutReferences(): Unit = {
     val input = Stream.of[IntRecord]
-    val mapped = input.map(((r: IntRecord) => r) as "record")
+    val mapped = input.map(r => fields(field("record", r)))
 
     val graph = new StreamGraph(mapped)
 

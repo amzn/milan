@@ -81,4 +81,10 @@ class TestTypeDescriptor {
     val expected = new TupleTypeDescriptor[(Int, String, Long)]("Tuple3", expectedGenericArgs, expectedFields)
     assertEquals(expected, actual)
   }
+
+  @Test
+  def test_TypeDescriptor_OfTuple_DoesntHaveFields(): Unit = {
+    val target = TypeDescriptor.of[(Int, String)]
+    assertTrue(target.fields.isEmpty)
+  }
 }

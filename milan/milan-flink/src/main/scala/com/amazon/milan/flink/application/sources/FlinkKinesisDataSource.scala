@@ -2,7 +2,7 @@ package com.amazon.milan.flink.application.sources
 
 import java.util.Properties
 
-import com.amazon.milan.dataformats.DataFormat
+import com.amazon.milan.dataformats.DataInputFormat
 import com.amazon.milan.flink.RuntimeEvaluator
 import com.amazon.milan.flink.application.FlinkDataSource
 import com.amazon.milan.serialization.ScalaObjectMapper
@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory
 @JsonDeserialize
 class FlinkKinesisDataSource[T](val streamName: String,
                                 val region: String,
-                                val dataFormat: DataFormat[T],
+                                val dataFormat: DataInputFormat[T],
                                 var recordTypeInformation: TypeInformation[T])
   extends FlinkDataSource[T] {
 
@@ -31,7 +31,7 @@ class FlinkKinesisDataSource[T](val streamName: String,
   @JsonCreator
   def this(streamName: String,
            region: String,
-           dataFormat: DataFormat[T]) {
+           dataFormat: DataInputFormat[T]) {
     this(streamName, region, dataFormat, null)
   }
 

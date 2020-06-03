@@ -11,12 +11,12 @@ class ArgumentsBase {
 
   this.validateArgumentDefinitions()
 
-  def parse(args: Array[String]): Unit = {
+  def parse(args: Array[String], allowUnknownArguments: Boolean = false): Unit = {
     this.setDefaultValues()
 
     var remainingArgs = args.toList
     while (remainingArgs.nonEmpty) {
-      remainingArgs = this.processNextArgument(remainingArgs)
+      remainingArgs = this.processNextArgument(remainingArgs, allowUnknownArguments)
     }
 
     this.arguments.foreach(arg => {
@@ -36,7 +36,7 @@ class ArgumentsBase {
     }
   }
 
-  private def processNextArgument(args: List[String]): List[String] = {
+  private def processNextArgument(args: List[String], allowUnknownArguments: Boolean): List[String] = {
     val arg = args.head
 
     if (arg.startsWith("--")) {
@@ -44,8 +44,22 @@ class ArgumentsBase {
       val argInfo = this.arguments.find(_._1.Name() == name)
 
       argInfo match {
-        case None => throw new IllegalArgumentException(arg)
-        case Some((argDef, field)) => processArgument(argDef, field, args.tail)
+        case None if !allowUnknownArguments =>
+          throw new IllegalArgumentException(arg)
+
+        case None if allowUnknownArguments =>
+          // If the next arg doesn't exist or is an argument identifier then this arg was a boolean flag so
+          // return the tail of the list.
+          if (args.tail.isEmpty || args.tail.head.startsWith("-")) {
+            args.tail
+          }
+          else {
+            // The next arg is the value for this arg so skip it.
+            args.tail.tail
+          }
+
+        case Some((argDef, field)) =>
+          processArgument(argDef, field, args.tail)
       }
     }
     else if (arg.startsWith("-")) {
@@ -53,8 +67,22 @@ class ArgumentsBase {
       val argInfo = this.arguments.find(_._1.ShortName() == name)
 
       argInfo match {
-        case None => throw new IllegalArgumentException(arg)
-        case Some((argDef, field)) => processArgument(argDef, field, args.tail)
+        case None if !allowUnknownArguments =>
+          throw new IllegalArgumentException(arg)
+
+        case None if allowUnknownArguments =>
+          // If the next arg doesn't exist or is an argument identifier then this arg was a boolean flag so
+          // return the tail of the list.
+          if (args.tail.isEmpty || args.tail.head.startsWith("-")) {
+            args.tail
+          }
+          else {
+            // The next arg is the value for this arg so skip it.
+            args.tail.tail
+          }
+
+        case Some((argDef, field)) =>
+          processArgument(argDef, field, args.tail)
       }
     }
     else {
@@ -109,7 +137,7 @@ class ArgumentsBase {
   private def validateArgumentDefinitions(): Unit = {
     this.arguments.foreach(arg => {
       val (argDef, field) = arg
-      if (!argDef.Required() && argDef.DefaultValue() == "") {
+      if (!argDef.Required() && argDef.DefaultValue() == "" && field.getType != classOf[String]) {
         throw new Exception(s"Argument definition for ${argDef.Name()} is invalid: optional arguments must have a default value.")
       }
       else if (argDef.Required() && argDef.DefaultValue() != "") {

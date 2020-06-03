@@ -6,7 +6,7 @@ import scala.language.experimental.macros
 
 
 /**
- * Represents a left join operation between records in one stream and a window of another stream.
+ * Represents a left join operation between records in one stream windows of another stream.
  *
  * @param leftInput  The left input windowed stream.
  * @param rightInput The right input windowed stream.
