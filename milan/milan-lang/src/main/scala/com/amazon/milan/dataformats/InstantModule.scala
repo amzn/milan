@@ -9,6 +9,9 @@ import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.{DeserializationContext, JsonDeserializer}
 
 
+/**
+ * A Jackson databind module for helping with deserializaton of [[Instant]] values.
+ */
 class InstantModule extends SimpleModule {
   this.addDeserializer[Instant](classOf[Instant], new MilanInstantDeserializer)
 }

@@ -130,7 +130,7 @@ class GroupedStreamMacros(val c: whitebox.Context) extends StreamMacroHost with 
     // AST.
     val markerId = UUID.randomUUID().toString
     val recordType = this.getTypeDescriptor[T]
-    val inputStreamExpr = q"new ${typeOf[Marker]}($markerId, ${recordType.toStream})"
+    val inputStreamExpr = q"new ${typeOf[Marker]}($markerId, ${recordType.toDataStream})"
     val inputStream = q"new ${weakTypeOf[Stream[T]]}($inputStreamExpr, $recordType)"
 
     //    c.warning(c.enclosingPosition, s"Old Body: $body")

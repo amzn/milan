@@ -350,16 +350,16 @@ object TypeChecker {
       case Unpack(_, _, unpackBody) => unpackBody.tpe
       case ValueDef(name, _) => context.getValueType(name)
 
-      case Aggregate(_, aggFunction) => types.stream(aggFunction.tpe)
+      case Aggregate(_, aggFunction) => aggFunction.tpe.toDataStream
       case ExternalStream(nodeId, _, _) => context.getStreamType(nodeId)
       case Filter(source, _) => this.getTreeType(source, context)
-      case FlatMap(_, mapFunction) => types.stream(mapFunction.tpe)
-      case LeftWindowedJoin(left, right) => types.joinedStreams(this.getRecordType(left, context), this.getRecordType(right, context))
-      case GroupingExpression(source, _) => types.groupedStream(this.getRecordType(source, context))
-      case JoinExpression(left, right, _) => types.joinedStreams(this.getRecordType(left, context), this.getRecordType(right, context))
+      case FlatMap(_, mapFunction) => mapFunction.tpe.toDataStream
+      case LeftWindowedJoin(left, right) => this.getRecordType(left, context).toJoinedStream(this.getRecordType(right, context))
+      case GroupingExpression(source, _) => this.getRecordType(source, context).toGroupedStream
+      case JoinExpression(left, right, _) => this.getRecordType(left, context).toJoinedStream(this.getRecordType(right, context))
       case Last(s) => s.tpe
-      case StreamMap(_, mapFunction) => types.stream(mapFunction.tpe)
-      case SlidingRecordWindow(source, _) => types.groupedStream(this.getRecordType(source, context))
+      case StreamMap(_, mapFunction) => mapFunction.tpe.toDataStream
+      case SlidingRecordWindow(source, _) => this.getRecordType(source, context).toGroupedStream
       case ArgCompareExpression(source, _) => this.getTreeType(source, context)
 
       case _ =>

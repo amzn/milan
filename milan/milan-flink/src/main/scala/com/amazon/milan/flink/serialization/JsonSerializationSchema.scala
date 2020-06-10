@@ -2,12 +2,12 @@ package com.amazon.milan.flink.serialization
 
 import java.nio.ByteBuffer
 
-import com.amazon.milan.serialization.ScalaObjectMapper
+import com.amazon.milan.serialization.MilanObjectMapper
 import org.apache.flink.streaming.connectors.kinesis.serialization.KinesisSerializationSchema
 
 
 object JsonSerializationSchema {
-  private val objectMapper = new ScalaObjectMapper()
+  private val objectMapper = new MilanObjectMapper()
 }
 
 

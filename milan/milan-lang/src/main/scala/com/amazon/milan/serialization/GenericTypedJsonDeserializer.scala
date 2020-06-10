@@ -7,6 +7,13 @@ import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
 
 
+/**
+ * A [[JsonDeserializer]] that can deserialize objects written using the [[GenericTypedJsonSerializer]].
+ *
+ * @param typeNameTransformer A function that converts type names as read from the JSON struct to fully qualified
+ *                            type names that can be found by the ClassLoader.
+ * @tparam T The type of objects returned.
+ */
 class GenericTypedJsonDeserializer[T <: SetGenericTypeInfo](typeNameTransformer: String => String)
   extends JsonDeserializer[T] {
 

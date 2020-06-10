@@ -6,7 +6,7 @@ import com.amazon.milan.flink.TypeUtil
 import com.amazon.milan.flink.generator.{CodeBlock, FlinkGeneratorException}
 import com.amazon.milan.flink.typeutil._
 import com.amazon.milan.program.{And, ApplyFunction, ConstantValue, ConvertType, CreateInstance, Equals, FunctionDef, FunctionReference, GreaterThan, GreaterThanOrEqual, IfThenElse, InvalidProgramException, IsNull, LessThan, LessThanOrEqual, Minus, NamedFields, Not, Plus, SelectExpression, SelectField, SelectTerm, Tree, TreeOperations, Tuple, TupleElement, TypeChecker, UnaryAggregateExpression, Unpack, ValueDef}
-import com.amazon.milan.serialization.ScalaObjectMapper
+import com.amazon.milan.serialization.MilanObjectMapper
 import com.amazon.milan.types._
 import com.amazon.milan.typeutil.{TypeDescriptor, types}
 
@@ -40,7 +40,7 @@ case class FunctionParts(arguments: CodeBlock, returnType: CodeBlock, body: Code
 
 
 class TreeScalaConverter(typeEmitter: TypeEmitter) {
-  private val jsonMapper = new ScalaObjectMapper()
+  private val jsonMapper = new MilanObjectMapper()
 
   def getScalaAnonymousFunction(functionDef: FunctionDef, inputTypeName: String): String = {
     val inputType = TypeDescriptor.forTypeName[Any](inputTypeName)

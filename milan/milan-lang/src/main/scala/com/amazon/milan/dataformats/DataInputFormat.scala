@@ -6,6 +6,11 @@ import com.amazon.milan.serialization.{GenericTypeInfoProvider, GenericTypedJson
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
 
+/**
+ * Trait for input formatters that controls how objects are read from a data stream.
+ *
+ * @tparam T The type of objects produced.
+ */
 @JsonSerialize(using = classOf[DataInputFormatSerializer])
 @JsonDeserialize(using = classOf[DataInputFormatDeserializer])
 trait DataInputFormat[T] extends GenericTypeInfoProvider with SetGenericTypeInfo with Serializable {
@@ -20,7 +25,7 @@ trait DataInputFormat[T] extends GenericTypeInfoProvider with SetGenericTypeInfo
   def readValue(bytes: Array[Byte], offset: Int, length: Int): Option[T]
 
   /**
-   * Reads a sequence of encoded values from a stream.
+   * Reads a sequence of values from a stream.
    *
    * @param stream The stream containing the sequence of encoded values.
    * @return A [[TraversableOnce]] that yields the values read from the stream.

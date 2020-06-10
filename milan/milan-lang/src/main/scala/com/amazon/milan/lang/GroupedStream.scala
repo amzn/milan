@@ -77,7 +77,7 @@ class GroupedStream[T, TKey](val expr: StreamExpression) extends KeyedGroupOpera
    */
   def recordWindow(windowSize: Int): WindowedStream[T] = {
     val id = Id.newId()
-    val outputExpr = new SlidingRecordWindow(this.expr, windowSize, id, id, this.expr.recordType.toStream.toGrouped)
+    val outputExpr = new SlidingRecordWindow(this.expr, windowSize, id, id, this.expr.recordType.toDataStream.toGroupedStream)
     new WindowedStream[T](outputExpr)
   }
 }

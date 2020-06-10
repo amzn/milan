@@ -36,12 +36,12 @@ class TestGroupBy {
     assertEquals(1, selected.recordType.fields.length)
     assertEquals(FieldDescriptor("i", types.Int), selected.recordType.fields.head)
 
-    val map = selected.expr.asInstanceOf[StreamMap]
-    assertEquals(1, map.recordType.fields.length)
-    assertEquals("i", map.recordType.fields.head.name)
+    val aggExpr = selected.expr.asInstanceOf[Aggregate]
+    assertEquals(1, aggExpr.recordType.fields.length)
+    assertEquals("i", aggExpr.recordType.fields.head.name)
 
     // If this extraction statement doesn't crash then we're good.
-    val FunctionDef(List(ValueDef("key", _), ValueDef("r", _)), NamedFields(List(NamedField("i", SelectTerm("key"))))) = map.expr
+    val FunctionDef(List(ValueDef("key", _), ValueDef("r", _)), NamedFields(List(NamedField("i", SelectTerm("key"))))) = aggExpr.expr
   }
 
   @Test
@@ -50,9 +50,9 @@ class TestGroupBy {
     val grouped = stream.groupBy(r => r.key)
     val selected = grouped.select((key, r) => argmax(r.value, r))
 
-    val map = selected.expr.asInstanceOf[StreamMap]
+    val aggExpr = selected.expr.asInstanceOf[Aggregate]
 
     // If this extraction statement doesn't crash then we're good.
-    val FunctionDef(List(ValueDef("key", _), ValueDef("r", _)), ArgMax(Tuple(List(SelectField(SelectTerm("r"), "value"), SelectTerm("r"))))) = map.expr
+    val FunctionDef(List(ValueDef("key", _), ValueDef("r", _)), ArgMax(Tuple(List(SelectField(SelectTerm("r"), "value"), SelectTerm("r"))))) = aggExpr.expr
   }
 }

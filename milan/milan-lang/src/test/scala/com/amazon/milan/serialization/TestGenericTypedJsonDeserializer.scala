@@ -52,8 +52,8 @@ class TestGenericTypedJsonDeserializer {
   @Test
   def test_GenericTypedJsonDeserializer_WithGenericTypeAsTypeParameter(): Unit = {
     val original = new Container(new DerivedClass[GenericType[Int, Long, Double]](createTypeDescriptor[GenericType[Int, Long, Double]]))
-    val json = ScalaObjectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(original)
-    val copy = ScalaObjectMapper.readValue(json, classOf[Container])
+    val json = MilanObjectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(original)
+    val copy = MilanObjectMapper.readValue(json, classOf[Container])
     assertEquals(original, copy)
   }
 }

@@ -16,7 +16,7 @@ import scala.language.existentials
 @Test
 class TestWindow {
   @Test
-  def test_ObjectStream_TumblingWindow_ReturnsStreamWithCorrectInputNodeAndWindowProperties(): Unit = {
+  def test_TumblingWindow_ReturnsStreamWithCorrectInputNodeAndWindowProperties(): Unit = {
     val stream = Stream.of[DateIntRecord]
     val windowed = stream.tumblingWindow(r => r.dateTime, Duration.ofHours(1), Duration.ofMinutes(30))
 
@@ -30,12 +30,12 @@ class TestWindow {
   }
 
   @Test
-  def test_ObjectStream_TumblingWindow_ThenSelectToTuple_ReturnsStreamWithCorrectFieldComputationExpression(): Unit = {
+  def test_TumblingWindow_ThenSelectToTuple_ReturnsStreamWithCorrectFieldComputationExpression(): Unit = {
     val stream = Stream.of[DateIntRecord]
     val grouped = stream.tumblingWindow(r => r.dateTime, Duration.ofHours(1), Duration.ofMinutes(30))
     val selected = grouped.select((key, r) => fields(field("max", max(r.i))))
 
-    val StreamMap(source, FunctionDef(_, NamedFields(fieldList))) = selected.expr
+    val Aggregate(source, FunctionDef(_, NamedFields(fieldList))) = selected.expr
 
     assertEquals(1, selected.recordType.fields.length)
     assertEquals(FieldDescriptor("max", types.Int), selected.recordType.fields.head)
@@ -48,7 +48,7 @@ class TestWindow {
   }
 
   @Test
-  def test_ObjectStream_SlidingWindow_ReturnsStreamWithCorrectInputNodeAndWindowProperties(): Unit = {
+  def test_SlidingWindow_ReturnsStreamWithCorrectInputNodeAndWindowProperties(): Unit = {
     val stream = Stream.of[DateIntRecord]
     val windowed = stream.slidingWindow(r => r.dateTime, Duration.ofHours(1), Duration.ofMinutes(10), Duration.ofMinutes(30))
 
@@ -62,13 +62,13 @@ class TestWindow {
   }
 
   @Test
-  def test_ObjectStream_GroupBy_ThenTumblingWindow_ReturnsStreamWithCorrectInputNodeAndWindowProperties(): Unit = {
+  def test_GroupBy_ThenTumblingWindow_ThenSelect_ReturnsStreamWithCorrectInputNodeAndWindowProperties(): Unit = {
     val input = Stream.of[DateKeyValueRecord].withId("input")
     val output = input.groupBy(r => r.key)
       .tumblingWindow(r => r.dateTime, Duration.ofMinutes(5), Duration.ZERO)
       .select((windowStart, r) => any(r))
 
-    val StreamMap(windowExpr, FunctionDef(List(ValueDef("windowStart", _), ValueDef("r", _)), First(SelectTerm("r")))) = output.expr
+    val Aggregate(windowExpr, FunctionDef(List(ValueDef("windowStart", _), ValueDef("r", _)), First(SelectTerm("r")))) = output.expr
     val TumblingWindow(groupExpr, FunctionDef(List(ValueDef("r", _)), SelectField(SelectTerm("r"), "dateTime")), program.Duration(300000), program.Duration(0)) = windowExpr
     val GroupBy(ExternalStream("input", "input", _), FunctionDef(List(ValueDef("r", _)), SelectField(SelectTerm("r"), "key"))) = groupExpr
   }

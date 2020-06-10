@@ -7,6 +7,11 @@ import com.fasterxml.jackson.annotation.{JsonCreator, JsonIgnore}
 import scala.language.experimental.macros
 
 
+/**
+ * Contains a set of streams that form a program.
+ *
+ * @param streamsById A map of stream IDs to the expressions that define those streams.
+ */
 @JsonCreator()
 class StreamGraph(var streamsById: Map[String, StreamExpression]) {
   def this() {

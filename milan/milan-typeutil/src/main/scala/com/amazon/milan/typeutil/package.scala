@@ -143,9 +143,11 @@ package object typeutil {
 
     def toOption: TypeDescriptor[Option[_]] = TypeDescriptor.optionOf[Any](this.typeDesc)
 
-    def toStream: DataStreamTypeDescriptor = new DataStreamTypeDescriptor(this.typeDesc)
+    def toDataStream: DataStreamTypeDescriptor = new DataStreamTypeDescriptor(this.typeDesc)
 
-    def toGrouped: GroupedStreamTypeDescriptor = new GroupedStreamTypeDescriptor(this.typeDesc)
+    def toGroupedStream: GroupedStreamTypeDescriptor = new GroupedStreamTypeDescriptor(this.typeDesc)
+
+    def toJoinedStream(rightType: TypeDescriptor[_]) = new JoinedStreamsTypeDescriptor(this.typeDesc, rightType)
   }
 
 }

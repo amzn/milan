@@ -5,40 +5,6 @@ import scala.language.implicitConversions
 
 package object program {
 
-  implicit class SelectExpressionExtensions(select: SelectExpression) {
-    /**
-     * Gets the root qualifier in a series of nested Select expressions.
-     *
-     * @return The first SelectField qualifier that is not a SelectField expression.
-     */
-    def getRootQualifier: Tree = {
-      this.select match {
-        case SelectField(qualifier: SelectField, _) => qualifier.getRootQualifier
-        case root => root
-      }
-    }
-
-    /**
-     * Gets a new [[SelectExpression]] that is equivalent to this expression but with the root term removed.
-     * For example, if this expression is A.B.C.D, this method will return the expression B.C.D
-     */
-    def trimRootTermName(): SelectExpression = {
-      this.select match {
-        case _: SelectTerm =>
-          throw new IllegalArgumentException()
-
-        case SelectField(qualifier, name) =>
-          qualifier match {
-            case _: SelectTerm =>
-              SelectTerm(name)
-
-            case f: SelectField =>
-              SelectField(f.trimRootTermName(), name)
-          }
-      }
-    }
-  }
-
   implicit class TreeExtensions(tree: Tree) {
     /**
      * Gets all nodes in an expression tree for which a predicate returns true.
@@ -66,6 +32,9 @@ package object program {
   }
 
   implicit class DurationExtensions(duration: program.Duration) {
+    /**
+     * Converts a Milan [[program.Duration]] object to an equivalent [[java.time.Duration]].
+     */
     def asJava: java.time.Duration = java.time.Duration.ofMillis(duration.milliseconds)
   }
 

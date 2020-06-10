@@ -5,6 +5,11 @@ import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
 
+/**
+ * Data sink that prints items to standard output.
+ *
+ * @tparam T The type of objects accepted by the data sink.
+ */
 @JsonSerialize
 @JsonDeserialize
 class ConsoleDataSink[T: TypeDescriptor] extends DataSink[T] {

@@ -1,6 +1,6 @@
 package com.amazon.milan
 
-import com.amazon.milan.serialization.ScalaObjectMapper
+import com.amazon.milan.serialization.MilanObjectMapper
 import org.junit.Assert._
 import org.junit.Test
 
@@ -79,7 +79,7 @@ class SemanticVersionTests {
 
   @Test
   def test_SemanticVersion_JsonSerialization(): Unit = {
-    val mapper = new ScalaObjectMapper()
+    val mapper = new MilanObjectMapper()
 
     val examples = List(
       SemanticVersion(1, 2, 3),

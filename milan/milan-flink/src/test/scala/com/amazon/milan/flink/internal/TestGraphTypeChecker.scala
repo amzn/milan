@@ -2,7 +2,7 @@ package com.amazon.milan.flink.internal
 
 import com.amazon.milan.flink.testing.IntKeyValueRecord
 import com.amazon.milan.lang.{Stream, StreamGraph}
-import com.amazon.milan.serialization.ScalaObjectMapper
+import com.amazon.milan.serialization.MilanObjectMapper
 import com.amazon.milan.typeutil.TypeDescriptor
 import org.junit.Assert._
 import org.junit.Test
@@ -19,7 +19,7 @@ class TestGraphTypeChecker {
 
     val graph = new StreamGraph(output)
 
-    val graphCopy = ScalaObjectMapper.copy(graph).getDereferencedGraph
+    val graphCopy = MilanObjectMapper.copy(graph).getDereferencedGraph
     GraphTypeChecker.typeCheckGraph(graphCopy)
 
     val leftCopy = graphCopy.getStream(left.streamId)

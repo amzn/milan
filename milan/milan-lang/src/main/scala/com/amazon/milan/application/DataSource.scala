@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize
 /**
  * Base trait for data source classes.
  *
- * @tparam T The type of objects provided by the data source.
+ * @tparam T The type of objects produced by the data source.
  */
 @JsonSerialize(using = classOf[DataSourceSerializer])
 @JsonDeserialize(using = classOf[DataSourceDeserializer])

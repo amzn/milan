@@ -1,6 +1,6 @@
 package com.amazon.milan.typeutil
 
-import com.amazon.milan.serialization.ScalaObjectMapper
+import com.amazon.milan.serialization.MilanObjectMapper
 import org.junit.Assert.{assertEquals, assertTrue}
 import org.junit.Test
 
@@ -64,7 +64,7 @@ class TestTypeDescriptor {
     val original = TypeDescriptor.of[(Int, String)]
     assertTrue(original.isTuple)
 
-    val copy = ScalaObjectMapper.copy(original)
+    val copy = MilanObjectMapper.copy(original)
     assertTrue(copy.isTuple)
     assertEquals(original, copy)
   }

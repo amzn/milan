@@ -1,9 +1,16 @@
 package com.amazon.milan.application
 
 import com.amazon.milan.Id
-import com.amazon.milan.serialization.ScalaObjectMapper
+import com.amazon.milan.serialization.MilanObjectMapper
 
 
+/**
+ * Represents an instance of an application, including the application definition and the run configuration.
+ *
+ * @param instanceDefinitionId The unique ID of the instance.
+ * @param application          The application definition.
+ * @param config               The application configuration.
+ */
 class ApplicationInstance(val instanceDefinitionId: String,
                           val application: Application,
                           val config: ApplicationConfiguration) {
@@ -13,11 +20,11 @@ class ApplicationInstance(val instanceDefinitionId: String,
   }
 
   /**
-   * Gets a string containing the JSON representing the application instance.
+   * Gets a string containing a JSON represention of the application instance.
    *
    * @return A JSON string.
    */
   def toJsonString: String = {
-    ScalaObjectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(this)
+    MilanObjectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(this)
   }
 }

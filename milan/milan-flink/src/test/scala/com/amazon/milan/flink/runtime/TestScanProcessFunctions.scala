@@ -1,7 +1,6 @@
 package com.amazon.milan.flink.runtime
 
-import com.amazon.milan.flink.application.sinks.SingletonMemorySinkFunction
-import com.amazon.milan.flink.testing._
+import com.amazon.milan.flink.testing.{SingletonMemorySinkFunction, _}
 import com.amazon.milan.flink.testutil._
 import com.amazon.milan.flink.types.{NoneTypeInformation, RecordWrapper}
 import org.apache.flink.api.scala._

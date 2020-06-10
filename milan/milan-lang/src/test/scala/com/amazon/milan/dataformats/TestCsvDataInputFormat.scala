@@ -2,7 +2,7 @@ package com.amazon.milan.dataformats
 
 import java.nio.charset.StandardCharsets
 
-import com.amazon.milan.serialization.{DataFormatConfiguration, DataFormatFlags, ScalaObjectMapper}
+import com.amazon.milan.serialization.{DataFormatConfiguration, DataFormatFlags, MilanObjectMapper}
 import com.amazon.milan.test.IntStringRecord
 import com.amazon.milan.typeutil._
 import org.junit.Assert._
@@ -70,7 +70,7 @@ class TestCsvDataInputFormat {
       Array("intValue", "stringValue", "doubleValue"),
       DataFormatConfiguration.withFlags(DataFormatFlags.FailOnUnknownProperties))
 
-    val copy = ScalaObjectMapper.copy(original.asInstanceOf[DataInputFormat[TestClass]])
+    val copy = MilanObjectMapper.copy(original.asInstanceOf[DataInputFormat[TestClass]])
 
     assertEquals(original, copy)
   }

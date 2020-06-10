@@ -30,6 +30,15 @@ object S3DataSink {
 }
 
 
+/**
+ * A data sink that writes items to an S3 bucket.
+ *
+ * @param bucket             The name of the S3 bucket.
+ * @param prefix             The prefix to use for object keys.
+ * @param partitionExtractor A [[FunctionDef]] defining the function that assigns partitions to items being written.
+ * @param dataFormat         A [[DataOutputFormat]] that controls how items are written.
+ * @tparam T The type of objects accepted by the data sink.
+ */
 @JsonSerialize
 @JsonDeserialize
 class S3DataSink[T: TypeDescriptor](val bucket: String,
@@ -52,6 +61,17 @@ class S3DataSinkMacros(val c: whitebox.Context)
 
   import c.universe._
 
+  /**
+   * Creates an [[S3DataSink]] using the specified partition extractor function.
+   *
+   * @param bucket             The name of the S3 bucket.
+   * @param prefix             The prefix to use for object keys.
+   * @param partitionExtractor The function that assigns partitions to items being written.
+   * @param dataFormat         A [[DataOutputFormat]] that controls how items are written.
+   * @tparam T              The type of objects accepted by the data sink.
+   * @tparam TPartitionKeys The type of the partition key objects.
+   * @return
+   */
   def create[T: c.WeakTypeTag, TPartitionKeys: c.WeakTypeTag](bucket: c.Expr[String],
                                                               prefix: c.Expr[String],
                                                               partitionExtractor: c.Expr[T => TPartitionKeys],

@@ -12,6 +12,12 @@ object JavaTypeFactory {
 }
 
 
+/**
+ * Contains methods for creating [[JavaType]] objects for JSON deserialization, based on their [[TypeDescriptor]]
+ * descriptions. Used by [[GenericTypedJsonDeserializer]] to create [[JavaType]] objects.
+ *
+ * @param typeFactory A [[TypeFactory]] that is used to construct simple types.
+ */
 class JavaTypeFactory(typeFactory: TypeFactory) {
   /**
    * Creates a [[JavaType]] given a [[Class]] and its generic arguments.

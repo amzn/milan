@@ -53,7 +53,7 @@ trait RecordWindowGenerator
 
     context.output.appendMain(codeBlock)
 
-    GeneratedUnkeyedDataStream(applyExpr.nodeId, outputStreamVal, applyExpr.recordType.toFlinkRecordType, types.Unit, isContextual = false)
+    GeneratedUnkeyedDataStream(applyExpr.nodeId, outputStreamVal, applyExpr.recordType.toFlinkRecordType, types.EmptyTuple, isContextual = false)
   }
 
 
@@ -90,6 +90,6 @@ trait RecordWindowGenerator
 
     output.addClassDef(classDef)
 
-    OperatorInfo(className, outputRecordType, types.Unit)
+    OperatorInfo(className, outputRecordType, types.EmptyTuple)
   }
 }

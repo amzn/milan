@@ -20,11 +20,16 @@ abstract class AssociativeScanOperation[T, TArg: Numeric, TOut](argTypeInformati
 
   @transient private lazy val argNumeric = implicitly[Numeric[TArg]]
 
+  protected def getInitialState(numeric: Numeric[TArg]): TArg
+
   protected def getArg(input: T): TArg
 
   protected def getOutput(input: T, arg: TArg): TOut
 
   protected def add(numeric: Numeric[TArg], arg1: TArg, arg2: TArg): TArg
+
+  override def getInitialState: TArg =
+    this.getInitialState(this.argNumeric)
 
   override def process(state: TArg, input: T): (TArg, Option[TOut]) = {
     val inputArg = this.getArg(input)

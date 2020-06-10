@@ -232,9 +232,9 @@ object TumblingWindow {
 
 
 /**
- * An expression representing a tumbling window operation.
+ * An expression representing a sliding window operation.
  *
- * @param source The input to the tumbling window operation.
+ * @param source The input stream to the sliding window operation.
  * @param size   The length of a window.
  * @param slide  The distance (in time) between window start times.
  * @param offset By default windows are aligned with the epoch, 1970-01-01.
@@ -309,70 +309,4 @@ object SlidingWindow {
 
   def unapply(arg: SlidingWindow): Option[(Tree, FunctionDef, Duration, Duration, Duration)] =
     Some((arg.source, arg.dateExtractor, arg.size, arg.slide, arg.offset))
-}
-
-
-/**
- * An expression representing an operation that produces a window containing the latest record for every value of a key.
- *
- * @param source        The input to the operation.
- * @param dateExtractor A function that extracts timestamps from input records.
- * @param keyFunc       A function that extracts keys from input records.
- */
-@JsonSerialize
-@JsonDeserialize
-class LatestBy(val source: Tree,
-               val dateExtractor: FunctionDef,
-               val keyFunc: FunctionDef,
-               val nodeId: String,
-               val nodeName: String) extends WindowExpression {
-
-  val expr: FunctionDef = keyFunc
-
-  def this(source: Tree, dateExtractor: FunctionDef, keyFunc: FunctionDef, nodeId: String) {
-    this(source, dateExtractor, keyFunc, nodeId, nodeId)
-  }
-
-  def this(source: Tree, dateExtractor: FunctionDef, keyFunc: FunctionDef) {
-    this(source, dateExtractor, keyFunc, Id.newId())
-  }
-
-  def this(source: Tree,
-           dateExtractor: FunctionDef,
-           keyFunc: FunctionDef,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(source, dateExtractor, keyFunc, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new LatestBy(this.source, this.dateExtractor, this.keyFunc, id, name, this.tpe)
-
-  override def getChildren: Iterable[Tree] = Seq(this.source, this.dateExtractor, this.keyFunc)
-
-  override def replaceChildren(children: List[Tree]): Tree =
-    new LatestBy(
-      children(0),
-      children(1).asInstanceOf[FunctionDef],
-      children(2).asInstanceOf[FunctionDef],
-      this.nodeId,
-      this.nodeName,
-      this.tpe)
-
-  override def toString: String = s"${this.expressionType}(${this.source}, ${this.dateExtractor}, ${this.keyFunc})"
-
-  override def equals(obj: Any): Boolean = obj match {
-    case LatestBy(s, d, k) => this.source.equals(s) && this.dateExtractor.equals(d) && this.keyFunc.equals(k)
-    case _ => false
-  }
-}
-
-object LatestBy {
-  def apply(source: Tree, dateExtractor: FunctionDef, keyFunc: FunctionDef): LatestBy =
-    new LatestBy(source, dateExtractor, keyFunc)
-
-  def unapply(arg: LatestBy): Option[(Tree, FunctionDef, FunctionDef)] =
-    Some((arg.source, arg.dateExtractor, arg.keyFunc))
 }

@@ -1,6 +1,6 @@
 package com.amazon.milan.flink.generator
 
-import com.amazon.milan.program.{ExternalStream, Filter, FlatMap, FullJoin, GroupBy, LatestBy, LeftJoin, SlidingWindow, StreamExpression, StreamMap, TumblingWindow}
+import com.amazon.milan.program.{ExternalStream, Filter, FlatMap, FullJoin, GroupBy, LeftJoin, SlidingWindow, StreamExpression, StreamMap, TumblingWindow}
 
 object StreamNaming {
   def getStreamName(streamExpr: StreamExpression): String = {
@@ -26,9 +26,6 @@ object StreamNaming {
 
       case FullJoin(left, right, _) =>
         n"FullJoin [$left] with [$right]"
-
-      case LatestBy(source, _, _) =>
-        n"LatestBy [$source]"
 
       case LeftJoin(left, right, _) =>
         n"LeftJoin [$left] with [$right]"

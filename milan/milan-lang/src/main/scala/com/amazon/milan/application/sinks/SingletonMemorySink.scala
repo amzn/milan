@@ -66,6 +66,8 @@ object SingletonMemorySink {
 
 /**
  * An sink function that stores the output in shared memory so that it can be accessed by any instance of the sink.
+ * This is designed to help with testing, and is only appropriate when the Flink application executes in a single
+ * process.
  *
  * @tparam T The type of items collected by the sink.
  */

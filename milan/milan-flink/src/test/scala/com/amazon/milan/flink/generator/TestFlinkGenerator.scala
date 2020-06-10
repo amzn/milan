@@ -40,7 +40,7 @@ class TestFlinkGenerator {
     val config = new ApplicationConfiguration
     config.setSource(input, new S3DataSource[IntRecord]("bucket", "prefix", new JsonDataInputFormat[IntRecord]()))
 
-    val generatedCode = this.generator.generateScala(graph, config)
+    val generatedCode = this.generator.generateScala(graph, config, "", "TestApp")
 
     this.eval(generatedCode)
   }

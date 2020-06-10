@@ -7,7 +7,7 @@ import scala.language.experimental.macros
 
 
 /**
- * A stream that can reference a stream that will be defined in the future.
+ * A stream that can be used to create a cycle in the streaming graph.
  *
  * @param expr       The [[Cycle]] expression that defines the stream.
  * @param recordType The record type of the stream.

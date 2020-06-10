@@ -28,7 +28,7 @@
     <modules>
         <module>milan-typeutil</module>
         <module>milan-lang</module>
-        <module>milan-storage-aws</module>
+        <module>milan-tools</module>
         <module>milan-samples</module>
         <module>milan-flink</module>
     </modules>

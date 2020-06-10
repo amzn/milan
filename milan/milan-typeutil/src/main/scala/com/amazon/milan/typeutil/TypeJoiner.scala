@@ -3,44 +3,55 @@ package com.amazon.milan.typeutil
 import scala.reflect.macros.whitebox
 
 
-trait TypeJoiner[TLeft, TRight] {
+/**
+ * This interface provides joined record types to the stream methods that add or combine fields.
+ *
+ * @tparam TLeft  The left record type.
+ * @tparam TRight The right record type.
+ */
+abstract class TypeJoiner[TLeft, TRight] {
+  /**
+   * The type that results from joining the left and right types.
+   */
   type OutputType <: Product
 
+  /**
+   * Gets a [[TypeDescriptor]] for the joined record type, given [[TypeDescriptor]]s for the left and right record
+   * types.
+   *
+   * @param leftType  A [[TypeDescriptor]] describing the left record type.
+   * @param rightType A [[TypeDescriptor]] describing the right record type.
+   * @return A [[TypeDescriptor]] describing the joined record type.
+   */
   def getOutputType(leftType: TypeDescriptor[TLeft],
-                    rightType: TypeDescriptor[TRight]): TypeDescriptor[OutputType]
-}
-
-
-object TypeJoiner {
-  def getOutputType[TLeft, TRight, TOut](leftType: TypeDescriptor[TLeft],
-                                         rightType: TypeDescriptor[TRight]): TypeDescriptor[TOut] = {
+                    rightType: TypeDescriptor[TRight]): TypeDescriptor[OutputType] = {
     val outputTypeName = this.getTupleTypeName(leftType, rightType)
 
     if (leftType.isTuple && rightType.isTuple) {
       // Both are tuple streams so merge the lists of fields.
       val combinedFields = this.combineFieldLists(leftType.fields, rightType.fields)
       val combinedGenericArgs = leftType.genericArguments ++ rightType.genericArguments
-      new TupleTypeDescriptor[TOut](outputTypeName, combinedGenericArgs, combinedFields)
+      new TupleTypeDescriptor[OutputType](outputTypeName, combinedGenericArgs, combinedFields)
     }
     else if (leftType.isTuple) {
-      // The right stream is an object stream, so it's records need to be a single field in the output.
+      // The right stream is not a tuple, so it's records will be a single field in the output.
       val rightField = this.createFieldWithUniqueName(rightType, "right", leftType.fields)
       val combinedFields = leftType.fields ++ List(rightField)
       val combinedGenericArgs = leftType.genericArguments ++ List(rightType)
-      new TupleTypeDescriptor[TOut](outputTypeName, combinedGenericArgs, combinedFields)
+      new TupleTypeDescriptor[OutputType](outputTypeName, combinedGenericArgs, combinedFields)
     }
     else if (rightType.isTuple) {
-      // The left stream is an object stream, so it's records need to be a single field in the output.
+      // The left stream is not a tuple, so it's records will be a single field in the output.
       val leftField = this.createFieldWithUniqueName(leftType, "left", rightType.fields)
       val combinedFields = List(leftField) ++ rightType.fields
       val combinedGenericArgs = List(leftType) ++ rightType.genericArguments
-      new TupleTypeDescriptor[TOut](outputTypeName, combinedGenericArgs, combinedFields)
+      new TupleTypeDescriptor[OutputType](outputTypeName, combinedGenericArgs, combinedFields)
     }
     else {
-      // We have two object streams, combine them into a tuple stream with two fields.
+      // Neither stream is a tuple, so combine them into a tuple stream with two fields.
       val combinedFields = List(FieldDescriptor[TLeft]("left", leftType), FieldDescriptor[TRight]("right", rightType))
       val combinedGenericArgs = List(leftType, rightType)
-      new TupleTypeDescriptor[TOut](outputTypeName, combinedGenericArgs, combinedFields)
+      new TupleTypeDescriptor[OutputType](outputTypeName, combinedGenericArgs, combinedFields)
     }
   }
 
@@ -101,6 +112,9 @@ class TypeJoinerMacros(val c: whitebox.Context) extends TypeDescriptorMacroHost 
 
   import c.universe._
 
+  /**
+   * Gets an expression that creates a [[TypeJoiner]] for the two input types.
+   */
   def createTypeJoiner[TLeft: c.WeakTypeTag, TRight: c.WeakTypeTag]: c.Expr[TypeJoiner[TLeft, TRight]] = {
     val leftType = c.weakTypeOf[TLeft]
     val rightType = c.weakTypeOf[TRight]
@@ -111,10 +125,6 @@ class TypeJoinerMacros(val c: whitebox.Context) extends TypeDescriptorMacroHost 
       q"""
          new ${weakTypeOf[TypeJoiner[TLeft, TRight]]} {
            type OutputType = $outputType
-
-           override def getOutputType(leftType: TypeDescriptor[$leftType], rightType: TypeDescriptor[$rightType]): TypeDescriptor[this.OutputType] = {
-             com.amazon.milan.typeutil.TypeJoiner.getOutputType[$leftType, $rightType, $outputType](leftType, rightType)
-           }
          }
        """
     c.Expr[TypeJoiner[TLeft, TRight]](tree)
@@ -145,6 +155,9 @@ class TypeJoinerMacros(val c: whitebox.Context) extends TypeDescriptorMacroHost 
     symbolOf[(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _)]
   )
 
+  /**
+   * Gets a [[Type]] representing a tuple that contains the elements of both input types.
+   */
   private def getCombinedTupleType(leftType: Type, rightType: Type): Type = {
     val combinedTypes =
       if (isTuple(leftType) && isTuple(rightType)) {

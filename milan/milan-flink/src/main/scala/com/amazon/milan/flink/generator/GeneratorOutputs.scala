@@ -17,6 +17,9 @@ import scala.collection.mutable
 case class ClassDef(classBody: String, imports: List[String])
 
 
+/**
+ * Collects the outputs from code generation.
+ */
 class GeneratorOutputs(val typeLifter: TypeLifter) {
 
   import typeLifter._
@@ -28,6 +31,7 @@ class GeneratorOutputs(val typeLifter: TypeLifter) {
 
   /**
    * Map of type name to class name of RecordIdExtractor for that type.
+   * Allows re-using record ID extractors for a given type.
    */
   val recordIdExtractorClasses = new mutable.HashMap[String, ClassName]()
 
@@ -40,30 +44,63 @@ class GeneratorOutputs(val typeLifter: TypeLifter) {
   private var imports = Set.empty[String]
   private var hasCycles = false
 
+  /**
+   * Adds an import statement to the required imports for the generated code.
+   *
+   * @param importStatement An import statement, not including the import keyword.
+   */
   def addImport(importStatement: String): Unit = {
     this.imports = this.imports + importStatement
   }
 
+  /**
+   * Appends a code block to the main function being generated.
+   *
+   * @param block A code block.
+   */
   def appendMain(block: String): Unit = {
     this.mainBlocks = this.mainBlocks :+ block
   }
 
+  /**
+   * Adds a class definition to the outputs.
+   *
+   * @param classDef A string containing a class definition.
+   */
   def addClassDef(classDef: String): Unit = {
     this.addClassDef(classDef, List())
   }
 
+  /**
+   * Adds a class definition to the outputs.
+   *
+   * @param classDef A string containing a class definition.
+   * @param imports  A list of import statements (not including the import keyword) that the class definition requires.
+   */
   def addClassDef(classDef: String, imports: List[String]): Unit = {
     this.classDefs = this.classDefs :+ ClassDef(classDef, imports)
   }
 
-  def generateScala(): String = {
+  /**
+   * Generates the Scala code that has been added to the outputs collection so far.
+   *
+   * @param packageName The name of the package for the generated code.
+   *                    If null or empty, no package statement is included at the beginning of the code.
+   * @param className   The name of the object containing the main() method that executes the application.
+   * @return
+   */
+  def generateScala(packageName: String, className: String): String = {
     val allImports = (this.classDefs.flatMap(_.imports).toSet ++ this.imports).toList.sorted.map(s => s"import $s")
 
-    s"""${allImports.mkString("\n")}
+    val packageLine = if (packageName == null || packageName.isEmpty) "" else s"package $packageName"
+
+    s"""$packageLine
+       |
+       |${allImports.mkString("\n")}
        |
        |${this.classDefs.map(_.classBody).mkString("\n\n")}
        |
-       |class MilanApplication extends ${nameOf[MilanApplicationBase]} {
+       |class $className extends ${nameOf[MilanApplicationBase]} {
        |  override def hasCycles: Boolean =
        |    ${this.hasCycles}
        |
@@ -72,9 +109,9 @@ class GeneratorOutputs(val typeLifter: TypeLifter) {
        |  }
        |}
        |
-       |object MilanApplicationRunner {
+       |object $className {
        |  def main(args: Array[String]): Unit = {
-       |    new MilanApplication().execute(args)
+       |    new $className().execute(args)
        |  }
        |}
        |""".strip

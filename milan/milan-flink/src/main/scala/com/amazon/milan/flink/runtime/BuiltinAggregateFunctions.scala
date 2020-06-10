@@ -1,16 +1,18 @@
 package com.amazon.milan.flink.runtime
 
-import com.amazon.milan.flink.TypeUtil
-import com.amazon.milan.flink.api.MilanAggregateFunction
-import org.apache.flink.api.common.typeinfo.{BasicTypeInfo, TypeInformation}
+import org.apache.flink.api.common.functions.AggregateFunction
+import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.java.typeutils.ResultTypeQueryable
 import org.apache.flink.api.scala.createTypeInformation
+
 
 object BuiltinAggregateFunctions {
   val typeName: String = getClass.getTypeName.stripSuffix("$")
 
   abstract class SimpleAggregateFunction[T](emptyAccumulator: Option[T],
                                             valueTypeInfo: TypeInformation[T])
-    extends MilanAggregateFunction[T, Option[T], T] {
+    extends AggregateFunction[T, Option[T], T]
+      with ResultTypeQueryable[T] {
 
     protected def addValues(in: T, acc: T): T
 
@@ -44,9 +46,6 @@ object BuiltinAggregateFunctions {
 
     override def getProducedType: TypeInformation[T] =
       this.valueTypeInfo
-
-    override def getAccumulatorType: TypeInformation[Option[T]] =
-      TypeUtil.createOptionTypeInfo(this.valueTypeInfo)
   }
 
 
@@ -89,7 +88,7 @@ object BuiltinAggregateFunctions {
 
 
   class Mean[T: Numeric](valueTypeInfo: TypeInformation[T])
-    extends MilanAggregateFunction[T, (Long, T), Double] {
+    extends AggregateFunction[T, (Long, T), Double] {
 
     @transient private lazy val numeric: Numeric[T] = implicitly[Numeric[T]]
 
@@ -112,17 +111,15 @@ object BuiltinAggregateFunctions {
       (count + count1, this.numeric.plus(sum, sum1))
     }
 
-    override def getAccumulatorType: TypeInformation[(Long, T)] =
-      TypeUtil.createTupleTypeInfo[(Long, T)](createTypeInformation[Long], this.valueTypeInfo)
-
-    override def getProducedType: TypeInformation[Double] =
+    def getProducedType: TypeInformation[Double] =
       createTypeInformation[Double]
   }
 
 
   abstract class ArgCompareAggregateFunction[TArg, T](argTypeInfo: TypeInformation[TArg],
                                                       valueTypeInfo: TypeInformation[T])
-    extends MilanAggregateFunction[(TArg, T), (Option[TArg], Option[T]), T] {
+    extends AggregateFunction[(TArg, T), (Option[TArg], Option[T]), T]
+      with ResultTypeQueryable[T] {
 
     protected def checkReplace(in: TArg, current: TArg): Boolean
 
@@ -164,11 +161,6 @@ object BuiltinAggregateFunctions {
 
     override def getProducedType: TypeInformation[T] =
       this.valueTypeInfo
-
-    override def getAccumulatorType: TypeInformation[(Option[TArg], Option[T])] =
-      TypeUtil.createTupleTypeInfo(
-        TypeUtil.createOptionTypeInfo(this.argTypeInfo),
-        TypeUtil.createOptionTypeInfo(this.valueTypeInfo))
   }
 
 
@@ -198,7 +190,8 @@ object BuiltinAggregateFunctions {
    * group key and not on the input records.
    */
   class Constant[T](valueTypeInfo: TypeInformation[T])
-    extends MilanAggregateFunction[T, Option[T], T] {
+    extends AggregateFunction[T, Option[T], T]
+      with ResultTypeQueryable[T] {
 
     override def add(in: T, acc: Option[T]): Option[T] = Some(in)
 
@@ -217,16 +210,14 @@ object BuiltinAggregateFunctions {
 
     override def getProducedType: TypeInformation[T] =
       this.valueTypeInfo
-
-    override def getAccumulatorType: TypeInformation[Option[T]] =
-      TypeUtil.createOptionTypeInfo[T](this.valueTypeInfo)
   }
 
   /**
    * An aggregate function that counts the input records.
    */
   class Count
-    extends MilanAggregateFunction[Unit, Long, Long] {
+    extends AggregateFunction[Unit, Long, Long]
+      with ResultTypeQueryable[Long] {
 
     override def add(in: Unit, acc: Long): Long = acc + 1
 
@@ -236,9 +227,7 @@ object BuiltinAggregateFunctions {
 
     override def merge(acc: Long, acc1: Long): Long = acc + acc1
 
-    override def getProducedType: TypeInformation[Long] = BasicTypeInfo.LONG_TYPE_INFO.asInstanceOf[TypeInformation[Long]]
-
-    override def getAccumulatorType: TypeInformation[Long] = BasicTypeInfo.LONG_TYPE_INFO.asInstanceOf[TypeInformation[Long]]
+    override def getProducedType: TypeInformation[Long] = createTypeInformation[Long]
   }
 
 }

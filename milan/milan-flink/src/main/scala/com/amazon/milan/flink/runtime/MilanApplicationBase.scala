@@ -2,7 +2,7 @@ package com.amazon.milan.flink.runtime
 
 import java.net.URLClassLoader
 
-import com.amazon.milan.flink.apps.{ArgumentsBase, NamedArgument}
+import com.amazon.milan.cmd.{ArgumentsBase, NamedArgument}
 import com.typesafe.scalalogging.Logger
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend
 import org.apache.flink.runtime.state.StateBackend

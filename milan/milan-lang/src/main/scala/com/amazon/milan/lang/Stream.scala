@@ -154,19 +154,6 @@ class Stream[T](val expr: StreamExpression, val recordType: TypeDescriptor[T]) {
   }
 
   /**
-   * Defines a stream of a single window that always contains the latest record to arrive for every value of a key.
-   *
-   * @param dateExtractor A function that extracts a timestamp from input records, which is used to determine which
-   *                      record is the latest (most recent).
-   * @param keyFunc       A function that extracts a key from input records.
-   * @return A [[TimeWindowedStream]] representing the result of the windowing operation.
-   * @todo Decide whether this makes sense as a language feature. It feels like join(latestBy).apply is a very specific
-   *       construct that ought to be able to be written using more general language primitives. The compiler should
-   *       then figure out the best way to execute it.
-   */
-  def latestBy[TKey](dateExtractor: T => Instant, keyFunc: T => TKey): TimeWindowedStream[T] = macro StreamMacros.latestBy[T, TKey]
-
-  /**
    * Defines a grouping over records in the stream.
    *
    * @param keyFunc A function that computes the group key for a record.

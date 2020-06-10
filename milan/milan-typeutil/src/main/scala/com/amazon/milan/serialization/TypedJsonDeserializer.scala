@@ -6,6 +6,12 @@ import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
 
 
+/**
+ * A [[JsonDeserializer]] that deserializes objects written using [[TypedJsonSerializer]]
+ *
+ * @param packageName The name of the package where types are found.
+ * @tparam T The type of the objects being deserialized.
+ */
 class TypedJsonDeserializer[T](packageName: String) extends JsonDeserializer[T] {
   private val logger = Logger(LoggerFactory.getLogger(getClass))
 

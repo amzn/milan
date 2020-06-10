@@ -3,6 +3,7 @@ package com.amazon.milan.flink.application.sinks
 import java.nio.file.Files
 
 import com.amazon.milan.dataformats.JsonDataOutputFormat
+import com.amazon.milan.flink.runtime.FileSinkFunction
 import com.amazon.milan.typeutil._
 import org.junit.Assert._
 import org.junit.Test

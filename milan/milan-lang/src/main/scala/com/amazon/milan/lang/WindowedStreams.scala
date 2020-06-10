@@ -9,7 +9,7 @@ import scala.language.experimental.macros
 
 
 /**
- * Represents the result of a windowing operation.
+ * Represents the result of a windowing operation where the windows are not grouped.
  *
  * @param expr The Milan expression representing windowing operation.
  * @tparam T The type of the stream.

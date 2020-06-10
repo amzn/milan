@@ -4,12 +4,13 @@ import com.amazon.milan.typeutil.types
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
 
-trait AggregateExpression extends Tree {
-}
+trait AggregateExpression extends Tree
+
 
 trait UnaryAggregateExpression extends AggregateExpression {
   val expr: Tree
 }
+
 
 object UnaryAggregateExpression {
   def unapply(arg: UnaryAggregateExpression): Option[Tree] = Some(arg.expr)

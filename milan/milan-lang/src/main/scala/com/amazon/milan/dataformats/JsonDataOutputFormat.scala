@@ -4,17 +4,22 @@ import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 
 import com.amazon.milan.HashUtil
-import com.amazon.milan.serialization.{JavaTypeFactory, ScalaObjectMapper}
+import com.amazon.milan.serialization.{JavaTypeFactory, MilanObjectMapper}
 import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
 import scala.collection.JavaConverters._
 
 
+/**
+ * A [[DataOutputFormat]] that writes object as JSON structures.
+ *
+ * @tparam T The type of objects being written.
+ */
 @JsonSerialize
 @JsonDeserialize
 class JsonDataOutputFormat[T: TypeDescriptor] extends DataOutputFormat[T] {
-  @transient private lazy val objectMapper = new ScalaObjectMapper()
+  @transient private lazy val objectMapper = new MilanObjectMapper()
   @transient private lazy val javaType = new JavaTypeFactory(this.objectMapper.getTypeFactory).makeJavaType(this.recordTypeDescriptor)
   @transient private lazy val hashCodeValue = HashUtil.combineHashCodes(this.recordTypeDescriptor.hashCode())
   @transient private lazy val writer = this.objectMapper.writerFor(this.javaType)

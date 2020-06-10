@@ -22,6 +22,14 @@ object KinesisDataSource {
 }
 
 
+/**
+ * A [[DataSource]] for reading items from a Kinesis stream.
+ *
+ * @param streamName The name of a Kinesis stream.
+ * @param region     The region where the stream is located.
+ * @param dataFormat A [[DataInputFormat]] that controls how items are read.
+ * @tparam T The type of objects produced by the data source.
+ */
 @JsonSerialize
 @JsonDeserialize
 class KinesisDataSource[T: TypeDescriptor](val streamName: String,

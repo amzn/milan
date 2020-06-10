@@ -96,6 +96,12 @@ FlatMap on a windowed stream operates the same as FlatMap on a grouped stream:
 FlatMap(WindowedStream[T, W], (W, Stream[T]) => Stream[O]) => Stream[O]
 ```
 
+### Filter
+The filter operation applies only to data streams, not windowed or grouped streams.
+```
+Filter(Stream[T], T => Boolean) => Stream[T]
+```
+Input records where the predicate returns `true` will appear in the output stream.
 
 ### MaxBy, MinBy
 ```

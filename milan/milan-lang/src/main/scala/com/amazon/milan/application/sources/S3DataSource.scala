@@ -6,6 +6,16 @@ import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize
 import org.apache.commons.lang.StringUtils
 
 
+/**
+ * A data source for data in S3.
+ *
+ * @param bucket        The name of the bucket.
+ * @param key           The key of the item or items.
+ *                      If the key is a folder then all objects in the folder are treated as part of the dataset.
+ * @param dataFormat    A [[DataInputFormat]] that controls how objects are read.
+ * @param configuration The data source configuration.
+ * @tparam T The type of items produced by the data source.
+ */
 @JsonSerialize
 @JsonDeserialize
 class S3DataSource[T: TypeDescriptor](bucket: String,

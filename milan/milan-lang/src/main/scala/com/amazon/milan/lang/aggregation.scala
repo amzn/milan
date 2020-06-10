@@ -16,6 +16,16 @@ trait ArgReducingAggregateFunction {
 }
 
 
+/**
+ * Methods that can be used inside a select() function.
+ * select() is funny because the arguments to the select function have the type of individual records, but the operation
+ * it performs is an aggregate operation.
+ *
+ * When the functions in the [[aggregation]] module are used, they tell the Milan Scala DSL that an aggregate operation
+ * is being performed on the arguments of that function.
+ *
+ * None of these functions need to actually return a value because they are never invoked.
+ */
 object aggregation {
 
   object count {

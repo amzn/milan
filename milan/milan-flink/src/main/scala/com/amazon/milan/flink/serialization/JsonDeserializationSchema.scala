@@ -1,6 +1,6 @@
 package com.amazon.milan.flink.serialization
 
-import com.amazon.milan.serialization.ScalaObjectMapper
+import com.amazon.milan.serialization.MilanObjectMapper
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.typeutils.TypeExtractor
 import org.apache.flink.streaming.connectors.kinesis.serialization.KinesisDeserializationSchema
@@ -9,7 +9,7 @@ import scala.reflect.{ClassTag, classTag}
 
 
 object JsonDeserializationSchema {
-  private val objectMapper = new ScalaObjectMapper()
+  private val objectMapper = new MilanObjectMapper()
 }
 
 

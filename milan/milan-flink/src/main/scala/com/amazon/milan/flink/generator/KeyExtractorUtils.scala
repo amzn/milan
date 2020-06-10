@@ -69,13 +69,35 @@ object KeyExtractorUtils {
    * @param appendedKeyType The type to add to the key.
    * @return A [[TypeDescriptor]] for the key containing the combined types.
    */
-  def combineKeyTypes(keyType: TypeDescriptor[_], appendedKeyType: TypeDescriptor[_]): TypeDescriptor[_] = {
+  def combineKeyTypes(keyType: TypeDescriptor[_],
+                      appendedKeyType: TypeDescriptor[_]): TypeDescriptor[_] = {
     keyType match {
       case keyTupleType: TupleTypeDescriptor[_] =>
         TypeDescriptor.augmentTuple(keyTupleType, appendedKeyType)
 
       case _ =>
         throw new IllegalArgumentException("Key types must be tuples.")
+    }
+  }
+
+  /**
+   * Gets the [[TypeDescriptor]] for the type of key that combines information from a key and an additional key element.
+   *
+   * @param inputKeyType      A key type, which must be a tuple.
+   * @param addedKeyType      The type to add to the key.
+   * @param isInputContextual Specifies whether the input stream is contextual.
+   *                          If it is, the new key type is appended to it.
+   *                          If it is not contextual, the new key type replaces the last element of the input key tuple.
+   * @return A [[TypeDescriptor]] for the key containing the combined types.
+   */
+  def addToKey(inputKeyType: TypeDescriptor[_],
+               addedKeyType: TypeDescriptor[_],
+               isInputContextual: Boolean): TypeDescriptor[_] = {
+    if (isInputContextual) {
+      this.combineKeyTypes(inputKeyType, addedKeyType)
+    }
+    else {
+      this.combineKeyTypes(this.removeLastKeyElement(inputKeyType), addedKeyType)
     }
   }
 

@@ -6,6 +6,13 @@ import com.amazon.milan.typeutil.{TypeDescriptor, types}
 
 /**
  * Base trait for all generated streams.
+ *
+ * A [[GeneratedStream]] describes a Flink stream instance of some kind, be it a data stream, windowed stream,
+ * or connected stream.
+ *
+ * All generated streams have key types, regardless of whether or not they are keyed streams.
+ * This is because streams created by Milan's Flink compiler use RecordWrapper as their data type, and RecordWrapper
+ * holds a key object. The key may be an empty tuple.
  */
 trait GeneratedStream {
   /**
@@ -50,7 +57,7 @@ object GeneratedStream {
 
 
 /**
- * Trait that identifies generated streams that are data streams (not windowed or joined).
+ * Trait that identifies generated streams that are data streams (not windowed or joined streams).
  */
 trait GeneratedDataStream extends GeneratedStream {
   def withStreamVal(newStreamVal: ValName): GeneratedDataStream =
@@ -64,7 +71,8 @@ trait GeneratedDataStream extends GeneratedStream {
 
 
 /**
- * Base trait for generated streams where records are grouped in some way, either keyed or windowed.
+ * Base trait for generated streams where records are grouped in some way.
+ * These could be keyed streams, or windowed streams.
  */
 trait GeneratedGroupedStream extends GeneratedStream {
   val groupKeyType: TypeDescriptor[_]
@@ -73,6 +81,7 @@ trait GeneratedGroupedStream extends GeneratedStream {
 
 /**
  * Trait that identifies generated keyed streams.
+ * These could be data streams or windowed streams.
  */
 trait GeneratedKeyedStream extends GeneratedStream
 
@@ -171,7 +180,7 @@ case class GeneratedUnkeyedWindowStream(streamId: String,
                                         isContextual: Boolean)
   extends GeneratedWindowedStream with GeneratedUnkeyedStream {
 
-  override val keyType: TypeDescriptor[_] = types.Unit
+  override val keyType: TypeDescriptor[_] = types.EmptyTuple
 
   override val groupKeyType: TypeDescriptor[_] = this.windowKeyType
 
@@ -180,6 +189,9 @@ case class GeneratedUnkeyedWindowStream(streamId: String,
 }
 
 
+/**
+ * Represents a flink connected streams object.
+ */
 case class GeneratedConnectedStreams(streamId: String,
                                      streamVal: ValName,
                                      unappliedConditions: Option[FunctionDef],

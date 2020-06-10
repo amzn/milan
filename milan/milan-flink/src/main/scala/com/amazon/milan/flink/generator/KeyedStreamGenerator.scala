@@ -23,15 +23,27 @@ trait KeyedStreamGenerator {
     this.keyStreamByFunction(context.output, inputStream, groupByExpr.expr, groupByExpr.nodeName)
   }
 
+  /**
+   * Converts a stream to a keyed stream using the specified key assigner function.
+   *
+   * @param outputs          The generator outputs collector.
+   * @param inputStream      The input stream.
+   * @param keyFunction      The key assigner function.
+   * @param streamIdentifier A string identifying the output stream.
+   * @return A [[GeneratedKeyedDataStream]] representing the resulting keyed stream.
+   */
   def keyStreamByFunction(outputs: GeneratorOutputs,
                           inputStream: GeneratedDataStream,
                           keyFunction: FunctionDef,
                           streamIdentifier: String): GeneratedKeyedDataStream = {
+    // We create a keyed stream by first adding the extracted keys to the key stored in the RecordWrapper objects
+    // using a MapFunction, then using keyBy to key the stream by the record keys.
+
     TypeChecker.typeCheck(keyFunction)
 
     val recordType = inputStream.recordType
 
-    val keyAppenderMapFunction = this.generateKeyAppenderMapFunction(outputs, streamIdentifier, recordType, inputStream.keyType, keyFunction)
+    val keyAppenderMapFunction = this.generateKeyAppenderMapFunction(outputs, inputStream, streamIdentifier, keyFunction)
     val keyType = keyAppenderMapFunction.outputKeyType
 
     val keyAssignerMapFunctionVal = outputs.newValName(s"stream_${streamIdentifier}_keyAssignerMapFunction_")
@@ -98,12 +110,46 @@ trait KeyedStreamGenerator {
    * Gets a [[CodeBlock]] defining a function that takes a record key and a value to append to the key and returns the
    * combined tuple.
    *
+   * @param functionName      The name of the function.
+   * @param keyType           A key type, which must be a tuple.
+   * @param appendedKeyType   The type to add to the key.
+   * @param isInputContextual Specifies whether the input stream is contextual.
+   *                          If it is, the new key type is appended to it.
+   *                          If it is not contextual, the new key type replaces the last element of the input key tuple.
+   * @return A [[CodeBlock]] containing the function definition that performs the append operation.
+   */
+  def getKeyCombinerFunction(functionName: String,
+                             keyType: TypeDescriptor[_],
+                             appendedKeyType: TypeDescriptor[_],
+                             isInputContextual: Boolean): CodeBlock = {
+
+    if (!keyType.isTuple) {
+      throw new IllegalArgumentException("Key types must be tuples.")
+    }
+
+    // if the input is not contextual we discard the last element of the existing keys.
+    val truncatedKeyType =
+      if (isInputContextual) {
+        keyType
+      }
+      else {
+        KeyExtractorUtils.removeLastKeyElement(keyType)
+      }
+
+    this.getKeyAppenderFunction(functionName, truncatedKeyType, appendedKeyType)
+  }
+
+
+  /**
+   * Gets a [[CodeBlock]] defining a function that takes a record key and a value to append to the key and returns the
+   * combined tuple.
+   *
    * @param functionName    The name of the function.
    * @param keyType         A key type, which must be a tuple.
    * @param appendedKeyType The type to add to the key.
    * @return A [[CodeBlock]] containing the function definition that performs the append operation.
    */
-  def getKeyCombinerFunction(functionName: String,
+  def getKeyAppenderFunction(functionName: String,
                              keyType: TypeDescriptor[_],
                              appendedKeyType: TypeDescriptor[_]): CodeBlock = {
     if (!keyType.isTuple) {
@@ -173,18 +219,30 @@ trait KeyedStreamGenerator {
     GeneratedUnkeyedDataStream(outputStreamId, outputStreamVal, recordType, outputKeyType, inputStream.isContextual)
   }
 
+  /**
+   * Generates a Flink MapFunction that appends a key to the stream records.
+   * If the input stream is contextual then the new keys are appended to the existing keys.
+   * If the input stream is not contextual then the new keys will replace the last element of the existing key tuples.
+   *
+   * @param output           The generator outputs collector.
+   * @param inputStream      The stream that is having its keys modified.
+   * @param streamIdentifier The identifier for the output stream.
+   * @param keyFunction      The function that computes the values to append to the record keys.
+   * @return An [[OperatorInfo]] describing the generated MapFunction.
+   */
   private def generateKeyAppenderMapFunction(output: GeneratorOutputs,
+                                             inputStream: GeneratedDataStream,
                                              streamIdentifier: String,
-                                             recordType: TypeDescriptor[_],
-                                             inputKeyType: TypeDescriptor[_],
                                              keyFunction: FunctionDef): OperatorInfo = {
     val className = output.newClassName(s"MapFunction_${streamIdentifier}_KeyAssigner_")
+    val inputKeyType = inputStream.keyType
+    val recordType = inputStream.recordType
     val newKeyType = keyFunction.tpe
-    val outputKeyType = KeyExtractorUtils.combineKeyTypes(inputKeyType, newKeyType)
+    val outputKeyType = KeyExtractorUtils.addToKey(inputKeyType, newKeyType, inputStream.isContextual)
 
     val getKeyDef = output.scalaGenerator.getScalaFunctionDef("getKey", keyFunction)
 
-    val combineKeysDef = this.getKeyCombinerFunction("combineKeys", inputKeyType, newKeyType)
+    val combineKeysDef = this.getKeyCombinerFunction("combineKeys", inputKeyType, newKeyType, inputStream.isContextual)
 
     val classDef =
       q"""class $className

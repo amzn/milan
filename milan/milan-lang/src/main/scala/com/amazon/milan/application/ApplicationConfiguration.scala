@@ -16,8 +16,7 @@ import com.amazon.milan.application.ApplicationConfiguration._
 
 
 /**
- * Configures the data sources and sinks for an application.
- * One of these will be used for each running instance of an application.
+ * Contains the configuration of the data sources and sinks for an application.
  */
 class ApplicationConfiguration {
   private var metricPrefix: String = ""

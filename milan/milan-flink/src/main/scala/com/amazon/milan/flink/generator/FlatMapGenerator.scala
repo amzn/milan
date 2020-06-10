@@ -69,6 +69,14 @@ trait FlatMapGenerator
     GeneratedUnkeyedDataStream(flatMapExpr.nodeId, outputStreamVal, mappedStream.recordType, mappedStream.keyType, isContextual = false)
   }
 
+  /**
+   * Applies a [[FlatMap]] operation that is performed on a windowed stream.
+   *
+   * @param context        The generator context.
+   * @param windowedStream The input windowed stream.
+   * @param flatMapExpr    The [[FlatMap]] expression to apply.
+   * @return A [[GeneratedUnkeyedDataStream]] representing the result of the FlatMap operation.
+   */
   def applyFlatMapToWindowedStream(context: GeneratorContext,
                                    windowedStream: GeneratedKeyedWindowedStream,
                                    flatMapExpr: FlatMap): GeneratedUnkeyedDataStream = {
@@ -186,7 +194,12 @@ trait FlatMapGenerator
     val inputKeyType = windowedStream.keyType
     val outputKeyType = KeyExtractorUtils.combineKeyTypes(inputKeyType, types.Instant)
 
-    val getCombinedKeyDef = this.getKeyCombinerFunction("addWindowStartTimeToKey", inputKeyType, types.Instant)
+    // We're windowing an already grouped stream, so we need to append the window key type (java.time.Instance) to the
+    // record keys.
+    val getCombinedKeyDef = this.getKeyAppenderFunction(
+      "addWindowStartTimeToKey",
+      inputKeyType,
+      types.Instant)
 
     val className = outputs.newClassName(s"ProcessWindowFunction_${windowedStream.streamId}")
     val classDef =
@@ -233,6 +246,10 @@ trait FlatMapGenerator
           case FlatMapExpressionSplit(before, last, None) =>
             // If the source expression was a Last then this is the first expression after the Last.
             FlatMapExpressionSplit(before, last, Some(streamExpr))
+
+          case _ =>
+            // How did we get here? Nothing in the recursive call should produce other patterns.
+            throw new NotImplementedError()
         }
 
       case other =>

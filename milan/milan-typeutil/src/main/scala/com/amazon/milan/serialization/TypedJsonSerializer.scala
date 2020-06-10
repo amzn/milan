@@ -4,6 +4,11 @@ import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.databind.{JsonSerializer, SerializerProvider}
 
 
+/**
+ * A [[JsonSerializer]] that writes type information to a JSON structure.
+ *
+ * @tparam T The type of objects being serialized. The must support the [[TypeInfoProvider]] interface.
+ */
 class TypedJsonSerializer[T <: TypeInfoProvider] extends JsonSerializer[T] {
   override def serialize(value: T,
                          jsonGenerator: JsonGenerator,

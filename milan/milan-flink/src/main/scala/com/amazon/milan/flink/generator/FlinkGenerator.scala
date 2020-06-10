@@ -5,13 +5,14 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, StandardOpenOption}
 
-import com.amazon.milan.Id
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
 import com.amazon.milan.flink.internal.{FlinkTypeEmitter, GraphTypeChecker}
 import com.amazon.milan.lang.StreamGraph
 import com.amazon.milan.program.{Cycle, StreamExpression}
+import com.amazon.milan.{Id, SemanticVersion}
 import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
+
 
 case class GeneratorConfig(preventGenericTypeInformation: Boolean = false)
 
@@ -32,29 +33,37 @@ class FlinkGenerator(classLoader: ClassLoader, generatorConfig: GeneratorConfig)
   }
 
   def generateScala(graph: StreamGraph,
-                    appConfig: ApplicationConfiguration): String = {
-    val application = new Application(Id.newId(), graph)
+                    appConfig: ApplicationConfiguration,
+                    packageName: String,
+                    className: String): String = {
+    val application = new Application(Id.newId(), graph, SemanticVersion.ZERO)
     val instance = new ApplicationInstance(Id.newId(), application, appConfig)
-    this.generateScala(instance)
+    this.generateScala(instance, packageName, className)
   }
 
   def generateScala(instance: ApplicationInstance,
-                    outputPath: Path): Unit = {
-    val scalaCode = this.generateScala(instance)
+                    outputPath: Path,
+                    packageName: String,
+                    className: String): Unit = {
+    val scalaCode = this.generateScala(instance, packageName, className)
     val contents = scalaCode.getBytes(StandardCharsets.UTF_8)
     Files.write(outputPath, contents, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
   }
 
-  def generateScala(instance: ApplicationInstance): String = {
+  def generateScala(instance: ApplicationInstance,
+                    packageName: String,
+                    className: String): String = {
     val output = new ByteArrayOutputStream()
-    this.generateScala(instance, output)
+    this.generateScala(instance, output, packageName, className)
 
     output.flush()
     StandardCharsets.UTF_8.decode(ByteBuffer.wrap(output.toByteArray)).toString
   }
 
   def generateScala(instance: ApplicationInstance,
-                    output: OutputStream): Unit = {
+                    output: OutputStream,
+                    packageName: String,
+                    className: String): Unit = {
     val finalGraph = instance.application.graph.getDereferencedGraph
     GraphTypeChecker.typeCheckGraph(finalGraph)
 
@@ -76,7 +85,7 @@ class FlinkGenerator(classLoader: ClassLoader, generatorConfig: GeneratorConfig)
     // Add all sinks at the end.
     instance.config.dataSinks.foreach(sink => context.generateSink(sink))
 
-    val generated = context.output.generateScala()
+    val generated = context.output.generateScala(packageName, className)
     output.write(generated.getBytes(StandardCharsets.UTF_8))
   }
 

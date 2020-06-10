@@ -103,11 +103,11 @@ trait ScanOperationGenerator {
 
     val classDef =
       q"""class $className
-         |  extends ${nameOf[ArgMaxScanOperation[Any, Any]]}[${recordType.toFlinkTerm}, ${argType.toFlinkTerm}](
+         |  extends ${nameOf[ArgMaxScanOperation[Any, Any]]}[${recordType.toFlinkTerm}, ${argType.toTerm}](
          |    ${liftTypeDescriptorToTypeInformation(recordType)},
          |    ${liftTypeDescriptorToTypeInformation(argType)}) {
          |
-         |    override def greaterThan(ordering: Ordering[${argType.toFlinkTerm}], arg1: ${argType.toFlinkTerm}, arg2: ${argType.toFlinkTerm}): Boolean = {
+         |    override def greaterThan(ordering: Ordering[${argType.toTerm}], arg1: ${argType.toTerm}, arg2: ${argType.toTerm}): Boolean = {
          |      ${code(greaterThanBody)}
          |    }
          |
@@ -138,19 +138,24 @@ trait ScanOperationGenerator {
         case _: SumBy => "numeric.plus(arg1, arg2)"
       }
 
+    val initialState = this.getAssociativeScanOperationInitialValue(argScanExpr)
+
     val className = output.newClassName(s"ScanOperation_${argScanExpr.nodeName}_")
 
     val classDef =
       q"""class $className
-         |  extends ${nameOf[AssociativeScanOperation[Any, Any, Any]]}[${inputRecordType.toFlinkTerm}, ${argType.toFlinkTerm}, ${outputRecordType.toFlinkTerm}](
+         |  extends ${nameOf[AssociativeScanOperation[Any, Any, Any]]}[${inputRecordType.toFlinkTerm}, ${argType.toTerm}, ${outputRecordType.toFlinkTerm}](
          |  ${liftTypeDescriptorToTypeInformation(argType)},
          |  ${liftTypeDescriptorToTypeInformation(outputRecordType)}) {
+         |
+         |  override def getInitialState(numeric: Numeric[${argType.toTerm}]): ${argType.toTerm} =
+         |    $initialState
          |
          |  override ${code(getArgDef).indentTail(1)}
          |
          |  override ${code(getOutputDef).indentTail(1)}
          |
-         |  override def add(numeric: Numeric[${argType.toFlinkTerm}], arg1: ${argType.toFlinkTerm}, arg2: ${argType.toFlinkTerm}): ${argType.toFlinkTerm} = {
+         |  override def add(numeric: Numeric[${argType.toTerm}], arg1: ${argType.toTerm}, arg2: ${argType.toTerm}): ${argType.toTerm} = {
          |    ${code(addDef)}
          |  }
          |
@@ -160,5 +165,11 @@ trait ScanOperationGenerator {
     output.addClassDef(classDef)
 
     ScanOperationClassInfo(className, argType, outputRecordType)
+  }
+
+  private def getAssociativeScanOperationInitialValue(argScanExpr: ArgScanExpression): CodeBlock = {
+    argScanExpr match {
+      case _: SumBy => qc"numeric.zero"
+    }
   }
 }

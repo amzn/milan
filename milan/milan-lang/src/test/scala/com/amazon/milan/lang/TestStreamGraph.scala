@@ -1,6 +1,6 @@
 package com.amazon.milan.lang
 
-import com.amazon.milan.serialization.ScalaObjectMapper
+import com.amazon.milan.serialization.MilanObjectMapper
 import com.amazon.milan.test.IntRecord
 import org.apache.logging.log4j.Level
 import org.apache.logging.log4j.core.config.Configurator
@@ -27,7 +27,7 @@ class TestStreamGraph {
 
     val graph = new StreamGraph(mapped)
 
-    val mapper = new ScalaObjectMapper()
+    val mapper = new MilanObjectMapper()
     val json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(graph)
 
     // Parse the json into an array, just to check the correct number of streams are in the json.
@@ -55,7 +55,7 @@ class TestStreamGraph {
 
     val graph = new StreamGraph(mapped)
 
-    val mapper = new ScalaObjectMapper()
+    val mapper = new MilanObjectMapper()
     val json = mapper.writeValueAsString(graph)
 
     val parsedGraph = mapper.readValue[StreamGraph](json, classOf[StreamGraph])

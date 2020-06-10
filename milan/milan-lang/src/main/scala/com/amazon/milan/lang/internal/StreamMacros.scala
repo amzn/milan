@@ -4,7 +4,7 @@ import java.time.{Duration, Instant}
 
 import com.amazon.milan.lang.{GroupedStream, Stream, TimeWindowedStream}
 import com.amazon.milan.program.internal.{FilteredStreamHost, LiftableImpls}
-import com.amazon.milan.program.{ExternalStream, FunctionDef, GroupBy, LatestBy, NamedField, NamedFields, SelectField, SelectTerm, SlidingWindow, StreamArgMax, StreamArgMin, StreamMap, SumBy, TumblingWindow, ValueDef}
+import com.amazon.milan.program.{ExternalStream, FunctionDef, GroupBy, NamedField, NamedFields, SelectField, SelectTerm, SlidingWindow, StreamArgMax, StreamArgMin, StreamMap, SumBy, TumblingWindow, ValueDef}
 import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, FieldDescriptor, GroupedStreamTypeDescriptor, TupleTypeDescriptor, TypeDescriptor, TypeJoiner}
 import com.amazon.milan.{Id, program}
 
@@ -144,25 +144,6 @@ class StreamMacros(val c: whitebox.Context)
   }
 
   /**
-   * Defines a stream of a single window that always contains the latest record to arrive for every value of a key.
-   */
-  def latestBy[T: c.WeakTypeTag, TKey: c.WeakTypeTag](dateExtractor: c.Expr[T => Instant],
-                                                      keyFunc: c.Expr[T => TKey]): c.Expr[TimeWindowedStream[T]] = {
-    val dateExtractorExpr = getMilanFunction(dateExtractor.tree)
-    val keyFuncExpr = getMilanFunction(keyFunc.tree)
-
-    val inputStreamVal = TermName(c.freshName("inputStream"))
-
-    val tree =
-      q"""
-          val $inputStreamVal = ${c.prefix}
-          com.amazon.milan.lang.internal.StreamMacroUtil.latestBy[${c.weakTypeOf[T]}, ${c.weakTypeOf[TKey]}]($inputStreamVal, $dateExtractorExpr, $keyFuncExpr)
-       """
-
-    c.Expr[TimeWindowedStream[T]](tree)
-  }
-
-  /**
    * Creates a [[TimeWindowedStream]] from a stream given window parameters.
    */
   def tumblingWindow[T: c.WeakTypeTag](dateExtractor: c.Expr[T => Instant],
@@ -290,17 +271,6 @@ class StreamMacros(val c: whitebox.Context)
 
 
 object StreamMacroUtil {
-  def latestBy[T, TKey](inputStream: Stream[T],
-                        dateExtractor: FunctionDef,
-                        keyFunc: FunctionDef): TimeWindowedStream[T] = {
-    val nodeId = Id.newId()
-    val inputRecordType = inputStream.recordType
-    val outputStreamType = new GroupedStreamTypeDescriptor(inputRecordType)
-    val latestExpr = new LatestBy(inputStream.expr, dateExtractor, keyFunc, nodeId, nodeId, outputStreamType)
-
-    new TimeWindowedStream[T](latestExpr)
-  }
-
   /**
    * Gets a [[Stream]] that is the result of adding fields to an existing [[Stream]].
    * These fields are computed based on the records in the input stream.

@@ -6,6 +6,14 @@ import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
 
+/**
+ * A data sink that writes items to a Kinesis stream.
+ *
+ * @param streamName The name of the kinesis stream.
+ * @param region     The name of the AWS region where the stream is located.
+ * @param queueLimit The maximum number of items in the write queue.
+ * @tparam T The type of objects accepted by the data sink.
+ */
 @JsonSerialize
 @JsonDeserialize
 class KinesisDataSink[T: TypeDescriptor](val streamName: String,

@@ -6,6 +6,13 @@ import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
 
 
+/**
+ * A [[JsonSerializer]] for writing parameterized types.
+ * The name of the, as well as information about the generic arguments, are written to the JSON struct so that the
+ * object can be fully reconstructed by the deserializer.
+ *
+ * @tparam T The reference type being serialized.
+ */
 class GenericTypedJsonSerializer[T <: GenericTypeInfoProvider] extends JsonSerializer[T] {
   private val logger = Logger(LoggerFactory.getLogger(getClass))
 

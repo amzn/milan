@@ -35,7 +35,14 @@ package object generator {
   }
 
   implicit class FlinkGeneratorTypeDescriptorExtensions[_](t: TypeDescriptor[_]) {
-    def toTerm: ClassName = ClassName(t.fullName)
+    def toTerm: ClassName = {
+      if (t.isTuple && t.genericArguments.isEmpty) {
+        ClassName("Product")
+      }
+      else {
+        ClassName(t.fullName)
+      }
+    }
 
     def getFlinkTypeFullName: String = {
       if (t.isInstanceOf[TupleRecordTypeDescriptor[_]]) {
@@ -76,7 +83,7 @@ package object generator {
      * Gets a [[TypeDescriptor]] that describes the input type wrapped in a [[RecordWrapper]] with no key type.
      */
     def wrapped: TypeDescriptor[RecordWrapper[_, _]] = {
-      this.wrappedWithKey(com.amazon.milan.typeutil.types.Unit)
+      this.wrappedWithKey(com.amazon.milan.typeutil.types.EmptyTuple)
     }
 
     /**

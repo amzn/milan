@@ -3,7 +3,7 @@ package com.amazon.milan.dataformats
 import java.io.InputStream
 
 import com.amazon.milan.HashUtil
-import com.amazon.milan.serialization.{DataFormatConfiguration, JavaTypeFactory, ScalaObjectMapper}
+import com.amazon.milan.serialization.{DataFormatConfiguration, JavaTypeFactory, MilanObjectMapper}
 import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
@@ -22,7 +22,7 @@ import scala.language.experimental.macros
 class JsonDataInputFormat[T: TypeDescriptor](val config: DataFormatConfiguration)
   extends DataInputFormat[T] {
 
-  @transient private lazy val objectMapper = new ScalaObjectMapper(this.config)
+  @transient private lazy val objectMapper = new MilanObjectMapper(this.config)
   @transient private lazy val javaType = new JavaTypeFactory(this.objectMapper.getTypeFactory).makeJavaType(this.recordTypeDescriptor)
   @transient private lazy val hashCodeValue = HashUtil.combineHashCodes(this.recordTypeDescriptor.hashCode(), this.config.hashCode())
 

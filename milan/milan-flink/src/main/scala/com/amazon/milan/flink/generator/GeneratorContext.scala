@@ -63,11 +63,23 @@ class GeneratorContext(val applicationInstanceId: String,
       this.streamTerms + (termName -> stream))
   }
 
+  /**
+   * Adds a data sink to the generated program.
+   *
+   * @param sink The sink to generate.
+   */
   def generateSink(sink: StreamSink): Unit = {
     val stream = this.output.dataStreams(sink.streamId)
     this.components.addDataSink(this.output, stream, sink.sink)
   }
 
+  /**
+   * Gets the [[GeneratedStream]] that was created when an expression was generated.
+   * If no [[GeneratedStream]] is associated with the expression then an exception is thrown.
+   *
+   * @param expr An expression.
+   * @return The [[GeneratedStream]] corresponding to the expression.
+   */
   def getGeneratedStream(expr: Tree): GeneratedStream = {
     this.tryGetGeneratedStream(expr) match {
       case Some(stream) =>

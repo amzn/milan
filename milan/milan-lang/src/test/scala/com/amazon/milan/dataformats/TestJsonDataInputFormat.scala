@@ -1,6 +1,6 @@
 package com.amazon.milan.dataformats
 
-import com.amazon.milan.serialization.{DataFormatConfiguration, DataFormatFlags, ScalaObjectMapper}
+import com.amazon.milan.serialization.{DataFormatConfiguration, DataFormatFlags, MilanObjectMapper}
 import com.amazon.milan.typeutil.createTypeDescriptor
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
 import org.junit.Assert._
@@ -23,19 +23,19 @@ class TestJsonDataInputFormat {
   @Test
   def test_JsonDataInputFormat_SerializeAndDeserializeAsDataFormat_ReturnsEquivalentObject(): Unit = {
     val target = new JsonDataInputFormat[Record](DataFormatConfiguration.default)
-    val json = ScalaObjectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(target)
-    val deserialized = ScalaObjectMapper.readValue[DataInputFormat[Any]](json, classOf[DataInputFormat[Any]])
+    val json = MilanObjectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(target)
+    val deserialized = MilanObjectMapper.readValue[DataInputFormat[Any]](json, classOf[DataInputFormat[Any]])
     assertEquals(target, deserialized)
   }
 
   @Test
   def test_JsonDataInputFormat_SerializeAndDeserializeAsDataFormat_ReturnsSerializerWithEquivalentBehavior(): Unit = {
     val original = new JsonDataInputFormat[GenericRecord[Integer]](DataFormatConfiguration.default)
-    val json = ScalaObjectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(original)
-    val copy = ScalaObjectMapper.readValue[DataInputFormat[GenericRecord[Integer]]](json, classOf[DataInputFormat[GenericRecord[Integer]]])
+    val json = MilanObjectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(original)
+    val copy = MilanObjectMapper.readValue[DataInputFormat[GenericRecord[Integer]]](json, classOf[DataInputFormat[GenericRecord[Integer]]])
 
     val record = GenericRecord[Integer](5, List(1, 2, 3, 4))
-    val recordBytes = ScalaObjectMapper.writeValueAsBytes(record)
+    val recordBytes = MilanObjectMapper.writeValueAsBytes(record)
 
     val deserByOriginal = original.readValue(recordBytes, 0, recordBytes.length).get
     val deserByCopy = copy.readValue(recordBytes, 0, recordBytes.length).get

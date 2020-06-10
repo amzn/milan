@@ -78,7 +78,6 @@ class TreeParser(typeFactory: TypeFactory) {
         case "FullJoin" => FullJoin(convertNode[StreamExpression](children(0)), convertNode[StreamExpression](children(1)), convertNode[FunctionDef](children(2)))
         case "GroupBy" => GroupBy(convertNode[StreamExpression](children(0)), convertNode[FunctionDef](children(1)))
         case "Last" => Last(convertNode[StreamExpression](children(0)))
-        case "LatestBy" => LatestBy(convertNode[StreamExpression](children(0)), convertNode[FunctionDef](children(1)), convertNode[FunctionDef](children(2)))
         case "LeftJoin" => LeftJoin(convertNode[StreamExpression](children(0)), convertNode[StreamExpression](children(1)), convertNode[FunctionDef](children(2)))
         case "StreamMap" => StreamMap(convertNode[Tree](children(0)), convertNode[FunctionDef](children(1)))
         case "Ref" => Ref(getString(children(0)))

@@ -1,10 +1,9 @@
 package com.amazon.milan.flink.generator
 
 import com.amazon.milan.application.DataSink
-import com.amazon.milan.application.sinks.{ConsoleDataSink, FileDataSink, S3DataSink}
-import com.amazon.milan.flink.application.sinks.{DataOutputFormatEncoder, FileSinkFunction}
+import com.amazon.milan.application.sinks.{ConsoleDataSink, FileDataSink, LogSink, S3DataSink}
 import com.amazon.milan.flink.internal.TreeScalaConverter
-import com.amazon.milan.flink.runtime.{ArrayRecordToTupleMapFunction, PartitionFunctionBucketAssigner, UnwrapRecordsMapFunction}
+import com.amazon.milan.flink.runtime._
 import com.amazon.milan.flink.types.ArrayRecord
 import com.amazon.milan.flink.typeutil._
 import com.amazon.milan.program.{FunctionDef, TypeChecker}
@@ -33,6 +32,9 @@ trait DataSinkGenerator {
 
       case _: ConsoleDataSink[_] =>
         this.addPrintSink(out, actualStream)
+
+      case _: LogSink[_] =>
+        this.addLogSink(out, actualStream)
     }
   }
 
@@ -118,6 +120,12 @@ trait DataSinkGenerator {
 
   private def addPrintSink(out: GeneratorOutputs,
                            stream: GeneratedDataStream): Unit = {
+    val code = q"${stream.streamVal}.print()"
+    out.appendMain(code)
+  }
+
+  private def addLogSink(out: GeneratorOutputs,
+                         stream: GeneratedDataStream): Unit = {
     val code = q"${stream.streamVal}.print()"
     out.appendMain(code)
   }

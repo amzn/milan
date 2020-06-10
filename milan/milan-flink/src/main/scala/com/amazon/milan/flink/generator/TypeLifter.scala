@@ -47,7 +47,8 @@ object CodeBlock {
 
 
 /**
- * Provides methods for converting objects into the scala code that constructors those objects.
+ * Provides methods for lifting objects from runtime to compile-time.
+ * Essentially, converting objects into the Scala code that constructs those objects.
  *
  * @param typeEmitter                   The [[TypeEmitter]] to use for emitting type names.
  * @param preventGenericTypeInformation Specifies whether, when converting a TypeDescriptor to a Flink TypeInformation,
@@ -118,21 +119,49 @@ class TypeLifter(val typeEmitter: TypeEmitter, preventGenericTypeInformation: Bo
     }
   }
 
+  /**
+   * Gets the fully-qualified name of a class, without generic type arguments.
+   *
+   * @tparam T The type whose name to get.
+   * @return A [[ClassName]] containing the name of the type.
+   */
   def nameOf[T: ClassTag]: ClassName =
     ClassName(this.toCanonicalName(classTag[T].runtimeClass.getName))
 
+  /**
+   * Converts a string into a [[CodeBlock]].
+   * No processing is done in the input string to validate that it contains correct code.
+   */
   def code(s: String): CodeBlock = CodeBlock(s)
 
+  /**
+   * Converts a list of strings into a [[RawList]].
+   */
   def raw(l: List[String]): RawList = RawList(l)
 
-  def liftSequence(o: Any, separator: String): String = {
+  /**
+   * Lifts a sequence of objects into a delimited string of lifted objects.
+   * The lifted objects are written to the string as-is; there is not guarantee that they do not contain the delimiter
+   * string.
+   *
+   * @param o         An object that implements [[AbstractSeq]].
+   * @param delimiter The delimiter between lifted objects.
+   * @return A string containing the lifted objects from the sequence, separated by the delimiter.
+   */
+  def liftSequence(o: Any, delimiter: String): String = {
     o match {
-      case t: AbstractSeq[_] => t.map(lift).mkString(separator)
+      case t: AbstractSeq[_] => t.map(lift).mkString(delimiter)
       case _ => throw new IllegalArgumentException(s"Object of type '${o.getClass.getTypeName}' is not a sequence.")
     }
   }
 
-  def lift(o: Any): String =
+  /**
+   * Lifts an object.
+   *
+   * @param o An object.
+   * @return A string containing the compile-time representation of the object.
+   */
+  def lift(o: Any): String = {
     o match {
       case t: TypeDescriptor[_] => liftTypeDescriptor(t)
       case t: FieldDescriptor[_] => q"new ${nameOf[FieldDescriptor[Any]]}[${t.fieldType.toTerm}](${t.name}, ${t.fieldType})"
@@ -160,7 +189,14 @@ class TypeLifter(val typeEmitter: TypeEmitter, preventGenericTypeInformation: Bo
       case t: CsvDataOutputFormat.Configuration => q"new ${nameOf[CsvDataOutputFormat.Configuration]}(${t.schema}, ${t.writeHeader}, ${t.dateTimeFormats})"
       case _ => throw new IllegalArgumentException(s"Can't lift object of type '${o.getClass.getTypeName}'.")
     }
+  }
 
+  /**
+   * Gets a [[CodeBlock]] that constructs a [[TypeInformation]] for a type described by a [[TypeDescriptor]].
+   *
+   * @param typeDescriptor A [[TypeDescriptor]].
+   * @return A [[CodeBlock]] that constructs a [[TypeInformation]] for the same type.
+   */
   def liftTypeDescriptorToTypeInformation(typeDescriptor: TypeDescriptor[_]): CodeBlock = {
     if (typeDescriptor.isTupleRecord) {
       // This is a tuple type with named fields, which means it's a record type for a stream.
@@ -219,17 +255,35 @@ class TypeLifter(val typeEmitter: TypeEmitter, preventGenericTypeInformation: Bo
     }
   }
 
+  /**
+   * Gets a [[CodeBlock]] that constructs a [[FieldTypeInformation]] for a field described by a [[FieldDescriptor]].
+   *
+   * @param fieldDescriptor A [[FieldDescriptor]].
+   * @return A [[CodeBlock]] that constructs a [[FieldDescriptor]] for the field.
+   */
   def liftFieldDescriptorToFieldTypeInformation(fieldDescriptor: FieldDescriptor[_]): CodeBlock = {
     qc"${nameOf[FieldTypeInformation]}(${fieldDescriptor.name}, ${liftTypeDescriptorToTypeInformation(fieldDescriptor.fieldType)})"
   }
 
+  /**
+   * Gets the class name (not including type arguments) for a tuple with the specified number of elements.
+   */
   def getTupleClassName(elementCount: Int): ClassName =
     ClassName(TypeUtil.getTupleClassName(elementCount))
 
+  /**
+   * Gets a [[CodeBlock]] that creates a tuple whose elements are provided as a collection of [[CodeBlock]] objects.
+   *
+   * @param elements A list of [[CodeBlock]] objects that return the tuple elements.
+   * @return A [[CodeBlock]] that creates a tuple with the specified elements.
+   */
   def getTupleCreationStatement(elements: List[CodeBlock]): CodeBlock = {
     qc"${this.getTupleClassName(elements.length)}(..$elements)"
   }
 
+  /**
+   * Gets the [[ClassName]] containing the fully-qualified name of a type, including generic arguments.
+   */
   private def classname(ty: TypeDescriptor[_]): ClassName = {
     ClassName(this.typeEmitter.getTypeFullName(ty))
   }
@@ -297,5 +351,4 @@ class TypeLifter(val typeEmitter: TypeEmitter, preventGenericTypeInformation: Bo
   private def isNestedGenericType(ty: TypeDescriptor[_]): Boolean = {
     ty.genericArguments.exists(_.genericArguments.nonEmpty)
   }
-
 }

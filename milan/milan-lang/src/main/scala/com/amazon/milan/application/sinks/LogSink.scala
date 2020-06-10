@@ -5,6 +5,11 @@ import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
 
+/**
+ * A data sink that writes items to the system logger.
+ *
+ * @tparam T The type of objects accepted by the data sink.
+ */
 @JsonSerialize
 @JsonDeserialize
 class LogSink[T: TypeDescriptor] extends DataSink[T] {

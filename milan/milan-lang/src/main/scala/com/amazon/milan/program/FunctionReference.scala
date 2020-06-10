@@ -4,7 +4,7 @@ import scala.language.experimental.macros
 
 
 /**
- * A reference to a static function.
+ * A reference to a static function in user code.
  *
  * @param objectTypeName The full name of the object which contains the static function.
  * @param functionName   The name of the function being called.

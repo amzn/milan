@@ -1,7 +1,7 @@
 package com.amazon.milan.program
 
 import com.amazon.milan.program.internal.TreeMacros
-import com.amazon.milan.serialization.{ScalaObjectMapper, TypeInfoProvider, TypedJsonDeserializer, TypedJsonSerializer}
+import com.amazon.milan.serialization.{MilanObjectMapper, TypeInfoProvider, TypedJsonDeserializer, TypedJsonSerializer}
 import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
@@ -10,7 +10,7 @@ import scala.language.experimental.macros
 
 
 object Tree {
-  private val jsonMapper = new ScalaObjectMapper()
+  private val jsonMapper = new MilanObjectMapper()
 
   /**
    * Get the Milan expression tree for a scala expression.
@@ -47,7 +47,7 @@ object Tree {
 
 
 /**
- * Base trait for all Milan expression trees.
+ * Base type for all Milan expression tree node types.
  */
 @JsonSerialize(using = classOf[TreeSerializer])
 @JsonDeserialize(using = classOf[TreeDeserializer])

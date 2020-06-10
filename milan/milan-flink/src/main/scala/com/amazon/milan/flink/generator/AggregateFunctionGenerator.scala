@@ -12,6 +12,14 @@ trait AggregateFunctionGenerator extends FunctionGenerator {
 
   import typeLifter._
 
+  /**
+   * Applies a select() operation that is being performed on a Flink WindowedStream stream.
+   *
+   * @param outputs        The generator output collector.
+   * @param aggExpr        The [[Aggregate]] expression representing the select() operation.
+   * @param windowedStream The windowed stream on which the operation is being performed.
+   * @return A [[GeneratedUnkeyedDataStream]] describing the output stream of the operation.
+   */
   def applySelectToWindowedStream(outputs: GeneratorOutputs,
                                   aggExpr: Aggregate,
                                   windowedStream: GeneratedKeyedWindowedStream): GeneratedUnkeyedDataStream = {
@@ -24,7 +32,6 @@ trait AggregateFunctionGenerator extends FunctionGenerator {
     val outputStreamVal = outputs.newStreamValName(aggExpr)
 
     val accumulatorTypeInfoVal = outputs.newValName(s"stream_${aggExpr.nodeName}_accumulatorTypeInfo_")
-    val aggregateOutputTypeInfoVal = outputs.newValName(s"stream_${aggExpr.nodeName}_intermediateOutputTypeInfo_")
     val outputTypeInfoVal = outputs.newValName(s"stream_${aggExpr.nodeName}_outputTypeInfo_")
 
     outputs.appendMain(
@@ -32,19 +39,26 @@ trait AggregateFunctionGenerator extends FunctionGenerator {
          |val $processWindowFunctionVal = new $processWindowFunctionClassName()
          |val $aggregateFunctionVal = new ${aggregateFunctionInfo.className}()
          |val $accumulatorTypeInfoVal = ${liftTypeDescriptorToTypeInformation(aggregateFunctionInfo.accumulatorType)}
-         |val $aggregateOutputTypeInfoVal = ${liftTypeDescriptorToTypeInformation(aggregateFunctionInfo.outputType)}
          |val $outputTypeInfoVal = ${liftTypeDescriptorToTypeInformation(outputRecordType.wrapped)}
          |val $outputStreamVal = ${windowedStream.streamVal}.aggregate(
          |  $aggregateFunctionVal,
          |  $processWindowFunctionVal,
          |  $accumulatorTypeInfoVal,
-         |  $aggregateOutputTypeInfoVal,
+         |  $aggregateFunctionVal.getProducedType,
          |  $outputTypeInfoVal)
          |""".strip)
 
-    GeneratedUnkeyedDataStream(aggExpr.nodeId, outputStreamVal, aggExpr.recordType.toFlinkRecordType, types.Unit, isContextual = false)
+    GeneratedUnkeyedDataStream(aggExpr.nodeId, outputStreamVal, aggExpr.recordType.toFlinkRecordType, types.EmptyTuple, isContextual = false)
   }
 
+  /**
+   * Applies a select() operation that is being performed on a Flink AllWindowedStream stream.
+   *
+   * @param outputs        The generator output collector.
+   * @param aggExpr        The [[Aggregate]] expression representing the select() operation.
+   * @param windowedStream The windowed stream on which the operation is being performed.
+   * @return A [[GeneratedUnkeyedDataStream]] describing the output stream of the operation.
+   */
   def applySelectToAllWindowedStream(outputs: GeneratorOutputs,
                                      aggExpr: Aggregate,
                                      windowedStream: GeneratedUnkeyedWindowStream): GeneratedUnkeyedDataStream = {
@@ -60,7 +74,7 @@ trait AggregateFunctionGenerator extends FunctionGenerator {
     val aggregateOutputTypeInfoVal = outputs.newValName(s"stream_${aggExpr.nodeName}_intermediateOutputTypeInfo_")
     val outputTypeInfoVal = outputs.newValName(s"stream_${aggExpr.nodeName}_outputTypeInfo_")
 
-    outputs.appendMain(
+    val codeBlock =
       q"""
          |val $processWindowFunctionVal = new $processWindowFunctionClassName()
          |val $aggregateFunctionVal = new ${aggregateFunctionInfo.className}()
@@ -73,9 +87,11 @@ trait AggregateFunctionGenerator extends FunctionGenerator {
          |  $accumulatorTypeInfoVal,
          |  $aggregateOutputTypeInfoVal,
          |  $outputTypeInfoVal)
-         |""".strip)
+         |""".strip
 
-    GeneratedUnkeyedDataStream(aggExpr.nodeId, outputStreamVal, outputRecordType, types.Unit, isContextual = false)
+    outputs.appendMain(codeBlock)
+
+    GeneratedUnkeyedDataStream(aggExpr.nodeId, outputStreamVal, outputRecordType, types.EmptyTuple, isContextual = false)
   }
 
   private def generateIntermediateAggregateFunction(outputs: GeneratorOutputs,

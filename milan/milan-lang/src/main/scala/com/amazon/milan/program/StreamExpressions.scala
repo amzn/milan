@@ -8,7 +8,7 @@ import org.apache.commons.lang.builder.HashCodeBuilder
 
 
 /**
- * Trait for graph expressions that represent data streams.
+ * Trait for expressions that represent data streams or operate on data streams.
  */
 @JsonSerialize(using = classOf[TreeSerializer])
 @JsonDeserialize(using = classOf[TreeDeserializer])

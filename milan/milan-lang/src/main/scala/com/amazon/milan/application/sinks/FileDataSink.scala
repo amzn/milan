@@ -6,6 +6,13 @@ import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
 
+/**
+ * A data sink that writes items to a local file.
+ *
+ * @param path         The path to the output file.
+ * @param outputFormat A [[DataOutputFormat]] that controls how items are written to the file.
+ * @tparam T The type of objects accepted by the data sink.
+ */
 @JsonSerialize
 @JsonDeserialize
 class FileDataSink[T: TypeDescriptor](val path: String, val outputFormat: DataOutputFormat[T]) extends DataSink[T] {

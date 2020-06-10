@@ -4,23 +4,20 @@ import java.io.{BufferedReader, FileInputStream, InputStream, InputStreamReader}
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
 import java.time.Duration
-import java.util.UUID
 
-import com.amazon.milan.application.ApplicationConfiguration
 import com.amazon.milan.application.sinks.FileDataSink
+import com.amazon.milan.application.{ApplicationConfiguration, ApplicationInstance}
 import com.amazon.milan.dataformats.{JsonDataInputFormat, JsonDataOutputFormat}
 import com.amazon.milan.flink.RuntimeEvaluator
 import com.amazon.milan.flink.generator.{FlinkGenerator, GeneratorConfig}
 import com.amazon.milan.lang.{Stream, StreamGraph}
-import com.amazon.milan.manage.ProcessCommandExecutor
-import com.amazon.milan.serialization.ScalaObjectMapper
+import com.amazon.milan.serialization.MilanObjectMapper
 import com.amazon.milan.typeutil.{TypeDescriptor, types}
 import com.typesafe.scalalogging.Logger
 import org.apache.commons.io.FileUtils
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
-import scala.collection.immutable.HashSet
 import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits._
 
@@ -29,7 +26,7 @@ class ExecutionFailedException(command: String, stdOut: String, stdErr: String)
   extends Exception("Command execution failed.") {
 }
 
-class ExecutionResult(outputStreams: Map[Stream[_], List[_]]) {
+class ApplicationExecutionResult(outputStreams: Map[Stream[_], List[_]]) {
   def getRecords[T](stream: Stream[T]): List[T] = {
     this.outputStreams(stream).map(_.asInstanceOf[T])
   }
@@ -41,16 +38,59 @@ object TestApplicationExecutor {
    * Executes a Milan application by generating a Flink program, compiling, and running it.
    * Data for the streams in the application can be captured and returned.
    *
+   * @param instance              The application instance to execute.
+   * @param maxRuntimeSeconds     The maximum allowed runtime for the generated application.
+   * @param continuationPredicate A function that will be periodically called with the outputs collected up to that
+   *                              point, which should return true if the application should be allowed to continue
+   *                              running, and false if the application should be terminated.
+   * @param outputStreams         Streams for which the records will be returned in the results.
+   * @return An [[ApplicationExecutionResult]] object containing the records written to the output streams.
+   */
+  def executeApplication(instance: ApplicationInstance,
+                         maxRuntimeSeconds: Int,
+                         continuationPredicate: ApplicationExecutionResult => Boolean,
+                         outputStreams: Stream[_]*): ApplicationExecutionResult = {
+    this.executeApplication(
+      instance.application.graph,
+      instance.config,
+      maxRuntimeSeconds,
+      continuationPredicate,
+      outputStreams: _*)
+  }
+
+  /**
+   * Executes a Milan application by generating a Flink program, compiling, and running it.
+   * Data for the streams in the application can be captured and returned.
+   *
+   * @param instance          The application instance to execute.
+   * @param maxRuntimeSeconds The maximum allowed runtime for the generated application.
+   * @param outputStreams     Streams for which the records will be returned in the results.
+   * @return An [[ApplicationExecutionResult]] object containing the records written to the output streams.
+   */
+  def executeApplication(instance: ApplicationInstance,
+                         maxRuntimeSeconds: Int,
+                         outputStreams: Stream[_]*): ApplicationExecutionResult = {
+    this.executeApplication(
+      instance.application.graph,
+      instance.config,
+      maxRuntimeSeconds,
+      outputStreams: _*)
+  }
+
+  /**
+   * Executes a Milan application by generating a Flink program, compiling, and running it.
+   * Data for the streams in the application can be captured and returned.
+   *
    * @param graph             The Milan application graph.
    * @param config            The Milan application configuration.
    * @param maxRuntimeSeconds The maximum allowed runtime for the generated application.
    * @param outputStreams     Streams for which the records will be returned in the results.
-   * @return An [[ExecutionResult]] object containing the records written to the output streams.
+   * @return An [[ApplicationExecutionResult]] object containing the records written to the output streams.
    */
   def executeApplication(graph: StreamGraph,
                          config: ApplicationConfiguration,
                          maxRuntimeSeconds: Int,
-                         outputStreams: Stream[_]*): ExecutionResult = {
+                         outputStreams: Stream[_]*): ApplicationExecutionResult = {
     val executor = new TestApplicationExecutor
     executor.executeApplication(graph, config, maxRuntimeSeconds, outputStreams: _*)
   }
@@ -66,13 +106,13 @@ object TestApplicationExecutor {
    *                              point, which should return true if the application should be allowed to continue
    *                              running, and false if the application should be terminated.
    * @param outputStreams         Streams for which the records will be returned in the results.
-   * @return An [[ExecutionResult]] object containing the records written to the output streams.
+   * @return An [[ApplicationExecutionResult]] object containing the records written to the output streams.
    */
   def executeApplication(graph: StreamGraph,
                          config: ApplicationConfiguration,
                          maxRuntimeSeconds: Int,
-                         continuationPredicate: ExecutionResult => Boolean,
-                         outputStreams: Stream[_]*): ExecutionResult = {
+                         continuationPredicate: ApplicationExecutionResult => Boolean,
+                         outputStreams: Stream[_]*): ApplicationExecutionResult = {
     val executor = new TestApplicationExecutor
     executor.executeApplication(graph, config, maxRuntimeSeconds, continuationPredicate, outputStreams: _*)
   }
@@ -92,7 +132,7 @@ class TestApplicationExecutor {
 
   private val generator = new FlinkGenerator(GeneratorConfig())
 
-  private var additionalClassPathLocations = new HashSet[Path]()
+  private var classPathLocations = getMilanClassPathEntries.toSet
 
   /**
    * Adds the location of a class to the classpath when compiling executing applications.
@@ -100,33 +140,50 @@ class TestApplicationExecutor {
    * @param cls The class whose location will be added to the classpath.
    */
   def addToClassPath(cls: Class[_]): Unit = {
-    val location = cls.getProtectionDomain.getCodeSource.getLocation.getFile
+    this.classPathLocations = this.classPathLocations ++ this.getClassPathEntries(cls)
+  }
 
-    if (location.toLowerCase().endsWith(".jar")) {
-      // If it's a jar then add the jar.
-      this.logger.info(s"Adding '$location' to classpath for Milan execution.")
-      this.additionalClassPathLocations += Paths.get(location)
-    }
-    else if (location.toLowerCase.endsWith("/test-classes/") || location.toLowerCase.endsWith("/classes/")) {
-      // If it's a class file in a folder then add both the "classes" and "test-classes" folders to the classpath,
-      // if they exist.
-      val parent = Paths.get(location).getParent
+  /**
+   * Executes a Milan application by generating a Flink program, compiling, and running it.
+   * Data for the streams in the application can be captured and returned.
+   *
+   * @param instance              The application instance to execute.
+   * @param maxRuntimeSeconds     The maximum allowed runtime for the generated application.
+   * @param continuationPredicate A function that will be periodically called with the outputs collected up to that
+   *                              point, which should return true if the application should be allowed to continue
+   *                              running, and false if the application should be terminated.
+   * @param outputStreams         Streams for which the records will be returned in the results.
+   * @return An [[ApplicationExecutionResult]] object containing the records written to the output streams.
+   */
+  def executeApplication(instance: ApplicationInstance,
+                         maxRuntimeSeconds: Int,
+                         continuationPredicate: ApplicationExecutionResult => Boolean,
+                         outputStreams: Stream[_]*): ApplicationExecutionResult = {
+    this.executeApplication(
+      instance.application.graph,
+      instance.config,
+      maxRuntimeSeconds,
+      continuationPredicate,
+      outputStreams: _*)
+  }
 
-      val testClassesFolder = parent.resolve("test-classes")
-      if (testClassesFolder.toFile.exists()) {
-        this.logger.info(s"Adding '$testClassesFolder' to classpath for Milan execution.")
-        this.additionalClassPathLocations += testClassesFolder
-      }
-
-      val classesFolder = parent.resolve("classes")
-      if (classesFolder.toFile.exists()) {
-        this.logger.info(s"Adding '$classesFolder' to classpath for Milan execution.")
-        this.additionalClassPathLocations += classesFolder
-      }
-    }
-    else {
-      throw new IllegalArgumentException(s"Couldn't resolve classpath for class '${cls.getName}'.")
-    }
+  /**
+   * Executes a Milan application by generating a Flink program, compiling, and running it.
+   * Data for the streams in the application can be captured and returned.
+   *
+   * @param instance          The application instance to execute.
+   * @param maxRuntimeSeconds The maximum allowed runtime for the generated application.
+   * @param outputStreams     Streams for which the records will be returned in the results.
+   * @return An [[ApplicationExecutionResult]] object containing the records written to the output streams.
+   */
+  def executeApplication(instance: ApplicationInstance,
+                         maxRuntimeSeconds: Int,
+                         outputStreams: Stream[_]*): ApplicationExecutionResult = {
+    this.executeApplication(
+      instance.application.graph,
+      instance.config,
+      maxRuntimeSeconds,
+      outputStreams: _*)
   }
 
   /**
@@ -140,13 +197,13 @@ class TestApplicationExecutor {
    *                              point, which should return true if the application should be allowed to continue
    *                              running, and false if the application should be terminated.
    * @param outputStreams         Streams for which the records will be returned in the results.
-   * @return An [[ExecutionResult]] object containing the records written to the output streams.
+   * @return An [[ApplicationExecutionResult]] object containing the records written to the output streams.
    */
   def executeApplication(graph: StreamGraph,
                          config: ApplicationConfiguration,
                          maxRuntimeSeconds: Int,
-                         continuationPredicate: ExecutionResult => Boolean,
-                         outputStreams: Stream[_]*): ExecutionResult = {
+                         continuationPredicate: ApplicationExecutionResult => Boolean,
+                         outputStreams: Stream[_]*): ApplicationExecutionResult = {
     // Create a temporary folder to hold the generated code, compiled classes, and output files.
     val workingFolder = Files.createTempDirectory("milan_generated_")
 
@@ -154,23 +211,19 @@ class TestApplicationExecutor {
     val outputFiles = this.addOutputSinks(workingFolder, config, outputStreams)
 
     // Generate the scala code for the application.
-    val generatedCode = this.generator.generateScala(graph, config)
+    val generatedCode = this.generator.generateScala(graph, config, "generated", "TestApplication")
 
     // Create the output directory for the compilation.
     val classesFolder = workingFolder.resolve("classes")
     Files.createDirectories(classesFolder)
 
-    // Create the full contents of the code file, which includes the package directive at the top.
-    val packageName = "test_" + UUID.randomUUID().toString.substring(0, 8)
-    val fileContents = s"package $packageName\n\n$generatedCode"
-
-    this.logger.info("Generated source:\n" + fileContents)
+    this.logger.info("Generated source:\n" + generatedCode)
 
     try {
       // Write the code to a file in the working folder.
       val codeFile = workingFolder.resolve("main.scala")
       this.logger.info(s"Writing code to temporary file '$codeFile'.")
-      Files.write(codeFile, fileContents.getBytes(StandardCharsets.UTF_8))
+      Files.write(codeFile, generatedCode.getBytes(StandardCharsets.UTF_8))
 
       val classPath = this.getClassPath
 
@@ -179,13 +232,13 @@ class TestApplicationExecutor {
       this.executeCommand(compileCmd, Duration.ofSeconds(20), () => true)
 
       // Execute the application by invoking java, if it fails with a non-zero exitcode an exception will be thrown.
-      val mainClassName = s"$packageName.MilanApplicationRunner"
+      val mainClassName = s"generated.TestApplication"
       val runCmd = s"java -classpath $classesFolder/:$classPath $mainClassName"
 
-      def collectResults(): ExecutionResult = {
+      def collectResults(): ApplicationExecutionResult = {
         // Read the records from the output files.
         val outputs = this.collectOutputFileContents(outputFiles)
-        new ExecutionResult(outputs)
+        new ApplicationExecutionResult(outputs)
       }
 
       // Periodically pass the current state of the results to the continuation predicate.
@@ -195,7 +248,7 @@ class TestApplicationExecutor {
     }
     catch {
       case ex: Exception =>
-        this.logger.info("Error executing application. Source file:\n" + this.addLineNumbers(fileContents))
+        this.logger.info("Error executing application. Source file:\n" + this.addLineNumbers(generatedCode))
         throw ex
     }
     finally {
@@ -212,12 +265,12 @@ class TestApplicationExecutor {
    * @param config            The Milan application configuration.
    * @param maxRuntimeSeconds The maximum allowed runtime for the generated application.
    * @param outputStreams     Streams for which the records will be returned in the results.
-   * @return An [[ExecutionResult]] object containing the records written to the output streams.
+   * @return An [[ApplicationExecutionResult]] object containing the records written to the output streams.
    */
   def executeApplication(graph: StreamGraph,
                          config: ApplicationConfiguration,
                          maxRuntimeSeconds: Int,
-                         outputStreams: Stream[_]*): ExecutionResult = {
+                         outputStreams: Stream[_]*): ApplicationExecutionResult = {
     this.executeApplication(graph, config, maxRuntimeSeconds, _ => true, outputStreams: _*)
   }
 
@@ -308,7 +361,7 @@ class TestApplicationExecutor {
     val createTuple = this.compileCreateTupleInstanceFunc(recordType)
 
     val lines = new BufferedReader(new InputStreamReader(inputStream)).lines().iterator().asScala
-    val reader = ScalaObjectMapper.readerFor(classOf[Array[Object]])
+    val reader = MilanObjectMapper.readerFor(classOf[Array[Object]])
 
     lines
       .map(line => reader.readValue[Array[Any]](line))
@@ -397,26 +450,50 @@ class TestApplicationExecutor {
    * Gets the full classpath as a colon-delimited string.
    */
   private def getClassPath: String = {
-    val milanModules = List("milan-flink", "milan-lang", "milan-typeutil")
-
     val dependencyPaths = this.getDependencyPaths(this.dependencies.split(',') ++ this.testDependencies.split(','))
+    (dependencyPaths ++ this.classPathLocations).mkString(":")
+  }
 
-    val location = getClass.getProtectionDomain.getCodeSource.getLocation.getFile
+  /**
+   * Gets the locations that should be added to the classpath to support the specified class.
+   */
+  private def getClassPathEntries(cls: Class[_]): Seq[Path] = {
+    val location = cls.getProtectionDomain.getCodeSource.getLocation.getFile
 
-    val milanPaths =
-      if (location.toLowerCase.endsWith("/test-classes/") || location.toLowerCase.endsWith("/classes/")) {
-        // We are running from a unit test that is not inside a jar, probably from IntelliJ.
-        // We need the classes from the modules as well as the test classes.
-        val rootProjectFolder = Paths.get(location).getParent.getParent.getParent
-        milanModules.map(module => rootProjectFolder.resolve(module).resolve("target").resolve("classes")) ++
-          milanModules.map(module => rootProjectFolder.resolve(module).resolve("target").resolve("test-classes")) :+
-          Paths.get(location)
-      }
-      else {
-        throw new NotImplementedError(s"Can't execute from location '$location'.")
-      }
+    if (location.toLowerCase().endsWith(".jar")) {
+      // If it's a jar then add the jar.
+      this.logger.info(s"Adding '$location' to classpath for Milan execution.")
+      Seq(Paths.get(location))
+    }
+    else if (location.toLowerCase.endsWith("/test-classes/") || location.toLowerCase.endsWith("/classes/")) {
+      // If it's a class file in a folder then add both the "classes" and "test-classes" folders to the classpath,
+      // if they exist.
+      val parent = Paths.get(location).getParent
 
-    (dependencyPaths ++ milanPaths ++ this.additionalClassPathLocations).mkString(":")
+      val paths =
+        Seq(parent.resolve("test-classes"), parent.resolve("classes"))
+          .filter(_.toFile.exists())
+
+      paths.foreach(path => this.logger.info(s"Adding '$path' to classpath for Milan execution."))
+
+      paths
+    }
+    else {
+      throw new IllegalArgumentException(s"Couldn't resolve classpath for class '${cls.getName}'.")
+    }
+  }
+
+  /**
+   * Gets the classpath entries that are needed to load the Milan classes.
+   */
+  private def getMilanClassPathEntries: Seq[Path] = {
+    val milanClasses = Seq(
+      classOf[com.amazon.milan.flink.Compiler], // milan-flink
+      classOf[com.amazon.milan.lang.StreamGraph], // milan-lang
+      classOf[com.amazon.milan.typeutil.TypeProvider] // milan-typeutil
+    )
+
+    milanClasses.flatMap(this.getClassPathEntries)
   }
 
   /**
