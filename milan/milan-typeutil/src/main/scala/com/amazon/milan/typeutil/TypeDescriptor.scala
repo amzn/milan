@@ -30,12 +30,6 @@ trait TypeDescriptor[T] extends TypeInfoProvider with Serializable {
   }
 
   /**
-   * Gets a verbose name of the type including generic arguments and field names for named tuple types.
-   */
-  @JsonIgnore
-  def verboseName: String = this.fullName
-
-  /**
    * Gets the [[FieldDescriptor]] for the field with the specified name, or None if the field does not exist.
    *
    * @param name The name of a field.

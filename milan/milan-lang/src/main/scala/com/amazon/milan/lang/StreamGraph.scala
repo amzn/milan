@@ -1,6 +1,6 @@
 package com.amazon.milan.lang
 
-import com.amazon.milan.program.{Ref, SingleInputStreamExpression, StreamExpression, Tree, TwoInputStreamExpression}
+import com.amazon.milan.program.{ExternalStream, Ref, SingleInputStreamExpression, StreamExpression, Tree, TwoInputStreamExpression, TypeChecker}
 import com.amazon.milan.typeutil.DataStreamTypeDescriptor
 import com.fasterxml.jackson.annotation.{JsonCreator, JsonIgnore}
 
@@ -68,6 +68,18 @@ class StreamGraph(var streamsById: Map[String, StreamExpression]) {
         .toMap
 
     new StreamGraph(dereferencedStreams)
+  }
+
+  /**
+   * Performs type checking on the graph.
+   */
+  def typeCheckGraph(): Unit = {
+    val inputNodeTypes =
+      this.getStreams.filter(_.isInstanceOf[ExternalStream]).map(_.asInstanceOf[ExternalStream])
+        .map(node => node.nodeId -> node.streamType)
+        .toMap
+
+    this.getStreams.foreach(node => TypeChecker.typeCheck(node, inputNodeTypes))
   }
 
   /**
@@ -167,7 +179,7 @@ class StreamGraph(var streamsById: Map[String, StreamExpression]) {
    */
   private def replaceStreamsWithReferences(stream: StreamExpression): StreamExpression = {
     if (this.isDataStream(stream)) {
-      Ref(stream.nodeId)
+      new Ref(stream.nodeId, stream.nodeName, stream.tpe)
     }
     else {
       this.replaceChildStreamsWithReferences(stream)

@@ -1,7 +1,6 @@
 package com.amazon.milan.typeutil
 
 
-import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
 
@@ -24,16 +23,6 @@ final class TupleTypeDescriptor[T](val typeName: String,
 
   def this(fields: List[FieldDescriptor[_]]) {
     this(s"Tuple${fields.length}", fields.map(_.fieldType), fields)
-  }
-
-  @JsonIgnore
-  override def verboseName: String = {
-    if (this.fields.nonEmpty) {
-      typeName + fields.map(f => s"${f.name}: ${f.fieldType.verboseName}").mkString("[", ", ", "]")
-    }
-    else {
-      this.fullName
-    }
   }
 }
 
@@ -101,7 +90,7 @@ final class DataStreamTypeDescriptor(val recordType: TypeDescriptor[_]) extends 
 }
 
 object DataStreamTypeDescriptor {
-  def unapply(arg: StreamTypeDescriptor): Option[TypeDescriptor[_]] = Some(arg.recordType)
+  def unapply(arg: DataStreamTypeDescriptor): Option[TypeDescriptor[_]] = Some(arg.recordType)
 }
 
 
@@ -129,14 +118,16 @@ object JoinedStreamsTypeDescriptor {
 
 @JsonSerialize
 @JsonDeserialize
-final class GroupedStreamTypeDescriptor(val recordType: TypeDescriptor[_]) extends StreamTypeDescriptor {
+final class GroupedStreamTypeDescriptor(val keyType: TypeDescriptor[_],
+                                        val recordType: TypeDescriptor[_]) extends StreamTypeDescriptor {
   override val typeName: String = "GroupedStream"
 
   override val fields: List[FieldDescriptor[_]] = List()
 
-  override val genericArguments: List[TypeDescriptor[_]] = List(this.recordType)
+  override val genericArguments: List[TypeDescriptor[_]] = List(this.keyType, this.recordType)
 }
 
 object GroupedStreamTypeDescriptor {
-  def unapply(arg: GroupedStreamTypeDescriptor): Option[TypeDescriptor[_]] = Some(arg.recordType)
+  def unapply(arg: GroupedStreamTypeDescriptor): Option[(TypeDescriptor[_], TypeDescriptor[_])] =
+    Some((arg.keyType, arg.recordType))
 }

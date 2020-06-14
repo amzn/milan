@@ -21,7 +21,7 @@ In order for a new expression type to be used, it must be added here and support
    into Milan expressions.
 2. com.amazon.milan.program.internal.LiftableImpls
 3. com.amazon.milan.program.TreeParser.convertNode
-4. com.amazon.milan.flink.compiler.internal.TreeScalaConverter.ConversionContext.getScalaCode
+4. com.amazon.milan.compiler.scala.ScalarFunctionGenerator.ConversionContext.getScalaCode
 5. com.amazon.milan.program.TypeChecker.typeCheckFunctionBody, if the return type of the expression depends on its
    children
  */

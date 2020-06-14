@@ -44,7 +44,7 @@ trait LiftTypeDescriptorHost {
   }
 
   implicit val liftGroupedStreamTypeDescriptor: Liftable[GroupedStreamTypeDescriptor] = { t =>
-    q"new ${typeOf[GroupedStreamTypeDescriptor]}(${t.recordType})"
+    q"new ${typeOf[GroupedStreamTypeDescriptor]}(${t.keyType}, ${t.recordType})"
   }
 
   implicit def liftStreamTypeDescriptor: Liftable[StreamTypeDescriptor] = { tree =>

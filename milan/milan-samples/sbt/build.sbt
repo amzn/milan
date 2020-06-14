@@ -14,7 +14,7 @@ lazy val common = Seq(
 // Define some Milan dependencies that are shared across projects.
 val milanVersion = "0.8-SNAPSHOT"
 val milanLang = "com.amazon.milan" % "milan-lang" % milanVersion
-val milanFlink = "com.amazon.milan" % "milan-flink" % milanVersion
+val milanFlink = "com.amazon.milan" % "milan-flink-compiler" % milanVersion
 val milanTools = "com.amazon.milan" % "milan-tools" % milanVersion
 
 // The app project defines our Milan applications.

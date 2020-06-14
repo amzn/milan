@@ -27,7 +27,7 @@
         </dependency>
         <dependency>
             <groupId>com.amazon.milan</groupId>
-            <artifactId>milan-flink</artifactId>
+            <artifactId>milan-flink-compiler</artifactId>
             <version>${milan.version}</version>
             <scope>test</scope>
         </dependency>

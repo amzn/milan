@@ -16,9 +16,10 @@ trait RecordTypeHost extends TypeDescriptorMacroHost {
     c.Expr[StreamTypeDescriptor](tree)
   }
 
-  def getGroupedStreamTypeExpr[T: c.WeakTypeTag](producingFunction: c.Expr[FunctionDef]): c.Expr[GroupedStreamTypeDescriptor] = {
+  def getGroupedStreamTypeExpr[T: c.WeakTypeTag, TKey: c.WeakTypeTag](producingFunction: c.Expr[FunctionDef]): c.Expr[GroupedStreamTypeDescriptor] = {
     val recordType = getTypeDescriptor[T]
-    val tree = q"new ${typeOf[GroupedStreamTypeDescriptor]}(com.amazon.milan.program.internal.RecordTypeUtil.addFieldNames($recordType, $producingFunction))"
+    val keyType = getTypeDescriptor[TKey]
+    val tree = q"new ${typeOf[GroupedStreamTypeDescriptor]}($keyType, com.amazon.milan.program.internal.RecordTypeUtil.addFieldNames($recordType, $producingFunction))"
     c.Expr[GroupedStreamTypeDescriptor](tree)
   }
 

@@ -1,6 +1,8 @@
 package com.amazon.milan.lang.internal
 
+import com.amazon.milan.Id
 import com.amazon.milan.lang.Stream
+import com.amazon.milan.program.WindowApply
 import com.amazon.milan.program.internal.{ConvertExpressionHost, MappedStreamHost}
 import com.amazon.milan.typeutil.TypeDescriptor
 
@@ -15,13 +17,17 @@ class WindowedStreamMacros(val c: whitebox.Context)
 
   def apply[T: c.WeakTypeTag, TOut: c.WeakTypeTag](f: c.Expr[Iterable[T] => TOut]): c.Expr[Stream[TOut]] = {
     val applyFunction = getMilanFunction(f.tree)
-    val streamMapExpr = this.createStreamMap[TOut](applyFunction, q"")
 
+    val streamType = getStreamTypeExpr[TOut](applyFunction)
+    val outputNodeId = Id.newId()
+
+    val sourceExpressionVal = TermName(c.freshName("sourceExpr"))
     val exprVal = TermName(c.freshName("expr"))
 
     val tree =
       q"""
-          val $exprVal = $streamMapExpr
+          val $sourceExpressionVal = ${c.prefix}.expr
+          val $exprVal = new ${typeOf[WindowApply]}($sourceExpressionVal, $applyFunction, $outputNodeId, $outputNodeId, $streamType)
           new ${weakTypeOf[Stream[TOut]]}($exprVal, $exprVal.recordType.asInstanceOf[${weakTypeOf[TypeDescriptor[TOut]]}])
        """
     c.Expr[Stream[TOut]](tree)

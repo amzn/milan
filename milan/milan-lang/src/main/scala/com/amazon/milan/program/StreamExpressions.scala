@@ -370,6 +370,58 @@ object FlatMap {
 
 
 /**
+ * An expression that represents applying a function to an entire window of records at once.
+ */
+class WindowApply(val source: Tree,
+                  val expr: FunctionDef,
+                  val nodeId: String,
+                  val nodeName: String) extends SingleInputStreamExpression {
+  def this(source: Tree, expr: FunctionDef, nodeId: String) {
+    this(source, expr, nodeId, nodeId)
+  }
+
+  def this(source: Tree, expr: FunctionDef) {
+    this(source, expr, Id.newId())
+  }
+
+  def this(source: Tree,
+           expr: FunctionDef,
+           nodeId: String,
+           nodeName: String,
+           resultType: TypeDescriptor[_]) {
+    this(source, expr, nodeId, nodeName)
+    this.tpe = resultType
+  }
+
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new WindowApply(this.source, this.expr, id, name, this.tpe)
+
+  override def getChildren: Iterable[Tree] = Seq(source, expr)
+
+  override def replaceChildren(children: List[Tree]): Tree =
+    new WindowApply(
+      children(0),
+      children(1).asInstanceOf[FunctionDef],
+      this.nodeId,
+      this.nodeName,
+      this.tpe)
+
+  override def toString: String = s"${this.expressionType}(${this.source}, ${this.expr})"
+
+  override def equals(obj: Any): Boolean = obj match {
+    case WindowApply(s, e) => this.source.equals(s) && this.expr.equals(e)
+    case _ => false
+  }
+}
+
+object WindowApply {
+  def apply(source: Tree, expr: FunctionDef): WindowApply = new WindowApply(source, expr)
+
+  def unapply(arg: WindowApply): Option[(Tree, FunctionDef)] = Some((arg.source, arg.expr))
+}
+
+
+/**
  * An expression representing a filter operation.
  *
  * @param source    The input to the filter operation.

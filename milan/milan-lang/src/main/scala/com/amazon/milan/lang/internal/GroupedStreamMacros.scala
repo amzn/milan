@@ -65,7 +65,7 @@ class GroupedStreamMacros(val c: whitebox.Context) extends StreamMacroHost with 
     val sourceVal = TermName(c.freshName("source"))
     val exprVal = TermName(c.freshName("expr"))
 
-    val streamType = getGroupedStreamTypeExpr[TOut](mapExpr)
+    val streamType = getGroupedStreamTypeExpr[TOut, TKey](mapExpr)
     val id = Id.newId()
 
     val tree =

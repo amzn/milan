@@ -5,6 +5,7 @@ import java.time.{Duration, Instant}
 import com.amazon.milan.Id
 import com.amazon.milan.lang.internal.{GroupedStreamMacros, StreamMacros}
 import com.amazon.milan.program.{SlidingRecordWindow, StreamExpression}
+import com.amazon.milan.typeutil.types
 
 import scala.language.experimental.macros
 
@@ -77,7 +78,7 @@ class GroupedStream[T, TKey](val expr: StreamExpression) extends KeyedGroupOpera
    */
   def recordWindow(windowSize: Int): WindowedStream[T] = {
     val id = Id.newId()
-    val outputExpr = new SlidingRecordWindow(this.expr, windowSize, id, id, this.expr.recordType.toDataStream.toGroupedStream)
+    val outputExpr = new SlidingRecordWindow(this.expr, windowSize, id, id, this.expr.recordType.toDataStream.toGroupedStream(types.Long))
     new WindowedStream[T](outputExpr)
   }
 }

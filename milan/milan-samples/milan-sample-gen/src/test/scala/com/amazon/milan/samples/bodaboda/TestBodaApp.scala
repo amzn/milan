@@ -3,7 +3,7 @@ package com.amazon.milan.samples.bodaboda
 import java.time.{Duration, Instant}
 
 import com.amazon.milan.application.ApplicationConfiguration
-import com.amazon.milan.flink.testing.{ApplicationExecutionResult, TestApplicationExecutor}
+import com.amazon.milan.compiler.flink.testing.{ApplicationExecutionResult, TestApplicationExecutor}
 import com.amazon.milan.lang.StreamGraph
 import com.amazon.milan.testing.DelayedListDataSource
 import com.amazon.milan.testing.applications._

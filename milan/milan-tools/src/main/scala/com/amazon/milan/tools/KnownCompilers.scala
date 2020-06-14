@@ -3,7 +3,7 @@ package com.amazon.milan.tools
 
 object KnownCompilers {
   private val knownCompilers = Map(
-    "flink" -> "com.amazon.milan.flink.Compiler"
+    "flink" -> "com.amazon.milan.compiler.flink.Compiler"
   )
 
   def convertFromKnownCompiler(compilerClassName: String): String = {

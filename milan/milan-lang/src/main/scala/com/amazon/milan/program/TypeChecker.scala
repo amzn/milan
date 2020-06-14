@@ -182,7 +182,7 @@ object TypeChecker {
         this.getRecordTypes(source, context)
 
       case Aggregate(source, _) =>
-        this.getMapFunctionArgumentTypes(source, context)
+        this.getAggregateFunctionArgumentTypes(source, context)
 
       case StreamMap(source, _) =>
         this.getMapFunctionArgumentTypes(source, context)
@@ -210,19 +210,33 @@ object TypeChecker {
    * If the source of the map function is a grouping expression then the group key will be the first argument.
    */
   private def getMapFunctionArgumentTypes(mapInput: Tree, context: Context): List[TypeDescriptor[_]] = {
-    mapInput match {
-      case m: StreamMap =>
-        this.getRecordTypes(m.streamType)
-
-      case GroupingExpression(groupSource, keyFunctionDef) =>
+    mapInput.tpe match {
+      case groupedStreamType: GroupedStreamTypeDescriptor =>
         // Map functions that map the output of a group-by or window have the group key as one of the inputs.
-        List(keyFunctionDef.tpe) ++ this.getRecordTypes(groupSource, context)
+        // The other input is a stream.
+        List(groupedStreamType.keyType) ++ this.getRecordTypes(groupedStreamType).map(_.toDataStream)
 
-      case t: SelectTerm if t.tpe.isStream =>
-        List(t.tpe.asStream.recordType)
+      case dataStreamType: DataStreamTypeDescriptor =>
+        this.getRecordTypes(dataStreamType)
 
-      case s: StreamExpression =>
-        getRecordTypes(s, context)
+      case streamType: StreamTypeDescriptor =>
+        this.getRecordTypes(streamType)
+    }
+  }
+
+  /**
+   * Gets the types of the arguments of a map function, based on the expression that represents the data source of the
+   * map function.
+   * If the source of the map function is a grouping expression then the group key will be the first argument.
+   */
+  private def getAggregateFunctionArgumentTypes(aggInput: Tree, context: Context): List[TypeDescriptor[_]] = {
+    aggInput.tpe match {
+      case groupedStreamType: GroupedStreamTypeDescriptor =>
+        // Aggregate functions that map the output of a group-by or window have the group key as one of the inputs.
+        List(groupedStreamType.keyType) ++ this.getRecordTypes(groupedStreamType)
+
+      case _ =>
+        this.getMapFunctionArgumentTypes(aggInput, context)
     }
   }
 
@@ -234,14 +248,16 @@ object TypeChecker {
   private def getFlatMapFunctionArgumentTypes(mapInput: Tree,
                                               mapFunction: FunctionDef,
                                               context: Context): List[TypeDescriptor[_]] = {
-    mapInput match {
-      case GroupingExpression(_, _) if mapFunction.arguments.length == 1 =>
-        List(mapInput.tpe)
+    (mapInput, mapInput.tpe) match {
+      case (_: StreamExpression, _: GroupedStreamTypeDescriptor) if mapFunction.arguments.length == 1 =>
+        // The argument type of the map function is a stream.
+        List(this.getRecordType(mapInput, context).toDataStream)
 
-      case GroupingExpression(_, keyFunctionDef) if mapFunction.arguments.length == 2 =>
-        List(keyFunctionDef.tpe, mapInput.tpe)
+      case (_: StreamExpression, GroupedStreamTypeDescriptor(keyType, _)) if mapFunction.arguments.length == 2 =>
+        // The argument type of the map function is a stream.
+        List(keyType, this.getRecordType(mapInput, context).toDataStream)
 
-      case LeftWindowedJoin(left, right) =>
+      case (LeftWindowedJoin(left, right), _) =>
         List(this.getRecordType(left, context), this.getRecordType(right, context).toIterable)
     }
   }
@@ -293,9 +309,14 @@ object TypeChecker {
    */
   private def getRecordTypes(streamType: StreamTypeDescriptor): List[TypeDescriptor[_]] = {
     streamType match {
-      case DataStreamTypeDescriptor(recordType) => List(recordType)
-      case JoinedStreamsTypeDescriptor(leftRecordType, rightRecordType) => List(leftRecordType, rightRecordType)
-      case GroupedStreamTypeDescriptor(recordType) => List(recordType)
+      case DataStreamTypeDescriptor(recordType) =>
+        List(recordType)
+
+      case JoinedStreamsTypeDescriptor(leftRecordType, rightRecordType) =>
+        List(leftRecordType, rightRecordType)
+
+      case GroupedStreamTypeDescriptor(_, recordType) =>
+        List(recordType)
     }
   }
 
@@ -355,11 +376,11 @@ object TypeChecker {
       case Filter(source, _) => this.getTreeType(source, context)
       case FlatMap(_, mapFunction) => mapFunction.tpe.toDataStream
       case LeftWindowedJoin(left, right) => this.getRecordType(left, context).toJoinedStream(this.getRecordType(right, context))
-      case GroupingExpression(source, _) => this.getRecordType(source, context).toGroupedStream
+      case GroupingExpression(source, keyFunc) => this.getRecordType(source, context).toGroupedStream(keyFunc.tpe)
       case JoinExpression(left, right, _) => this.getRecordType(left, context).toJoinedStream(this.getRecordType(right, context))
       case Last(s) => s.tpe
       case StreamMap(_, mapFunction) => mapFunction.tpe.toDataStream
-      case SlidingRecordWindow(source, _) => this.getRecordType(source, context).toGroupedStream
+      case SlidingRecordWindow(source, _) => this.getRecordType(source, context).toGroupedStream(types.Instant)
       case ArgCompareExpression(source, _) => this.getTreeType(source, context)
 
       case _ =>

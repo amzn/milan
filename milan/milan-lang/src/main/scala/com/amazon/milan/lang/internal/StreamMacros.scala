@@ -127,6 +127,7 @@ class StreamMacros(val c: whitebox.Context)
   def groupBy[T: c.WeakTypeTag, TKey: c.WeakTypeTag](keyFunc: c.Expr[T => TKey]): c.Expr[GroupedStream[T, TKey]] = {
     val outNodeId = Id.newId()
     val keyFuncExpr = getMilanFunction(keyFunc.tree)
+    val keyType = getTypeDescriptor[TKey]
 
     val inputExprVal = TermName(c.freshName("inputExpr"))
     val exprVal = TermName(c.freshName("expr"))
@@ -135,7 +136,7 @@ class StreamMacros(val c: whitebox.Context)
     val tree =
       q"""
           val $inputExprVal = ${c.prefix}.expr
-          val $exprTypeVal = new ${typeOf[GroupedStreamTypeDescriptor]}($inputExprVal.recordType)
+          val $exprTypeVal = new ${typeOf[GroupedStreamTypeDescriptor]}($keyType, $inputExprVal.recordType)
           val $exprVal = new ${typeOf[GroupBy]}($inputExprVal, $keyFuncExpr, $outNodeId, $outNodeId, $exprTypeVal)
           new ${weakTypeOf[GroupedStream[T, TKey]]}($exprVal)
        """
@@ -151,6 +152,7 @@ class StreamMacros(val c: whitebox.Context)
                                        offset: c.Expr[Duration]): c.Expr[TimeWindowedStream[T]] = {
     val outNodeId = Id.newId()
     val dateExtractorFunc = getMilanFunction(dateExtractor.tree)
+    val keyType = getTypeDescriptor[Instant]
 
     val periodExpr = this.getDuration(windowPeriod)
     val offsetExpr = this.getDuration(offset)
@@ -162,7 +164,7 @@ class StreamMacros(val c: whitebox.Context)
     val tree =
       q"""
           val $inputExprVal = ${c.prefix}.expr
-          val $outputTypeVal = new ${typeOf[GroupedStreamTypeDescriptor]}($inputExprVal.recordType)
+          val $outputTypeVal = new ${typeOf[GroupedStreamTypeDescriptor]}($keyType, $inputExprVal.recordType)
           val $exprVal = new ${typeOf[TumblingWindow]}($inputExprVal, $dateExtractorFunc, $periodExpr, $offsetExpr, $outNodeId, $outNodeId, $outputTypeVal)
           new ${weakTypeOf[TimeWindowedStream[T]]}($exprVal)
        """
@@ -179,6 +181,7 @@ class StreamMacros(val c: whitebox.Context)
                                       offset: c.Expr[Duration]): c.Expr[TimeWindowedStream[T]] = {
     val outNodeId = Id.newId()
     val dateExtractorFunc = getMilanFunction(dateExtractor.tree)
+    val keyType = getTypeDescriptor[Instant]
 
     val sizeExpr = this.getDuration(windowSize)
     val slideExpr = this.getDuration(slide)
@@ -191,7 +194,7 @@ class StreamMacros(val c: whitebox.Context)
     val tree =
       q"""
           val $inputExprVal = ${c.prefix}.expr
-          val $outputTypeVal = new ${typeOf[GroupedStreamTypeDescriptor]}($inputExprVal.recordType)
+          val $outputTypeVal = new ${typeOf[GroupedStreamTypeDescriptor]}($keyType, $inputExprVal.recordType)
           val $exprVal = new ${typeOf[SlidingWindow]}($inputExprVal, $dateExtractorFunc, $sizeExpr, $slideExpr, $offsetExpr, $outNodeId, $outNodeId, $outputTypeVal)
           new ${weakTypeOf[TimeWindowedStream[T]]}($exprVal)
        """

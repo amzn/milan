@@ -29,8 +29,8 @@
         <module>milan-typeutil</module>
         <module>milan-lang</module>
         <module>milan-tools</module>
+        <module>milan-compilers</module>
         <module>milan-samples</module>
-        <module>milan-flink</module>
     </modules>
 
     <build>

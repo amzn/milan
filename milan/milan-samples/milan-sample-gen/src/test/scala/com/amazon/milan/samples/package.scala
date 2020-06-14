@@ -1,6 +1,7 @@
 package com.amazon.milan
 
-import com.amazon.milan.flink.testing.TestApplicationExecutor
+import com.amazon.milan.compiler.flink.testing.TestApplicationExecutor
+
 
 package object samples {
   def getTestApplicationExecutor: TestApplicationExecutor = {
