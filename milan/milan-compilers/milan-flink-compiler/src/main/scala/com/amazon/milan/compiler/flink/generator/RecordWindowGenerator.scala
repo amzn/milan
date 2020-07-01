@@ -50,7 +50,7 @@ trait RecordWindowGenerator
          |    $aggregateFunctionVal.getAccumulatorType,
          |    $aggregateFunctionVal.getProducedType,
          |    $aggregateFunctionVal.getProducedType)
-         |""".strip
+         |""".codeStrip
 
     context.output.appendMain(codeBlock)
 
@@ -87,7 +87,7 @@ trait RecordWindowGenerator
          |
          |  override ${applyDef.indentTail(1)}
          |}
-         |""".strip
+         |""".codeStrip
 
     output.addClassDef(classDef)
 

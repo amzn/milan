@@ -5,10 +5,8 @@ import com.amazon.milan.lang.StreamGraph
 
 
 object StreamAppTester {
-  def compile[TIn, TOut](outputStream: lang.Stream[TOut]): Stream[TIn] => Stream[TOut] = {
-    val graph = new StreamGraph(outputStream)
-
-    val functionDef = ScalaStreamGenerator.generateAnonymousFunction(graph, outputStream)
+  def compile[TIn, TOut](inputStream: lang.Stream[TIn], outputStream: lang.Stream[TOut]): Stream[TIn] => Stream[TOut] = {
+    val functionDef = ScalaStreamGenerator.generateAnonymousFunction(List(inputStream), outputStream)
     RuntimeEvaluator.instance.eval[Stream[TIn] => Stream[TOut]](functionDef)
   }
 }

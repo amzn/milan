@@ -101,7 +101,7 @@ trait MapFunctionGenerator
          |
          |  protected override ${mapFunctionCode.indentTail(1)}
          |}
-         |""".strip
+         |""".codeStrip
 
     context.output.addClassDef(classDef)
 
@@ -120,7 +120,7 @@ trait MapFunctionGenerator
       q"""
          |val $mapFunctionVal = new $mapFunctionClassName
          |val $streamVal = ${inputStream.streamVal}.map($mapFunctionVal)
-         |""".strip
+         |""".codeStrip
 
     context.output.appendMain(codeBlock)
 

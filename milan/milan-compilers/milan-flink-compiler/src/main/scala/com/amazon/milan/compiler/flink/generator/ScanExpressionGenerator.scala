@@ -48,7 +48,7 @@ trait ScanExpressionGenerator
     val codeBlock =
       q"""val $processFunctionVal = new ${processFunction.className}()
          |val $outputStreamVal = ${inputStream.streamVal}.process($processFunctionVal, $processFunctionVal.getProducedType)
-         |""".strip
+         |""".codeStrip
 
     context.output.appendMain(codeBlock)
 
@@ -86,7 +86,7 @@ trait ScanExpressionGenerator
          |  extends $baseClassName[${inputRecordType.toFlinkTerm}, ${keyType.toTerm}, ${stateType.toTerm}, ${outputRecordType.toFlinkTerm}](
          |  new ${scanOperation.className}(),
          |  ${liftTypeDescriptorToTypeInformation(keyType)})
-         |""".stripMargin
+         |""".codeStrip
 
     outputs.addClassDef(classDef)
 

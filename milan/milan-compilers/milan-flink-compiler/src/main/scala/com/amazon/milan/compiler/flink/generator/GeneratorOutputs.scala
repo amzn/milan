@@ -115,7 +115,7 @@ class GeneratorOutputs(val typeLifter: FlinkTypeLifter) {
        |    new $className().execute(args)
        |  }
        |}
-       |""".strip
+       |""".codeStrip
   }
 
   def newValName(prefix: String): ValName = ValName(this.newName(prefix))

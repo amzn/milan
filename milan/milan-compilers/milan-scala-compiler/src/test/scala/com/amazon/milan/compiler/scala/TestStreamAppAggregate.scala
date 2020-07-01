@@ -17,7 +17,7 @@ class TestStreamAppAggregate {
     val group = input.groupBy(r => r.key).withId("group")
     val output = group.flatMap((key, group) => maxByValue(group)).withId("output")
 
-    val compiledFunction = StreamAppTester.compile(output)
+    val compiledFunction = StreamAppTester.compile(input, output)
 
     val inputRecords = KeyValueRecord.generate(100, 5, 100)
     val outputRecords = compiledFunction(inputRecords.toStream).toList
@@ -36,7 +36,7 @@ class TestStreamAppAggregate {
     val group = input.groupBy(r => r.key).withId("group")
     val output = group.flatMap((key, group) => sumByValue(group)).withId("output")
 
-    val compiledFunction = StreamAppTester.compile(output)
+    val compiledFunction = StreamAppTester.compile(input, output)
 
     val inputRecords = KeyValueRecord.generate(100, 5, 100)
     val outputRecords = compiledFunction(inputRecords.toStream).toList

@@ -136,6 +136,7 @@
                                 <arg>-dependencyfile</arg>
                                 <arg>${project.build.directory}/.scala_dependencies</arg>
                                 <arg>-feature</arg>
+                                <arg>-deprecation</arg>
                             </args>
                         </configuration>
                     </execution>

@@ -55,7 +55,7 @@ trait DataSourceGenerator {
          |  ${source.runForever},
          |  $recordTypeInfoVal)
          |val $outputStreamVal = $dataStreamVal.map(new ${nameOf[WrapRecordsMapFunction[Any]]}[${recordType.toTerm}]($recordTypeInfoVal))
-         |""".strip
+         |""".codeStrip
 
     outputs.appendMain(code)
 
@@ -80,7 +80,7 @@ trait DataSourceGenerator {
          |  ${source.configuration},
          |  $recordTypeInfoVal)
          |val $outputStreamVal = $dataStreamVal.map(new ${nameOf[WrapRecordsMapFunction[Any]]}[${recordType.toTerm}]($recordTypeInfoVal))
-         |""".strip
+         |""".codeStrip
 
     outputs.appendMain(code)
 
@@ -109,7 +109,7 @@ trait DataSourceGenerator {
          |val $sourceFunctionVal = new ${nameOf[DelayedListSourceFunction[Any]]}[$itemTypeName]($valuesVal, ${source.runForever})
          |val $dataStreamVal = ${outputs.streamEnvVal}.addSource($sourceFunctionVal, $recordTypeInfoVal).setParallelism(1)
          |val $outputStreamVal = $dataStreamVal.map(new ${nameOf[WrapRecordsMapFunction[Any]]}[${recordType.toTerm}]($recordTypeInfoVal))
-         |""".strip
+         |""".codeStrip
 
     outputs.appendMain(codeBlock)
 
@@ -133,7 +133,7 @@ trait DataSourceGenerator {
          |  ${source.dataFormat},
          |  $recordTypeInfoVal)
          |val $outputStreamVal = $dataStreamVal.map(new ${nameOf[WrapRecordsMapFunction[Any]]}[${recordType.toTerm}]($recordTypeInfoVal)
-         |""".strip
+         |""".codeStrip
 
     outputs.appendMain(code)
 

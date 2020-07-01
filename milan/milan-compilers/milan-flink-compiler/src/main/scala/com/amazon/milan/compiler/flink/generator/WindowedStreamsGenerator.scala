@@ -34,7 +34,7 @@ trait WindowedStreamsGenerator extends KeyedStreamGenerator {
          |val $windowedStreamVal = ${keyedStream.streamVal}
          |  .window($windowVal)
          |  .trigger($triggerVal)
-         |""".strip
+         |""".codeStrip
 
     output.appendMain(codeBlock)
 
@@ -90,7 +90,7 @@ trait WindowedStreamsGenerator extends KeyedStreamGenerator {
          |val $windowAssignerVal = $windowAssignerCreationStatement
          |val $triggerVal = new ${nameOf[RecordWrapperEveryElementTrigger[Any, Product, Window]]}[${inputRecordType.toFlinkTerm}, ${inputStream.keyType.toTerm}, ${nameOf[TimeWindow]}]()
          |val $outputStreamVal = $createWindowStatement
-         |""".strip
+         |""".codeStrip
 
     output.appendMain(codeBlock)
 
@@ -113,7 +113,7 @@ trait WindowedStreamsGenerator extends KeyedStreamGenerator {
     env.appendMain(
       q"""val $timeAssignerVal = new $timeAssignerClassName()
          |val $outputStreamVal = ${inputStream.streamVal}.assignTimestampsAndWatermarks($timeAssignerVal)
-         |""".strip)
+         |""".codeStrip)
 
     val eventTimeStream = GeneratedUnkeyedDataStream(inputStream.streamId, outputStreamVal, inputStream.recordType, inputStream.keyType, inputStream.isContextual)
 

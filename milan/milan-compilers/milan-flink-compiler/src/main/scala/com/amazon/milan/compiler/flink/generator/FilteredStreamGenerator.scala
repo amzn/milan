@@ -48,7 +48,7 @@ trait FilteredStreamGenerator {
       q"""
          |val $filterFunctionVal = new $filterFunctionClassName()
          |val $outputStreamVal = ${input.streamVal}.filter($filterFunctionVal)
-         |""".strip)
+         |""".codeStrip)
 
     input.withStreamVal(outputStreamVal)
   }
@@ -106,7 +106,7 @@ trait FilteredStreamGenerator {
          |
          |  protected override ${code(filterFunctionCode.indentTail(1))}
          |}
-         |""".strip
+         |""".codeStrip
 
     output.addClassDef(classDef)
 

@@ -56,7 +56,7 @@ trait DataSinkGenerator {
         q"""
            |val $mapFunctionVal = new $mapFunctionClassName
            |val $tupleStreamVal = ${stream.streamVal}.map($mapFunctionVal)
-           |""".strip
+           |""".codeStrip
 
       out.appendMain(codeBlock)
 
@@ -96,7 +96,7 @@ trait DataSinkGenerator {
          |  .withBucketAssigner($bucketAssignerVal)
          |  .withRollingPolicy($rollingPolicyVal)
          |  .build()
-         |""".strip
+         |""".codeStrip
 
     out.appendMain(code)
 
@@ -113,7 +113,7 @@ trait DataSinkGenerator {
       q"""
          |val $outputFormatVal = ${sink.outputFormat}
          |val $sinkFunctionVal = new ${nameOf[FileSinkFunction[Any]]}[${stream.recordType.toFlinkTerm}](${sink.path}, $outputFormatVal)
-         |""".strip
+         |""".codeStrip
     out.appendMain(code)
 
     this.unwrapAndAddSink(out, stream, sinkFunctionVal, qc".setParallelism(1)")
@@ -146,7 +146,7 @@ trait DataSinkGenerator {
          |  ${liftTypeDescriptorToTypeInformation(recordType)})
          |val $unwrappedVal = ${stream.streamVal}.map($mapFunctionVal)
          |$unwrappedVal.addSink($sinkFunctionVal)$sinkModifiers
-         |""".strip
+         |""".codeStrip
 
     out.appendMain(code)
   }
@@ -171,7 +171,7 @@ trait DataSinkGenerator {
          |    keys.productIterator.map(_.toString).toArray
          |  }
          |}
-         |""".strip
+         |""".codeStrip
 
     out.addClassDef(classDef)
 
@@ -203,7 +203,7 @@ trait DataSinkGenerator {
          |    )
          |  }
          |}
-         |""".strip
+         |""".codeStrip
 
     out.addClassDef(classDef)
 

@@ -49,7 +49,7 @@ trait ScanOperationGenerator {
          |  ${liftTypeDescriptorToTypeInformation(keyType)},
          |  ${liftTypeDescriptorToTypeInformation(scanOperationInfo.stateType)},
          |  ${liftTypeDescriptorToTypeInformation(scanOperationInfo.outputType)})
-         |""".strip
+         |""".codeStrip
 
     output.appendMain(codeBlock)
 
@@ -67,7 +67,7 @@ trait ScanOperationGenerator {
          |  ${liftTypeDescriptorToTypeInformation(inputStream.recordType)},
          |  ${liftTypeDescriptorToTypeInformation(inputStream.keyType)})
          |val $outputStreamVal = ${inputStream.streamVal}.process($processFunctionVal)
-         |""".strip
+         |""".codeStrip
 
     output.appendMain(codeBlock)
 
@@ -114,7 +114,7 @@ trait ScanOperationGenerator {
          |
          |    override ${code(getArgDef).indentTail(1)}
          |}
-         |""".strip
+         |""".codeStrip
 
     output.addClassDef(classDef)
 
@@ -161,7 +161,7 @@ trait ScanOperationGenerator {
          |  }
          |
          |}
-         |""".strip
+         |""".codeStrip
 
     output.addClassDef(classDef)
 

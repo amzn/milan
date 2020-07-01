@@ -10,13 +10,13 @@ import org.junit.Test
 class TestStreamAppMap {
   @Test
   def test_StreamAppMap_OfDataStream_MapsRecords(): Unit = {
-    val inputStream = lang.Stream.of[IntRecord].withId("input")
-    val outputStream = inputStream.map(r => IntRecord(r.i + 1)).withId("output")
+    val input = lang.Stream.of[IntRecord].withId("input")
+    val output = input.map(r => IntRecord(r.i + 1)).withId("output")
 
-    val compiledFunction = StreamAppTester.compile(outputStream)
+    val compiledFunction = StreamAppTester.compile(input, output)
 
-    val output = compiledFunction(Stream(IntRecord(1), IntRecord(2))).toList
-    assertEquals(List(IntRecord(2), IntRecord(3)), output)
+    val outputRecords = compiledFunction(Stream(IntRecord(1), IntRecord(2))).toList
+    assertEquals(List(IntRecord(2), IntRecord(3)), outputRecords)
   }
 
   @Test
@@ -33,7 +33,7 @@ class TestStreamAppMap {
     val mapped = grouped.map((_, group) => addOne(group)).withId("mapped")
     val output = mapped.flatMap((_, group) => sumByValue(group)).withId("output")
 
-    val compiledFunction = StreamAppTester.compile(output)
+    val compiledFunction = StreamAppTester.compile(input, output)
 
     val inputRecords = KeyValueRecord.generate(100, 5, 10)
     val outputRecords = compiledFunction(inputRecords.toStream).toList

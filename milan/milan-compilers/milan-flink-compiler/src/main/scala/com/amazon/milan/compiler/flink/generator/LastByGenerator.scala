@@ -67,7 +67,7 @@ trait LastByGenerator
       q"""
          |val $operatorVal = new $operatorClassName
          |val $outputStreamVal = ${inputStream.streamVal}.transform($operatorName, $operatorVal.getProducedType, $operatorVal)$setParallelism
-         |""".strip
+         |""".codeStrip
 
     context.output.appendMain(codeBlock)
 
@@ -104,7 +104,7 @@ trait LastByGenerator
          |  override ${code(takeNewValueFunctionDef).indentTail(1)}
          |
          |}
-         |""".strip
+         |""".codeStrip
 
     env.addClassDef(classDef)
 

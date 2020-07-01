@@ -96,12 +96,12 @@ class TypeLifter(val typeEmitter: TypeEmitter) {
     }
 
     def qc(subs: Any*): CodeBlock = {
-      val value = q(subs: _*).strip
+      val value = q(subs: _*).codeStrip
       CodeBlock(value)
     }
 
     def qn(subs: Any*): ClassName = {
-      val value = q(subs: _*).strip
+      val value = q(subs: _*).codeStrip
       ClassName(value)
     }
   }

@@ -53,7 +53,7 @@ trait KeyedStreamGenerator {
     val codeBlock =
       q"""val $keyAssignerMapFunctionVal = new ${keyAppenderMapFunction.className}()
          |val $mappedStreamVal = ${inputStream.streamVal}.map($keyAssignerMapFunctionVal)
-         |""".strip
+         |""".codeStrip
 
     outputs.appendMain(codeBlock)
 
@@ -78,7 +78,7 @@ trait KeyedStreamGenerator {
       q"""val $keySelectorVal = new ${nameOf[RecordWrapperKeySelector[Any, Product]]}[${recordType.toFlinkTerm}, ${keyType.toTerm}](
          |  ${liftTypeDescriptorToTypeInformation(keyType)})
          |val $outputStreamVal = ${stream.streamVal}.keyBy($keySelectorVal, $keySelectorVal.getKeyType)
-         |""".strip
+         |""".codeStrip
 
     outputs.appendMain(codeBlock)
 
@@ -201,7 +201,7 @@ trait KeyedStreamGenerator {
          |    ${typeLifter.getTupleCreationStatement(truncatedKeyElements)}
          |  }
          |}
-         |""".strip
+         |""".codeStrip
 
     outputs.addClassDef(classDef)
 
@@ -213,7 +213,7 @@ trait KeyedStreamGenerator {
     val codeBlock =
       q"""val $mapFunctionVal = new $className()
          |val $outputStreamVal = ${inputStream.streamVal}.map($mapFunctionVal)
-         |""".strip
+         |""".codeStrip
 
     outputs.appendMain(codeBlock)
 
@@ -260,7 +260,7 @@ trait KeyedStreamGenerator {
          |    this.combineKeys(key, newKey)
          |  }
          |}
-         |""".strip
+         |""".codeStrip
 
     output.addClassDef(classDef)
 

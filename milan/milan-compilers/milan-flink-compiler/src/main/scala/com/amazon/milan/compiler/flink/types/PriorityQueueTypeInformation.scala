@@ -61,7 +61,7 @@ object PriorityQueueTypeSerializer {
 
     override def readSnapshot(snapshotVersion: Int, input: DataInputView, classLoader: ClassLoader): Unit = {
       val orderingClassName = input.readUTF()
-      this.ordering = classLoader.loadClass(orderingClassName).newInstance().asInstanceOf[Ordering[T]]
+      this.ordering = classLoader.loadClass(orderingClassName).getDeclaredConstructor().newInstance().asInstanceOf[Ordering[T]]
       this.valueSnapshot = TypeSerializerSnapshotSerializationUtil.readSerializerSnapshot(input, classLoader, null)
     }
 

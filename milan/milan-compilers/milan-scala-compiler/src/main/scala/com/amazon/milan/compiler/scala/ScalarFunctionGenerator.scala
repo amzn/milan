@@ -54,7 +54,7 @@ class ScalarFunctionGenerator(typeEmitter: TypeEmitter,
     s"""def $functionName${parts.arguments}: ${parts.returnType} = {
        |  ${parts.body}
        |}
-       |""".stripMargin
+       |""".codeStrip
   }
 
   def getScalaFunctionParts(functionDef: FunctionDef): FunctionParts = {

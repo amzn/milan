@@ -24,7 +24,7 @@ class TestCsvDataOutputFormat {
     val output = new ByteArrayOutputStream()
     format.writeValue(Record(1, 2, 3), output)
 
-    val outputLine = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(output.toByteArray)).toString.lines.next()
+    val outputLine = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(output.toByteArray)).toString.linesIterator.next()
     assertEquals("2,3", outputLine)
   }
 }

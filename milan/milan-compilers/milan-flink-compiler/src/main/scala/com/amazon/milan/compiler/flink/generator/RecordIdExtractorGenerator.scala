@@ -70,7 +70,7 @@ trait RecordIdExtractorGenerator {
              |  override def apply(record: ${typeDescriptor.toTerm}): String =
              |    record.${code(recordIdField.name)}.toString()
              |}
-             |""".strip
+             |""".codeStrip
 
         output.addClassDef(classDef)
 

@@ -37,7 +37,7 @@ trait CoProcessFunctionGenerator
          |val $coProcessFunctionVal = new $coProcessFunctionClassName()
          |val $outputTypeInfoVal = $coProcessFunctionVal.getProducedType
          |val $outputStreamVal = $connectedStreamsVal.process($coProcessFunctionVal, $outputTypeInfoVal)
-         |""".strip)
+         |""".codeStrip)
 
     GeneratedUnkeyedDataStream(mapExpr.nodeName, outputStreamVal, outputRecordType, keyType, isContextual = false)
   }
@@ -107,7 +107,7 @@ trait CoProcessFunctionGenerator
          |
          |    override ${postConditionDef.indentTail(1)}
          |}
-         |""".strip
+         |""".codeStrip
 
     context.output.addClassDef(classDef)
 
@@ -151,7 +151,7 @@ trait CoProcessFunctionGenerator
          |
          |  override ${postConditionDef.indentTail(1)}
          |}
-         |""".strip
+         |""".codeStrip
 
     context.output.addClassDef(classDef)
 
@@ -195,7 +195,7 @@ trait CoProcessFunctionGenerator
          |
          |    override ${postConditionDef.indentTail(1)}
          |}
-         |""".strip
+         |""".codeStrip
 
     context.output.addClassDef(classDef)
 

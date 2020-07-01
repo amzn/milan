@@ -514,7 +514,7 @@ class TestApplicationExecutor {
    * @return The input string with the line number prepended to each line.
    */
   private def addLineNumbers(text: String): String = {
-    text.lines.zipWithIndex.map {
+    text.linesIterator.zipWithIndex.map {
       case (line, i) => s"${i + 1}: $line"
     }.mkString("\n")
   }

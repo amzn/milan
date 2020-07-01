@@ -43,11 +43,11 @@ object TypeChecker {
   /**
    * Performs type checking on an expression tree whose root is a [[StreamExpression]].
    *
-   * @param expression The expression to type check.
-   * @param nodeTypes  A map of node IDs to types of stream nodes that are external to the expression tree.
+   * @param expression  The expression to type check.
+   * @param streamTypes A map of node IDs to types of streams that are external to the expression tree.
    */
-  def typeCheck(expression: StreamExpression, nodeTypes: Map[String, StreamTypeDescriptor]): Unit = {
-    val context = Context(List(), nodeTypes, Map())
+  def typeCheck(expression: StreamExpression, streamTypes: Map[String, StreamTypeDescriptor]): Unit = {
+    val context = Context(List(), streamTypes, Map())
     this.typeCheck(context)(expression)
   }
 

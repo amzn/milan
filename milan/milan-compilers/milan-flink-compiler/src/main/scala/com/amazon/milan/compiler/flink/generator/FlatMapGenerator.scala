@@ -63,7 +63,7 @@ trait FlatMapGenerator
          |val $keyTypeInfoVal = ${liftTypeDescriptorToTypeInformation(mappedStream.keyType)}
          |val $flatMapFunctionVal = new ${nameOf[IdentityFlatMapFunction[Any, Product]]}[${mappedStream.recordType.toFlinkTerm}, ${mappedStream.keyType.toTerm}]($recordTypeInfoVal, $keyTypeInfoVal)
          |val $outputStreamVal = ${mappedStream.streamVal}.flatMap($flatMapFunctionVal)
-         |""".strip
+         |""".codeStrip
 
     context.output.appendMain(codeBlock)
 
@@ -149,7 +149,7 @@ trait FlatMapGenerator
              |  $aggregateFunctionVal.getAccumulatorType,
              |  $aggregateFunctionVal.getProducedType,
              |  $processWindowFunctionVal.getProducedType)
-             |""".strip
+             |""".codeStrip
 
         context.output.appendMain(codeBlock)
 
@@ -211,7 +211,7 @@ trait FlatMapGenerator
          |
          |  protected override ${getCombinedKeyDef.indentTail(1)}
          |}
-         |""".strip
+         |""".codeStrip
 
     outputs.addClassDef(classDef)
 

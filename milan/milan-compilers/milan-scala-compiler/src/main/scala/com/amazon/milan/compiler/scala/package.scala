@@ -11,17 +11,20 @@ import _root_.scala.language.implicitConversions
 package object scala {
 
   implicit class MilanScalaCompilerStringExtensions(s: String) {
-    def strip: String =
+    /**
+     * Strips line start characters and empty lines from a string.
+     */
+    def codeStrip: String =
       this.s.stripMargin.stripLineEnd.stripPrefix("\n")
 
     def indent(level: Int): String = {
       val prefix = Seq.tabulate(level)(_ => "  ").mkString
-      this.s.lines.map(line => prefix + line).mkString("\n")
+      this.s.linesIterator.map(line => prefix + line).mkString("\n")
     }
 
     def indentTail(level: Int): String = {
       val prefix = Seq.tabulate(level)(_ => "  ").mkString
-      this.s.lines.zipWithIndex.map {
+      this.s.linesIterator.zipWithIndex.map {
         case (line, index) =>
           if (index == 0) {
             line

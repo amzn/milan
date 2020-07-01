@@ -21,7 +21,7 @@ trait ProcessWindowFunctionGenerator {
       q"""class $className
          |  extends ${nameOf[AssignSequenceNumberProcessAllWindowFunction[Any, Product, Window]]}[${recordType.toFlinkTerm}, ${keyType.toTerm}, ${nameOf[GlobalWindow]}] {
          |}
-         |""".strip
+         |""".codeStrip
 
     outputs.addClassDef(classDef)
 

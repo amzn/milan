@@ -47,7 +47,7 @@ trait AggregateFunctionGenerator extends FunctionGenerator {
          |  $accumulatorTypeInfoVal,
          |  $aggregateFunctionVal.getProducedType,
          |  $outputTypeInfoVal)
-         |""".strip)
+         |""".codeStrip)
 
     GeneratedUnkeyedDataStream(aggExpr.nodeId, outputStreamVal, aggExpr.recordType.toFlinkRecordType, types.EmptyTuple, isContextual = false)
   }
@@ -88,7 +88,7 @@ trait AggregateFunctionGenerator extends FunctionGenerator {
          |  $accumulatorTypeInfoVal,
          |  $aggregateOutputTypeInfoVal,
          |  $outputTypeInfoVal)
-         |""".strip
+         |""".codeStrip
 
     outputs.appendMain(codeBlock)
 
@@ -126,7 +126,7 @@ trait AggregateFunctionGenerator extends FunctionGenerator {
          |class $className
          |  extends $baseClassFullName(
          |    ${code(aggregateFunctionCreationStatements.indentTail(1))})
-         |""".strip
+         |""".codeStrip
 
     outputs.addClassDef(classDef)
 
@@ -182,7 +182,7 @@ trait AggregateFunctionGenerator extends FunctionGenerator {
          |
          |  override ${code(mapInputDef.indentTail(1))}
          |}
-         |""".strip
+         |""".codeStrip
 
     outputs.addClassDef(classDef)
 
@@ -278,7 +278,7 @@ trait AggregateFunctionGenerator extends FunctionGenerator {
          |
          |  override ${getOutputDef.indentTail(1)}
          |}
-         |""".strip
+         |""".codeStrip
 
     output.addClassDef(classDef)
 
@@ -307,7 +307,7 @@ trait AggregateFunctionGenerator extends FunctionGenerator {
          |class $className extends ${nameOf[TimeWindowProcessAllWindowFunction[Any, Any]]}[${accumulatorType.toFlinkTerm}, ${outputRecordType.toFlinkTerm}] {
          |  override ${getOutputDef.indentTail(1)}
          |}
-         |""".strip
+         |""".codeStrip
 
     output.addClassDef(classDef)
 
