@@ -2,9 +2,34 @@ package com.amazon.milan.graph
 
 import com.amazon.milan.lang.Stream
 import com.amazon.milan.program.{ExternalStream, StreamExpression}
+import com.amazon.milan.typeutil.TypeDescriptor
 
 
 object DependencyGraph {
+
+  /**
+   * A node in a dependency graph.
+   *
+   * @param expr          The stream expression represented by this node.
+   * @param contextStream The context of the stream.
+   *                      If the stream exists as part of a function of another stream (e.g. inside the mapping function of a
+   *                      Map or FlatMap) then this will reference the parent stream.
+   * @param children      The nodes that this node depends on.
+   */
+  case class Node(expr: StreamExpression,
+                  contextStream: Option[StreamExpression],
+                  contextKeyType: Option[TypeDescriptor[_]],
+                  children: List[Node]) {
+    def nodeId: String = expr.nodeId
+
+    override def hashCode(): Int = expr.nodeId.hashCode
+
+    override def equals(obj: Any): Boolean = obj match {
+      case o: Node => this.expr.nodeId == o.expr.nodeId
+      case _ => false
+    }
+  }
+
   /**
    * Builds a [[DependencyGraph]] with a single output stream.
    */
@@ -17,6 +42,15 @@ object DependencyGraph {
    */
   def build(outputStream: StreamExpression): DependencyGraph = {
     this.builder.addStream(outputStream).build
+  }
+
+  /**
+   * Builds a [[DependencyGraph]] that contains the specified streams.
+   */
+  def build(streams: Iterable[StreamExpression]): DependencyGraph = {
+    val builder = new DependencyGraphBuilder
+    streams.foreach(builder.addStream)
+    builder.build
   }
 
   /**
@@ -53,16 +87,19 @@ object DependencyGraph {
   }
 }
 
+import com.amazon.milan.graph.DependencyGraph.Node
+
+
 /**
  * A view of a graph of Milan stream expressions where parent nodes depend on their child nodes.
  * This is an inverted view of the graph from the one provided by [[FlowGraph]].
  */
-class DependencyGraph(val rootNodes: List[StreamExpression]) {
+class DependencyGraph(val rootNodes: List[Node]) {
   /**
    * Gets a list of the expressions in the graph in topological order.
    * A given expression in the list can depend only on other expressions that appear before it in the list.
    */
-  def topologicalSort: List[StreamExpression] = {
+  def topologicalSort: List[Node] = {
     val (sorted, _) = this.topoSort(this.rootNodes, Set.empty[String])
     sorted
   }
@@ -70,99 +107,37 @@ class DependencyGraph(val rootNodes: List[StreamExpression]) {
   /**
    * Perform a topological sort starting at the specified node.
    *
-   * @param expr    The expression to start sorting from.
+   * @param node    The node to start sorting from.
    * @param visited A set of nodes that have already been visited during this sort.
-   * @return A list of stream expressions in topological order.
+   * @return A list of nodes in topological order.
    */
-  private def topoSort(expr: StreamExpression, visited: Set[String]): (List[StreamExpression], Set[String]) = {
-    expr match {
-      case streamExpr: StreamExpression if visited.contains(streamExpr.nodeId) =>
-        // We've already visited this expression so don't do it again.
-        (List.empty, visited)
-
-      case _ =>
-        // Topo sort the input streams to this stream, then append this stream to the end since all of its
-        // dependencies have been fulfilled.
-        val inputStreams = getInputStreams(expr)
-        val (childSorted, childVisited) = this.topoSort(inputStreams, visited)
-        (childSorted :+ expr, childVisited + expr.nodeId)
+  private def topoSort(node: Node, visited: Set[String]): (List[Node], Set[String]) = {
+    if (visited.contains(node.nodeId)) {
+      (List.empty, visited)
+    }
+    else {
+      // Topo sort the input streams to this stream, then append this stream to the end since all of its
+      // dependencies have been fulfilled.
+      val (childSorted, childVisited) = this.topoSort(node.children, visited)
+      (childSorted :+ node, childVisited + node.nodeId)
     }
   }
 
   /**
    * Perform a topological sort starting at the specified nodes.
    *
-   * @param streams The expressions to start sorting from.
+   * @param nodes   The nodes to start sorting from.
    * @param visited A set of nodes that have already been visited during this sort.
-   * @return A list of stream expressions in topological order.
+   * @return A list of nodes in topological order.
    */
-  private def topoSort(streams: Iterable[StreamExpression], visited: Set[String]): (List[StreamExpression], Set[String]) = {
+  private def topoSort(nodes: Iterable[Node], visited: Set[String]): (List[Node], Set[String]) = {
     // Call topoSort for each of the streams.
     // We collect the output by concatenating the output for a node to the end of the output so far.
     // Along the way we collect the visited node IDs so that we don't duplicate any streams in the output.
-    streams.foldLeft((List.empty[StreamExpression], visited))((state, child) => {
+    nodes.foldLeft((List.empty[Node], visited))((state, node) => {
       val (stateSorted, stateVisited) = state
-      val (childSorted, childVisited) = this.topoSort(child, stateVisited)
-      (stateSorted ++ childSorted, childVisited)
+      val (nodeSorted, nodeVisited) = this.topoSort(node, stateVisited)
+      (stateSorted ++ nodeSorted, nodeVisited)
     })
-  }
-}
-
-
-class DependencyGraphBuilder {
-  private var nodes: Map[String, StreamExpression] = Map.empty
-
-  private var rootNodes: Set[StreamExpression] = Set.empty
-
-  /**
-   * Gets the [[DependencyGraph]] containing the expressions that have been added to the builder.
-   */
-  def build: DependencyGraph = {
-    new DependencyGraph(this.rootNodes.toList)
-  }
-
-  /**
-   * Adds a stream and its dependencies to the graph.
-   *
-   * @param stream A stream.
-   * @return This [[DependencyGraphBuilder]] instance.
-   */
-  def addStream(stream: Stream[_]): DependencyGraphBuilder = {
-    this.addStream(stream.expr)
-  }
-
-  /**
-   * Adds a stream expression and its dependencies to the graph.
-   *
-   * @param expr A stream expression.
-   * @return This [[DependencyGraphBuilder]] instance.
-   */
-  def addStream(expr: StreamExpression): DependencyGraphBuilder = {
-    this.recursiveAddStream(expr, isRoot = true)
-    this
-  }
-
-  private def recursiveAddStream(expr: StreamExpression,
-                                 isRoot: Boolean): Unit = {
-    this.nodes.get(expr.nodeId) match {
-      case None =>
-        if (isDataStream(expr)) {
-          this.nodes = this.nodes + (expr.nodeId -> expr)
-
-          // If this is supposed to be a root node then add it to the root nodes collection.
-          if (isRoot) {
-            this.rootNodes = this.rootNodes + expr
-          }
-        }
-
-        getInputStreams(expr).foreach(child => this.recursiveAddStream(child, isRoot = false))
-
-      case Some(node) =>
-        // We've processed this node before so don't do anything now, except that
-        // if this is not a root node then make sure it's not in the root nodes collection.
-        if (!isRoot && this.rootNodes.contains(node)) {
-          this.rootNodes = this.rootNodes - node
-        }
-    }
   }
 }

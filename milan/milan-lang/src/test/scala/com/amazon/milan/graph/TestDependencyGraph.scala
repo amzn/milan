@@ -17,7 +17,7 @@ class TestDependencyGraph {
     val graph = DependencyGraph.build(stream2)
 
     val sorted = graph.topologicalSort
-    assertEquals(List(stream1.expr, stream2.expr), sorted)
+    assertEquals(List(stream1.expr, stream2.expr), sorted.map(_.expr))
   }
 
   @Test
@@ -29,7 +29,7 @@ class TestDependencyGraph {
 
     val graph = DependencyGraph.build(stream4)
 
-    val sorted = graph.topologicalSort
+    val sorted = graph.topologicalSort.map(_.expr)
     assertEquals(List(stream1.expr, stream2.expr, stream3.expr, stream4.expr), sorted)
   }
 
@@ -44,7 +44,7 @@ class TestDependencyGraph {
 
     val graph = DependencyGraph.build(stream6)
 
-    val sorted = graph.topologicalSort
+    val sorted = graph.topologicalSort.map(_.expr)
     assertEquals(List(stream2.expr, stream1.expr, stream3.expr, stream4.expr, stream5.expr, stream6.expr), sorted)
   }
 
@@ -56,7 +56,7 @@ class TestDependencyGraph {
 
     val sub = DependencyGraph.buildSubGraph(Seq(stream2.expr), Seq(stream3.expr))
 
-    val sorted = sub.topologicalSort
+    val sorted = sub.topologicalSort.map(_.expr)
 
     // The first item should be stream2 but changed into an ExternalStream.
     val ExternalStream(stream2.expr.nodeId, stream2.expr.nodeName, outputStream2Type) = sorted.head
@@ -64,5 +64,34 @@ class TestDependencyGraph {
 
     assertEquals(2, sorted.length)
     assertEquals(stream3.expr.nodeId, sorted.last.nodeId)
+  }
+
+  @Test
+  def test_DependencyGraph_TopologicalSort_WithFlatMapOfGroupedStream(): Unit = {
+    val input = Stream.of[IntKeyValueRecord].withId("input")
+    val grouped = input.groupBy(r => r.key).withId("grouped")
+
+    def sumByValue(s: Stream[IntKeyValueRecord]): Stream[IntKeyValueRecord] =
+      s.sumBy(r => r.value, (r, sum) => IntKeyValueRecord(r.key, sum)).withId("sumBy")
+
+    val output = grouped.flatMap((_, group) => sumByValue(group)).withId("output")
+
+    val graph = DependencyGraph.build(output)
+
+    assertEquals(1, graph.rootNodes.length)
+
+    val root = graph.rootNodes.head
+    assertEquals("output", root.expr.nodeId)
+
+    assertEquals(1, root.children.length)
+
+    val child1 = root.children.head
+    assertEquals(1, child1.children.length)
+    assertEquals("grouped", child1.children.head.nodeId)
+
+    assertEquals(1, child1.children.length)
+    val child2 = child1.children.head
+    assertEquals(None, child2.contextStream)
+    assertEquals("input", child2.children.head.nodeId)
   }
 }

@@ -2,7 +2,7 @@ package com.amazon.milan.program.internal
 
 import com.amazon.milan.program
 import com.amazon.milan.program._
-import com.amazon.milan.typeutil.{TypeDescriptor, TypeInfoHost}
+import com.amazon.milan.typeutil.{TypeDescriptor, TypeDescriptorMacroHost, TypeInfoHost}
 
 import scala.reflect.api.Trees
 import scala.reflect.macros.whitebox
@@ -10,7 +10,7 @@ import scala.reflect.macros.whitebox
 /**
  * Trait to enable macro bundles to convert scala expression tress to Milan expression trees.
  */
-trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with LiftableImpls {
+trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with TypeDescriptorMacroHost with LiftableImpls {
   val c: whitebox.Context
 
   import c.universe._
@@ -133,7 +133,7 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
     val context = new ScalarFunctionBodyExpressionContext(argNames, new BaseExpressionContext)
     val milanExpr = getMilanExpressionTree(context, body)
 
-    val argDefs = argNames.map(ValueDef.named)
+    val argDefs = valDefs.map(valDef => ValueDef(valDef.name.toString, this.getTypeDescriptor(valDef.tpt.tpe)))
     val tree = q"new ${typeOf[FunctionDef]}($argDefs, $milanExpr)"
     c.Expr[FunctionDef](tree)
   }

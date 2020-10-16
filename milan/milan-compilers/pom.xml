@@ -17,6 +17,7 @@
     <modules>
         <module>milan-flink-compiler</module>
         <module>milan-scala-compiler</module>
+        <module>milan-aws-serverless</module>
     </modules>
 
     <build>

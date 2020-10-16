@@ -76,7 +76,7 @@ class TestStreamGraph {
     val graph = new StreamGraph(output)
 
     val graphCopy = MilanObjectMapper.copy(graph).getDereferencedGraph
-    graphCopy.typeCheckGraph()
+    graphCopy.typeCheck()
 
     val leftCopy = graphCopy.getStream(left.streamId)
     assertEquals(TypeDescriptor.streamOf[IntKeyValueRecord], leftCopy.tpe)
@@ -100,6 +100,6 @@ class TestStreamGraph {
 
     val graph = new StreamGraph(output).getDereferencedGraph
 
-    graph.typeCheckGraph()
+    graph.typeCheck()
   }
 }

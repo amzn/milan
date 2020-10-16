@@ -1,7 +1,7 @@
 package com.amazon.milan.compiler.flink.generator
 
-import com.amazon.milan.compiler.scala._
 import com.amazon.milan.compiler.flink.runtime._
+import com.amazon.milan.compiler.scala._
 import com.amazon.milan.program.{ArgCompareExpression, ArgScanExpression, StreamArgMax, StreamArgMin, SumBy, Tree}
 import com.amazon.milan.typeutil.TypeDescriptor
 
@@ -32,6 +32,9 @@ trait ScanOperationGenerator {
     }
   }
 
+  /**
+   * Generates a Flink AggregateFunction that implements a scan operation.
+   */
   def generateScanOperationAggregateFunction(output: GeneratorOutputs,
                                              streamIdentifier: String,
                                              inputRecordType: TypeDescriptor[_],
@@ -56,6 +59,10 @@ trait ScanOperationGenerator {
     aggregateFunctionVal
   }
 
+  /**
+   * Applies a Flink ProcessFunction that maps records of Option types to records of the inner type, discarding records
+   * where the option is None.
+   */
   def applyUnpackOptionProcessFunction(output: GeneratorOutputs,
                                        streamIdentifier: String,
                                        inputStream: GeneratedDataStream): GeneratedUnkeyedDataStream = {

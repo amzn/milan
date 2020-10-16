@@ -1,4 +1,4 @@
-package com.amazon.milan.compiler.flink.internal
+package com.amazon.milan.compiler.scala.trees
 
 import com.amazon.milan.program.Tree
 import org.junit.Assert._
@@ -12,7 +12,7 @@ object TestJoinKeyExpressionExtractor {
   def functionOfRecord(r: Record): Boolean = true
 }
 
-import com.amazon.milan.compiler.flink.internal.TestJoinKeyExpressionExtractor._
+import com.amazon.milan.compiler.scala.trees.TestJoinKeyExpressionExtractor._
 
 
 @Test

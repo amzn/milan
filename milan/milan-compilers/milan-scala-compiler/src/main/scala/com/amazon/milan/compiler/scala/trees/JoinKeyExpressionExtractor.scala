@@ -1,7 +1,8 @@
-package com.amazon.milan.compiler.flink.internal
+package com.amazon.milan.compiler.scala.trees
 
-import com.amazon.milan.compiler.flink.internal.TreeExtractor.{ExtractionContext, ExtractionResult}
+import com.amazon.milan.compiler.scala.trees.TreeExtractor.{ExtractionContext, ExtractionResult}
 import com.amazon.milan.program.{And, Equals, FunctionDef, SelectTerm, Tree}
+
 
 object JoinKeyExpressionExtractor {
   private val innerExtractor = new TreeExtractor {
@@ -67,6 +68,10 @@ object JoinKeyExpressionExtractor {
     }
   }
 
+  /**
+   * Separates a join condition into two parts, one that computes the key used to join records and another that applies
+   * a condition to a pair of joined records.
+   */
   def extractJoinKeyExpression(tree: Tree): TreeExtractionResult = {
     this.topLevelExtractor.extract(tree, ExtractionContext(None)).toTreeExtractionResult
   }

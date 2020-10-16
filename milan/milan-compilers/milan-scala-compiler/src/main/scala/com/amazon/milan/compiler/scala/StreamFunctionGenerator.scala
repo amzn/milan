@@ -1,6 +1,6 @@
 package com.amazon.milan.compiler.scala
 
-import com.amazon.milan.program.{ExternalStream, FlatMap, GroupBy, InvalidProgramException, Ref, StreamArgMax, StreamArgMin, StreamMap, SumBy, Tree}
+import com.amazon.milan.program.{ExternalStream, FlatMap, GroupBy, InvalidProgramException, LeftJoin, Ref, StreamArgMax, StreamArgMin, StreamMap, SumBy, Tree}
 import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, GroupedStreamTypeDescriptor}
 
 
@@ -12,8 +12,11 @@ object StreamFunctionGenerator {
 /**
  * Generates Scala functions that implement Milan stream operations by operating on Scala Streams.
  *
- * This allows generating Scala code from Milan applications that can be directly executed, rather than relying on
- * a separate runtime.
+ * This allows generating Scala code from Milan applications that can be directly executed when the input data is
+ * available as Scala Streams. This generator has several significant limitations:
+ * 1. It does not support Join operations. Milan's Join operations are time-dependent and the code generated is not
+ * event-based.
+ * 2. It only supports a single output stream, which will be the stream returned by the generated function.
  *
  * @param typeEmitter A [[TypeEmitter]] used for generating type names.
  * @param refStreams  A map of stream IDs to [[ValName]] objects that can be used to reference those streams.

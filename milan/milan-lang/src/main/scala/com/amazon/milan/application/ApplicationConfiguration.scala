@@ -1,6 +1,7 @@
 package com.amazon.milan.application
 
-import com.amazon.milan.lang.Stream
+import com.amazon.milan.application.state.DefaultStateStore
+import com.amazon.milan.lang.{StateIdentifier, Stream}
 import com.amazon.milan.types.LineageRecord
 
 
@@ -21,10 +22,11 @@ import com.amazon.milan.application.ApplicationConfiguration._
 class ApplicationConfiguration {
   private var metricPrefix: String = ""
 
-  var dataSources: Map[String, DataSource[_]] = Map()
-  var dataSinks: List[StreamSink] = List()
-  var lineageSinks: List[DataSink[LineageRecord]] = List()
-  var metrics: List[StreamMetric] = List()
+  var dataSources: Map[String, DataSource[_]] = Map.empty
+  var dataSinks: List[StreamSink] = List.empty
+  var lineageSinks: List[DataSink[LineageRecord]] = List.empty
+  var metrics: List[StreamMetric] = List.empty
+  var stateStores: Map[String, Map[String, StateStore]] = Map.empty
 
   /**
    * Sets the source of a data stream.
@@ -71,6 +73,40 @@ class ApplicationConfiguration {
     this.lineageSinks = this.lineageSinks :+ sink
 
   /**
+   * Configures state storage for an operation.
+   *
+   * @param stream A [[Stream]] corresponding to the operation to configure.
+   * @param state  Identifies which of the operation's state stores is being configured.
+   * @param store  A [[StateStore]] configuring the state storage for the operation.
+   */
+  def setStateStore(stream: Stream[_], state: StateIdentifier, store: StateStore): Unit =
+    this.setStateStore(stream.streamId, state.stateId, store)
+
+  /**
+   * Configures state storage for an operation.
+   *
+   * @param operationId The ID of the stream corresponding to the operation to configure.
+   * @param stateId     Identifies which of the operation's state stores is being configured.
+   * @param store       A [[StateStore]] configuring the state storage for the operation.
+   */
+  def setStateStore(operationId: String, stateId: String, store: StateStore): Unit = {
+    this.stateStores = this.stateStores +
+      (operationId -> (this.stateStores.getOrElse(operationId, Map.empty) + (stateId -> store)))
+  }
+
+  /**
+   * Gets the state store for a stream.
+   *
+   * @param operationId The ID of the stream corresponding to the operation.
+   * @param stateId     Identifies which of the operation's state stores is being retrieved.
+   * @return A [[StateStore]] object describing the state store configuration for the stream.
+   */
+  def getStateStore(operationId: String, stateId: String): StateStore = {
+    this.stateStores.getOrElse(operationId, Map.empty)
+      .getOrElse(stateId, new DefaultStateStore)
+  }
+
+  /**
    * Adds a metric for a stream.
    *
    * @param stream           A data stream reference.
@@ -89,6 +125,7 @@ class ApplicationConfiguration {
         this.dataSinks.equals(o.dataSinks) &&
         this.metrics.equals(o.metrics) &&
         this.lineageSinks.equals(o.lineageSinks) &&
+        this.stateStores.equals(o.stateStores) &&
         this.metrics.equals(o.metrics) &&
         this.metricPrefix == o.metricPrefix
 

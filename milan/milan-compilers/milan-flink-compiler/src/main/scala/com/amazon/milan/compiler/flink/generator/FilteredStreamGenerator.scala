@@ -1,8 +1,8 @@
 package com.amazon.milan.compiler.flink.generator
 
 import com.amazon.milan.compiler.scala._
-import com.amazon.milan.compiler.flink.internal.TreeArgumentSplitter
 import com.amazon.milan.compiler.flink.runtime.FilterFunctionBase
+import com.amazon.milan.compiler.scala.trees.TreeArgumentSplitter
 import com.amazon.milan.program.{Filter, FunctionDef, Tree, ValueDef}
 import com.amazon.milan.typeutil.TypeDescriptor
 

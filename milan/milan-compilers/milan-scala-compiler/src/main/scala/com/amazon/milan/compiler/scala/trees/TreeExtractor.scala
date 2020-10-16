@@ -1,4 +1,4 @@
-package com.amazon.milan.compiler.flink.internal
+package com.amazon.milan.compiler.scala.trees
 
 import com.amazon.milan.program.Tree
 
@@ -76,7 +76,7 @@ object TreeExtractor {
   }
 }
 
-import com.amazon.milan.compiler.flink.internal.TreeExtractor._
+import com.amazon.milan.compiler.scala.trees.TreeExtractor._
 
 
 /**

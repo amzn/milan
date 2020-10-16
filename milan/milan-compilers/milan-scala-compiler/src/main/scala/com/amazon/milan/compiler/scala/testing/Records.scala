@@ -36,3 +36,19 @@ object KeyValueRecord {
     List.tabulate(recordCount)(_ => KeyValueRecord(rand.nextInt(maxKey), rand.nextInt(maxValue)))
   }
 }
+
+
+object TwoIntRecord {
+  def apply(a: Int, b: Int): TwoIntRecord = new TwoIntRecord(a, b)
+}
+
+class TwoIntRecord(val recordId: String, val a: Int, val b: Int) {
+  def this(a: Int, b: Int) {
+    this(Id.newId(), a, b)
+  }
+
+  override def equals(obj: Any): Boolean = obj match {
+    case o: TwoIntRecord => this.a == o.a && this.b == o.b
+    case _ => false
+  }
+}

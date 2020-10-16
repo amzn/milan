@@ -1,6 +1,7 @@
-package com.amazon.milan.compiler.flink.internal
+package com.amazon.milan.compiler.scala.trees
 
-import com.amazon.milan.program.{And, Equals, FunctionDef, Tree, Tuple, ValueDef}
+import com.amazon.milan.program.{And, Equals, FunctionDef, Tree, Tuple, TypeChecker, ValueDef}
+
 
 object KeySelectorExtractor {
   /**
@@ -19,6 +20,9 @@ object KeySelectorExtractor {
 
     val rightArg = joinExpressionFunction.arguments.last
     val rightTupleFunction = FunctionDef(List(rightArg), Tuple(rightElements))
+
+    TypeChecker.typeCheck(leftTupleFunction)
+    TypeChecker.typeCheck(rightTupleFunction)
 
     (leftTupleFunction, rightTupleFunction)
   }

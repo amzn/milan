@@ -73,7 +73,7 @@ class StreamGraph(var streamsById: Map[String, StreamExpression]) {
   /**
    * Performs type checking on the graph.
    */
-  def typeCheckGraph(): Unit = {
+  def typeCheck(): Unit = {
     val inputNodeTypes =
       this.getStreams.filter(_.isInstanceOf[ExternalStream]).map(_.asInstanceOf[ExternalStream])
         .map(node => node.nodeId -> node.streamType)

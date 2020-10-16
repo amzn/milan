@@ -29,6 +29,8 @@ case class ClassName(value: String) extends Raw
 
 case class ValName(value: String) extends Raw
 
+case class MethodName(value: String) extends Raw
+
 case class CodeBlock(value: String) extends Raw {
   def indentTail(level: Int): CodeBlock = {
     CodeBlock(value.indentTail(level))
@@ -103,6 +105,27 @@ class TypeLifter(val typeEmitter: TypeEmitter) {
     def qn(subs: Any*): ClassName = {
       val value = q(subs: _*).codeStrip
       ClassName(value)
+    }
+
+    /**
+     * Creates a [[CodeBlock]] containing a valid identifier composed from the input string and calling toString on the
+     * objects.
+     */
+    def i(subs: Any*): CodeBlock = {
+      val partsIterator = sc.parts.iterator
+      val subsIterator = subs.iterator
+
+      val sb = new StringBuilder(partsIterator.next())
+
+      while (subsIterator.hasNext) {
+        val nextSub = cleanIdentifier(subsIterator.next().toString)
+        sb.append(nextSub)
+
+        val nextPart = partsIterator.next()
+        sb.append(nextPart)
+      }
+
+      CodeBlock(sb.toString())
     }
   }
 
@@ -253,4 +276,7 @@ class TypeLifter(val typeEmitter: TypeEmitter) {
 
   protected def toCanonicalName(typeName: String): String =
     typeName.replace('$', '.')
+
+  private def cleanIdentifier(id: String): String =
+    id.replace('-', '_')
 }

@@ -20,8 +20,8 @@ package object applications {
      * @param values     The values to use as the data source.
      * @tparam T The type of values.
      */
-    def setListSource[T: TypeDescriptor](stream: Stream[T], runForever: Boolean, values: T*): Unit = {
-      this.config.setSource(stream, new ListDataSource[T](values.toList, runForever))
+    def setListSource[T](stream: Stream[T], runForever: Boolean, values: T*): Unit = {
+      this.config.setSource(stream, new ListDataSource[T](values.toList, runForever)(stream.recordType))
     }
 
     /**
@@ -31,7 +31,7 @@ package object applications {
      * @param values The values to use as the data source.
      * @tparam T The type of values.
      */
-    def setListSource[T: TypeDescriptor](stream: Stream[T], values: T*): Unit = {
+    def setListSource[T](stream: Stream[T], values: T*): Unit = {
       this.setListSource(stream, false, values: _*)
     }
 

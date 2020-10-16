@@ -30,6 +30,9 @@ class JoinedStream[TLeft, TRight](val leftInput: StreamExpression, val rightInpu
 
 
 class JoinedStreamWithCondition[TLeft, TRight](val expr: StreamExpression) {
+  val leftState = new StateIdentifier("left")
+  val rightState = new StateIdentifier("right")
+
   /**
    * Defines the output of a join operation after the join conditions have been specified.
    * The output will be a stream containing the union of the fields of the input streams.

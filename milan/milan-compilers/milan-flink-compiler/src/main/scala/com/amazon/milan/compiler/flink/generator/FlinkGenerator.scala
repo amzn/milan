@@ -65,7 +65,7 @@ class FlinkGenerator(classLoader: ClassLoader, generatorConfig: GeneratorConfig)
                     packageName: String,
                     className: String): Unit = {
     val finalGraph = instance.application.graph.getDereferencedGraph
-    finalGraph.typeCheckGraph()
+    finalGraph.typeCheck()
 
     val outputs = new GeneratorOutputs(this.generatorTypeLifter)
     val context = GeneratorContext.createEmpty(instance.instanceDefinitionId, finalGraph, instance.config, outputs, this.generatorTypeLifter)

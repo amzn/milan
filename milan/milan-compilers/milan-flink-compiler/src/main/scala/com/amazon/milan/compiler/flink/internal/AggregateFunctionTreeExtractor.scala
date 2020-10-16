@@ -1,6 +1,7 @@
 package com.amazon.milan.compiler.flink.internal
 
-import com.amazon.milan.compiler.flink.internal.TreeExtractor.{ExtractionContext, ExtractionResult}
+import com.amazon.milan.compiler.scala.trees.TreeExtractor
+import com.amazon.milan.compiler.scala.trees.TreeExtractor.{ExtractionContext, ExtractionResult}
 import com.amazon.milan.program.{AggregateExpression, FunctionDef, FunctionReference, InvalidProgramException, SelectTerm, Tree, Tuple, TupleElement, TypeChecker}
 
 

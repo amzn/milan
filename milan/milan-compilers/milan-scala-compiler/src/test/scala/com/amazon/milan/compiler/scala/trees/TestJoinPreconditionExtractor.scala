@@ -1,4 +1,4 @@
-package com.amazon.milan.compiler.flink.internal
+package com.amazon.milan.compiler.scala.trees
 
 import com.amazon.milan.program.Tree
 import org.junit.Assert._
@@ -11,7 +11,7 @@ object TestJoinPreconditionExtractor {
 
 }
 
-import com.amazon.milan.compiler.flink.internal.TestJoinPreconditionExtractor._
+import com.amazon.milan.compiler.scala.trees.TestJoinPreconditionExtractor._
 
 
 @Test

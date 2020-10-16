@@ -1,4 +1,4 @@
-package com.amazon.milan.compiler.flink.internal
+package com.amazon.milan.compiler.scala.trees
 
 import com.amazon.milan.program.Tree
 import org.junit.Assert._
@@ -14,7 +14,7 @@ object TestTreeArgumentSplitter {
   def functionOfInt(i: Int): Boolean = true
 }
 
-import com.amazon.milan.compiler.flink.internal.TestTreeArgumentSplitter._
+import com.amazon.milan.compiler.scala.trees.TestTreeArgumentSplitter._
 
 
 @Test

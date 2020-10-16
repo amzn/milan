@@ -6,7 +6,14 @@ import com.amazon.milan.typeutil.DataStreamTypeDescriptor
 
 package object graph {
   /**
-   * Performs type checking on the graph.
+   * Performs type checking on a set of streams and their dependencies.
+   */
+  def typeCheckGraph(streams: StreamExpression*): Unit = {
+    this.typeCheckGraph(streams.toList)
+  }
+
+  /**
+   * Performs type checking on a set of streams and their dependencies.
    */
   def typeCheckGraph(streams: List[StreamExpression]): Unit = {
     val externalStreamTypes =

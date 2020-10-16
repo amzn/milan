@@ -5,9 +5,8 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
-import com.amazon.milan.graph
 import com.amazon.milan.graph.DependencyGraph
-import com.amazon.milan.lang
+import com.amazon.milan.{graph, lang}
 import com.amazon.milan.program.{ExternalStream, StreamExpression, Tree, ValueDef}
 import com.amazon.milan.typeutil.TypeDescriptor
 
@@ -77,7 +76,7 @@ object ScalaStreamGenerator {
 
   private def generate(dependencyGraph: DependencyGraph): GeneratorOutputs = {
     // Do a topological sort so that we define streams in the correct order in the generated code.
-    val sortedStreams = dependencyGraph.topologicalSort
+    val sortedStreams = dependencyGraph.topologicalSort.filter(_.contextStream.isEmpty).map(_.expr)
     graph.typeCheckGraph(sortedStreams)
 
     // First we generate ValNames for every stream, so that we can reference them later when generating code.

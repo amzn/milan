@@ -156,7 +156,12 @@ object TypeDescriptor {
   }
 
   def augmentTuple(tuple: TupleTypeDescriptor[_], newElementType: TypeDescriptor[_]): TupleTypeDescriptor[_] = {
-    this.createTuple[Product](tuple.genericArguments :+ newElementType)
+    if (newElementType == types.Nothing) {
+      tuple
+    }
+    else {
+      this.createTuple[Product](tuple.genericArguments :+ newElementType)
+    }
   }
 
   def optionOf[T](valueType: TypeDescriptor[_]): ObjectTypeDescriptor[Option[T]] = {

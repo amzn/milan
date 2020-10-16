@@ -31,7 +31,7 @@ trait LiftableImpls extends ProgramTypeNamesHost with LiftTypeDescriptorHost {
 
   implicit val liftCreateInstance: Liftable[CreateInstance] = { t => q"new ${typeOf[CreateInstance]}(${t.ty}, ${t.args})" }
 
-  implicit val liftValueDef: Liftable[ValueDef] = { t => q"new ${typeOf[ValueDef]}(${t.name})" }
+  implicit val liftValueDef: Liftable[ValueDef] = { t => if (t.tpe != null) q"new ${typeOf[ValueDef]}(${t.name}, ${t.tpe})" else q"new ${typeOf[ValueDef]}(${t.name})" }
 
   implicit val liftFunctionDef: Liftable[FunctionDef] = { t => q"new ${typeOf[FunctionDef]}(${t.arguments}, ${t.body})" }
 

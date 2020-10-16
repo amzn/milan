@@ -1,6 +1,7 @@
 package com.amazon.milan.compiler.flink.generator
 
-import com.amazon.milan.compiler.flink.internal.{ContextualTreeTransformer, JoinKeyExpressionExtractor, JoinPreconditionExtractor, KeySelectorExtractor}
+import com.amazon.milan.compiler.flink.internal.ContextualTreeTransformer
+import com.amazon.milan.compiler.scala.trees.{JoinKeyExpressionExtractor, JoinPreconditionExtractor, KeySelectorExtractor}
 import com.amazon.milan.program.{FunctionDef, InvalidProgramException, JoinExpression, Tree, TypeChecker, ValueDef}
 
 

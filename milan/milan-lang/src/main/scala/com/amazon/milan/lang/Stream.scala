@@ -20,6 +20,8 @@ import scala.language.experimental.macros
 class Stream[T](val expr: StreamExpression, val recordType: TypeDescriptor[T]) {
   type RecordType = T
 
+  val state = new StateIdentifier("state")
+
   def streamId: String = expr.nodeId
 
   def streamName: String = expr.nodeName
