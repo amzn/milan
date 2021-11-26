@@ -1,9 +1,7 @@
-package com.amazon.milan.compiler.flink.internal
+package com.amazon.milan.compiler.scala.trees
 
-import com.amazon.milan.compiler.scala.trees.TreeExtractor
 import com.amazon.milan.compiler.scala.trees.TreeExtractor.{ExtractionContext, ExtractionResult}
-import com.amazon.milan.program.{AggregateExpression, FunctionDef, FunctionReference, InvalidProgramException, SelectTerm, Tree, Tuple, TupleElement, TypeChecker}
-
+import com.amazon.milan.program.{AggregateExpression, FunctionDef, InvalidProgramException, SelectTerm, Tree, Tuple, TupleElement, TypeChecker, ValueDef}
 
 object AggregateFunctionTreeExtractor {
   /**
@@ -11,20 +9,53 @@ object AggregateFunctionTreeExtractor {
    * For example "r => foo(r.a) + bar(r.b)" will be split into "r => foo(r.a)" and "r => bar(r.b)".
    * The output functions will have the same arguments as the input function.
    *
-   * @param function A function definition. This function should already have been typechecked.
+   * This version of the method operates on aggregate functions of keyed streams.
+   *
+   * @param function A function definition. This function should already have been typechecked. The first argument to
+   *                 this function should be the group key.
    * @return A list of function definitions corresponding to the input arguments to any aggregate function calls
    *         in the input function.
    */
-  def getAggregateInputFunctions(function: FunctionDef): List[FunctionDef] = {
+  def getAggregateInputFunctionsWithKey(function: FunctionDef): List[FunctionDef] = {
     // Check to make sure we were given a valid aggregate function definition.
     com.amazon.milan.lang.internal.ProgramValidation.validateSelectFromGroupByFunction(function)
-
-    val aggregateFunctionArguments = this.getAggregateFunctionArguments(function.body)
 
     // The first argument to the aggregate function should be the group key.
     // The group key can't be used inside an aggregate function, so we need to remove it from the arguments
     // of the functions we return.
     val inputFunctionArguments = function.arguments.tail
+
+    this.getAggregateInputFunctions(function, inputFunctionArguments)
+  }
+
+  /**
+   * Splits a Milan function into multiple functions, by taking branches under calls to aggregate functions.
+   * For example "r => foo(r.a) + bar(r.b)" will be split into "r => foo(r.a)" and "r => bar(r.b)".
+   * The output functions will have the same arguments as the input function.
+   *
+   * This version of the method operates on aggregate functions of unkeyed streams.
+   *
+   * @param function A function definition. This function should already have been typechecked.
+   * @return A list of function definitions corresponding to the input arguments to any aggregate function calls
+   *         in the input function.
+   */
+  def getAggregateInputFunctionsWithoutKey(function: FunctionDef): List[FunctionDef] = {
+    this.getAggregateInputFunctions(function, function.arguments)
+  }
+
+  /**
+   * Splits a Milan function into multiple functions, by taking branches under calls to aggregate functions.
+   * For example "r => foo(r.a) + bar(r.b)" will be split into "r => foo(r.a)" and "r => bar(r.b)".
+   * The output functions will have the same arguments as the input function.
+   *
+   * @param function               A function definition. This function should already have been typechecked.
+   * @param inputFunctionArguments The arguments to the input function that can be referenced from the aggregate
+   *                               functions.
+   * @return A list of function definitions corresponding to the input arguments to any aggregate function calls
+   *         in the input function.
+   */
+  private def getAggregateInputFunctions(function: FunctionDef, inputFunctionArguments: List[ValueDef]): List[FunctionDef] = {
+    val aggregateFunctionArguments = this.getAggregateFunctionArguments(function.body)
 
     val functions = aggregateFunctionArguments.map(expr => FunctionDef(inputFunctionArguments, expr))
 
@@ -37,10 +68,10 @@ object AggregateFunctionTreeExtractor {
   }
 
   /**
-   * Gets the [[FunctionReference]] objects for the aggregate functions applied in a Milan function.
+   * Gets the [[AggregateExpression]] objects for the aggregate functions applied in a Milan function.
    *
    * @param function A function definition.
-   * @return A list of the [[FunctionReference]] objects for the aggregate functions applied in the input function.
+   * @return A list of the [[AggregateExpression]] objects for the aggregate functions applied in the input function.
    */
   def getAggregateExpressions(function: FunctionDef): List[AggregateExpression] = {
     this.getAggregateExpressionsInTree(function.body)
@@ -52,15 +83,39 @@ object AggregateFunctionTreeExtractor {
    * For example, if foo and bar are functions that both return Int, "r: Record => foo(r.a) + bar(r.b)" will be
    * converted into "value: (Int, Int) => value._1 + value._2".
    *
-   * @param function A function definition.
+   * This version of the method operates on functions that take the group key as the first argument.
+   *
+   * @param function A function definition. The first argument should be the group key.
    * @return The converted function definition.
    */
-  def getResultTupleToOutputFunction(function: FunctionDef): FunctionDef = {
+  def getResultTupleToOutputFunctionWithKey(function: FunctionDef): FunctionDef = {
     val FunctionDef(args, body) = function
     val outputBody = this.resultCombinerExtractor.extract(body, ExtractionContext(Some("0"))).extracted.get
 
     // The first argument in the input function is the group key, we need to keep that in the output function.
     val outputFunction = FunctionDef.create(List(args.head.name, "result"), outputBody)
+    outputFunction.tpe = function.tpe
+
+    outputFunction
+  }
+
+  /**
+   * Converts a Milan function, that at the top level is made up of zero or more associative binary operations, into a
+   * function of a tuple whose elements are the types of those operations.
+   * For example, if foo and bar are functions that both return Int, "r: Record => foo(r.a) + bar(r.b)" will be
+   * converted into "value: (Int, Int) => value._1 + value._2".
+   *
+   * This version of the method operates on functions that do not take the group key as the first argument.
+   *
+   * @param function A function definition.
+   * @return The converted function definition.
+   */
+  def getResultTupleToOutputFunctionWithoutKey(function: FunctionDef): FunctionDef = {
+    val FunctionDef(args, body) = function
+    val outputBody = this.resultCombinerExtractor.extract(body, ExtractionContext(Some("0"))).extracted.get
+
+    // The first argument in the input function is the group key, we need to keep that in the output function.
+    val outputFunction = FunctionDef.create(List("result"), outputBody)
     outputFunction.tpe = function.tpe
 
     outputFunction
@@ -96,11 +151,11 @@ object AggregateFunctionTreeExtractor {
   }
 
   /**
-   * Gets a list of [[FunctionReference]] objects from the aggregate function calls that are found in an expression
+   * Gets a list of [[AggregateExpression]] objects from the aggregate function calls that are found in an expression
    * tree.
    *
    * @param expr An expression tree.
-   * @return A list of the [[FunctionReference]] objects from the aggregate function calls.
+   * @return A list of the [[AggregateExpression]] objects from the aggregate function calls.
    *         There is a 1:1 mapping between the elements of this list and the elements of the list returned by
    *         [[getAggregateFunctionArguments]].
    */

@@ -9,6 +9,8 @@ import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize
  * Trait that identifies a stream expression that expresses a join between two streams with a join condition.
  */
 trait JoinExpression extends TwoInputStreamExpression {
+  override val stateful: Boolean = true
+
   val condition: FunctionDef
 
   override def getChildren: Iterable[Tree] = Seq(this.left, this.right, this.condition)
@@ -45,16 +47,6 @@ class LeftJoin(val left: Tree,
     this(left, right, condition, Id.newId())
   }
 
-  def this(left: Tree,
-           right: Tree,
-           condition: FunctionDef,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(left, right, condition, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
   override def withNameAndId(name: String, id: String): StreamExpression =
     new LeftJoin(this.left, this.right, this.condition, id, name, this.tpe)
 
@@ -66,6 +58,16 @@ class LeftJoin(val left: Tree,
       this.nodeId,
       this.nodeName,
       this.tpe)
+
+  def this(left: Tree,
+           right: Tree,
+           condition: FunctionDef,
+           nodeId: String,
+           nodeName: String,
+           resultType: TypeDescriptor[_]) {
+    this(left, right, condition, nodeId, nodeName)
+    this.tpe = resultType
+  }
 
   override def equals(obj: Any): Boolean = obj match {
     case LeftJoin(l, r, c) => this.left.equals(l) && this.right.equals(r) && this.condition.equals(c)
@@ -105,6 +107,9 @@ class FullJoin(val left: Tree,
     this(left, right, condition, Id.newId())
   }
 
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new FullJoin(this.left, this.right, this.condition, id, name, this.tpe)
+
   def this(left: Tree,
            right: Tree,
            condition: FunctionDef,
@@ -114,9 +119,6 @@ class FullJoin(val left: Tree,
     this(left, right, condition, nodeId, nodeName)
     this.tpe = resultType
   }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new FullJoin(this.left, this.right, this.condition, id, name, this.tpe)
 
   override def replaceChildren(children: List[Tree]): Tree =
     new FullJoin(
@@ -157,16 +159,6 @@ class LeftInnerJoin(val left: Tree,
     this(left, right, condition, Id.newId())
   }
 
-  def this(left: Tree,
-           right: Tree,
-           condition: FunctionDef,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(left, right, condition, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
   override def withNameAndId(name: String, id: String): StreamExpression =
     new LeftInnerJoin(this.left, this.right, this.condition, id, name, this.tpe)
 
@@ -178,6 +170,16 @@ class LeftInnerJoin(val left: Tree,
       this.nodeId,
       this.nodeName,
       this.tpe)
+
+  def this(left: Tree,
+           right: Tree,
+           condition: FunctionDef,
+           nodeId: String,
+           nodeName: String,
+           resultType: TypeDescriptor[_]) {
+    this(left, right, condition, nodeId, nodeName)
+    this.tpe = resultType
+  }
 
   override def equals(obj: Any): Boolean = obj match {
     case LeftInnerJoin(l, r, c) => this.left.equals(l) && this.right.equals(r) && this.condition.equals(c)
@@ -215,6 +217,9 @@ class LeftWindowedJoin(val left: Tree,
     this(left, right, Id.newId())
   }
 
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new LeftWindowedJoin(this.left, this.right, id, name, this.tpe)
+
   def this(left: Tree,
            right: Tree,
            nodeId: String,
@@ -223,9 +228,6 @@ class LeftWindowedJoin(val left: Tree,
     this(left, right, nodeId, nodeName)
     this.tpe = resultType
   }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new LeftWindowedJoin(this.left, this.right, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(left, right)
 

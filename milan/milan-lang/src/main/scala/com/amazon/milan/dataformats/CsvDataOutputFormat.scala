@@ -1,10 +1,5 @@
 package com.amazon.milan.dataformats
 
-import java.io.{ByteArrayOutputStream, OutputStream}
-import java.nio.charset.StandardCharsets
-import java.time.format.DateTimeFormatter
-import java.time.temporal.TemporalAccessor
-
 import com.amazon.milan.HashUtil
 import com.amazon.milan.serialization.JavaTypeFactory
 import com.amazon.milan.typeutil.{TypeDescriptor, types}
@@ -15,6 +10,11 @@ import com.fasterxml.jackson.dataformat.csv.CsvSchema.ColumnType
 import com.fasterxml.jackson.dataformat.csv.{CsvMapper, CsvSchema}
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
+
+import java.io.{ByteArrayOutputStream, OutputStream}
+import java.nio.charset.StandardCharsets
+import java.time.format.DateTimeFormatter
+import java.time.temporal.TemporalAccessor
 
 
 object CsvDataOutputFormat {
@@ -31,11 +31,11 @@ object CsvDataOutputFormat {
   class Configuration(val schema: Option[Array[String]],
                       val writeHeader: Boolean,
                       val dateTimeFormats: Map[String, String]) extends Serializable {
-    def withSchema(schema: Array[String]): Configuration =
-      new Configuration(Some(schema), this.writeHeader, this.dateTimeFormats)
-
     def withSchema(schema: String*): Configuration =
       this.withSchema(schema.toArray)
+
+    def withSchema(schema: Array[String]): Configuration =
+      new Configuration(Some(schema), this.writeHeader, this.dateTimeFormats)
 
     def withWriteHeader(writeHeader: Boolean): Configuration =
       new Configuration(this.schema, writeHeader, this.dateTimeFormats)
@@ -82,6 +82,10 @@ class CsvDataOutputFormat[T: TypeDescriptor](val config: CsvDataOutputFormat.Con
     this.recordTypeDescriptor = genericArgs.head.asInstanceOf[TypeDescriptor[T]]
   }
 
+  override def writeValues(values: TraversableOnce[T], outputStream: OutputStream): Unit = {
+    values.foreach(value => this.writeValue(value, outputStream))
+  }
+
   override def writeValue(value: T, outputStream: OutputStream): Unit = {
     if (this.config.writeHeader && !headerWritten) {
       headerWritten = true
@@ -97,10 +101,6 @@ class CsvDataOutputFormat[T: TypeDescriptor](val config: CsvDataOutputFormat.Con
       this.writer.writeValue(buffer, value)
       outputStream.write(buffer.toByteArray)
     }
-  }
-
-  override def writeValues(values: TraversableOnce[T], outputStream: OutputStream): Unit = {
-    values.foreach(value => this.writeValue(value, outputStream))
   }
 
   private def writeNamedTupleLine(value: T, outputStream: OutputStream): Unit = {
@@ -150,6 +150,18 @@ class CsvDataOutputFormat[T: TypeDescriptor](val config: CsvDataOutputFormat.Con
     outputStream.write((headerLine + "\n").getBytes(StandardCharsets.UTF_8))
   }
 
+  override def hashCode(): Int = this.hashCodeValue
+
+  override def equals(obj: Any): Boolean = {
+    obj match {
+      case o: CsvDataOutputFormat[T] =>
+        this.recordTypeDescriptor.equals(o.recordTypeDescriptor)
+
+      case _ =>
+        false
+    }
+  }
+
   /**
    * Creates a [[CsvMapper]] using the data format configuration.
    */
@@ -169,12 +181,6 @@ class CsvDataOutputFormat[T: TypeDescriptor](val config: CsvDataOutputFormat.Con
    */
   private def createWriter(): ObjectWriter = {
     this.mapper.writerFor(this.recordJavaType).`with`(this.createSchema())
-  }
-
-  private def createDateTimeFormatters(): Map[String, DateTimeFormatter] = {
-    this.config.dateTimeFormats.map {
-      case (field, formatString) => field -> DateTimeFormatter.ofPattern(formatString)
-    }
   }
 
   private def createSchema(): CsvSchema = {
@@ -213,15 +219,9 @@ class CsvDataOutputFormat[T: TypeDescriptor](val config: CsvDataOutputFormat.Con
     }
   }
 
-  override def hashCode(): Int = this.hashCodeValue
-
-  override def equals(obj: Any): Boolean = {
-    obj match {
-      case o: CsvDataOutputFormat[T] =>
-        this.recordTypeDescriptor.equals(o.recordTypeDescriptor)
-
-      case _ =>
-        false
+  private def createDateTimeFormatters(): Map[String, DateTimeFormatter] = {
+    this.config.dateTimeFormats.map {
+      case (field, formatString) => field -> DateTimeFormatter.ofPattern(formatString)
     }
   }
 }

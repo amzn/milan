@@ -1,12 +1,11 @@
 package com.amazon.milan.lang
 
-import java.time.{Duration, Instant}
-
 import com.amazon.milan.Id
 import com.amazon.milan.lang.internal.{GroupedStreamMacros, StreamMacros}
 import com.amazon.milan.program.{SlidingRecordWindow, StreamExpression}
 import com.amazon.milan.typeutil.types
 
+import java.time.{Duration, Instant}
 import scala.language.experimental.macros
 
 
@@ -36,6 +35,18 @@ class GroupedStream[T, TKey](val expr: StreamExpression) extends KeyedGroupOpera
    */
   def withId(id: String): GroupedStream[T, TKey] = {
     new GroupedStream[T, TKey](this.expr.withId(id))
+  }
+
+  /**
+   * Defines a window containing the latest records from every group.
+   *
+   * @param windowSize The window size.
+   * @return A [[WindowedStream]] representing the result of the windowing operation.
+   */
+  def recordWindow(windowSize: Int): WindowedStream[T] = {
+    val id = Id.newId()
+    val outputExpr = new SlidingRecordWindow(this.expr, windowSize, id, id, this.expr.recordType.toGroupedStream(types.Long))
+    new WindowedStream[T](outputExpr)
   }
 
   /**
@@ -69,18 +80,6 @@ class GroupedStream[T, TKey](val expr: StreamExpression) extends KeyedGroupOpera
    * @return A [[GroupedStream]] containing the mapped groups.
    */
   def map[TOut](f: (TKey, Stream[T]) => Stream[TOut]): GroupedStream[TOut, TKey] = macro GroupedStreamMacros.map[T, TKey, TOut]
-
-  /**
-   * Defines a window containing the latest records from every group.
-   *
-   * @param windowSize The window size.
-   * @return A [[WindowedStream]] representing the result of the windowing operation.
-   */
-  def recordWindow(windowSize: Int): WindowedStream[T] = {
-    val id = Id.newId()
-    val outputExpr = new SlidingRecordWindow(this.expr, windowSize, id, id, this.expr.recordType.toDataStream.toGroupedStream(types.Long))
-    new WindowedStream[T](outputExpr)
-  }
 }
 
 

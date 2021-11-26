@@ -4,6 +4,7 @@ import com.amazon.milan.SemanticVersion
 import com.amazon.milan.application.sinks.LogSink
 import com.amazon.milan.application.sources.ListDataSource
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
+import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import com.amazon.milan.lang.aggregation._
 import com.amazon.milan.tools.ApplicationInstanceProvider
@@ -25,7 +26,7 @@ class GroupByFlatMapSample extends ApplicationInstanceProvider {
       .groupBy(r => r.key).withName("grouped")
       .flatMap((key, group) => sumByValue(group)).withName("output")
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
 
     val config = new ApplicationConfiguration()
 
@@ -37,7 +38,7 @@ class GroupByFlatMapSample extends ApplicationInstanceProvider {
     config.addSink(output, outputSink)
 
     new ApplicationInstance(
-      new Application("GroupByFlatMapSample", graph, SemanticVersion(1, 0, 0)),
+      new Application("GroupByFlatMapSample", streams, SemanticVersion(1, 0, 0)),
       config)
   }
 }
@@ -55,7 +56,7 @@ class GroupBySelectSample extends ApplicationInstanceProvider {
       .select((key, r) => fields(field("key", key), field("sum", sum(r.value))))
       .withName("output")
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
 
     val config = new ApplicationConfiguration()
 
@@ -67,7 +68,7 @@ class GroupBySelectSample extends ApplicationInstanceProvider {
     config.addSink(output, outputSink)
 
     new ApplicationInstance(
-      new Application("GroupBySelectSample", graph, SemanticVersion.ZERO),
+      new Application("GroupBySelectSample", streams, SemanticVersion.ZERO),
       config)
   }
 }

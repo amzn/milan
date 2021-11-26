@@ -3,6 +3,7 @@ package com.amazon.milan.compiler.flink.generator
 import com.amazon.milan.application.ApplicationConfiguration
 import com.amazon.milan.compiler.flink.testing._
 import com.amazon.milan.compiler.flink.testutil._
+import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import com.amazon.milan.testing.applications._
 import org.junit.Assert._
@@ -16,7 +17,7 @@ class TestFlinkGenArgCompare {
     val input = Stream.of[IntKeyValueRecord]
     val output = input.maxBy(_.value)
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
 
     // We don't have fine control over the ordering of the data as it flows through and out of the Flink application,
     // but we can be fairly sure that our maxBy operation shouldn't output *all* of the input records if the max record
@@ -29,7 +30,7 @@ class TestFlinkGenArgCompare {
     val config = new ApplicationConfiguration
     config.setListSource(input, inputRecords: _*)
 
-    val results = TestApplicationExecutor.executeApplication(graph, config, 60, output)
+    val results = TestApplicationExecutor.executeApplication(streams, config, 60, output)
 
     val outputRecords = results.getRecords(output)
 
@@ -51,14 +52,14 @@ class TestFlinkGenArgCompare {
 
     val output = input.groupBy(r => r.key).flatMap((key, group) => maxByValue(group))
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
 
     val data = generateIntKeyValueRecords(100, 5, 100)
 
     val config = new ApplicationConfiguration
     config.setListSource(input, data: _*)
 
-    val results = TestApplicationExecutor.executeApplication(graph, config, 60, output)
+    val results = TestApplicationExecutor.executeApplication(streams, config, 60, output)
 
     val outputRecords = results.getRecords(output)
     val lastOutputRecordPerKey = outputRecords.groupBy(_.key).map { case (key, group) => key -> group.last }

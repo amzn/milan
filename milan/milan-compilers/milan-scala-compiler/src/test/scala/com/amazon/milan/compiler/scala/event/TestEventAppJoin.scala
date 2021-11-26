@@ -2,6 +2,7 @@ package com.amazon.milan.compiler.scala.event
 
 import com.amazon.milan.application.ApplicationConfiguration
 import com.amazon.milan.compiler.scala.testing.KeyValueRecord
+import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import org.junit.Assert._
 import org.junit.Test
@@ -17,11 +18,11 @@ class TestEventAppJoin {
     val joined = leftInput.leftJoin(rightInput).where((l, r) => l.key == r.key && r != null)
     val output = joined.select((l, r) => KeyValueRecord(l.key, l.value + r.value))
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
     val config = new ApplicationConfiguration()
     val sink = config.addMemorySink(output)
 
-    val target = EventAppTester.compile(graph, config)
+    val target = EventAppTester.compile(streams, config)
 
     // Add a left record, nothing should come out because of the requirement that r != null.
     target.consume("left", KeyValueRecord(1, 1))

@@ -1,7 +1,6 @@
 package com.amazon.milan.testing
 
 import java.time.{Duration, Instant}
-
 import scala.concurrent.{ExecutionContext, Future}
 
 
@@ -32,6 +31,49 @@ object Concurrent {
   def executeAndWait(action: () => Any, predicate: () => Boolean, timeout: Duration): Boolean = {
     action()
     this.wait(predicate, timeout)
+  }
+
+  /**
+   * Waits until a predicate is true, or a timeout occurs.
+   *
+   * @param predicate The predicate that indicates the operation is complete.
+   * @param timeout   The maximum time to wait for the predicate to return true.
+   * @return The final value returned from the predicate. False indicates the the operation timed out.
+   */
+  def wait(predicate: () => Boolean, timeout: Duration): Boolean = {
+    this.wait(predicate, () => (), timeout)
+  }
+
+  /**
+   * Waits until a predicate is true, or a timeout occurs.
+   *
+   * @param predicate The predicate that indicates the operation is complete.
+   * @param shutdown  An action to invoke after the execution completes or times out.
+   * @param timeout   The maximum time to wait for the predicate to return true.
+   * @return The final value returned from the predicate. False indicates the the operation timed out.
+   */
+  def wait(predicate: () => Boolean, shutdown: () => Any, timeout: Duration): Boolean = {
+    waitInternal(predicate, timeout)
+
+    shutdown()
+
+    // Return the result of the predicate at the time execution finished.
+    predicate()
+  }
+
+  /**
+   * Executes an action asynchronously and waits until a predicate is true, or a timeout occurs.
+   *
+   * @param action    The action to execute.
+   * @param predicate The predicate that indicates the operation is complete.
+   * @param timeout   The maximum time to wait for the predicate to return true.
+   * @return The final value returned from the predicate. False indicates the the operation timed out.
+   * @return
+   */
+  def executeAsyncAndWait(action: () => Any,
+                          predicate: () => Boolean,
+                          timeout: Duration): Boolean = {
+    this.executeAsyncAndWait(action, predicate, _ => (), timeout)
   }
 
   /**
@@ -81,18 +123,17 @@ object Concurrent {
   }
 
   /**
-   * Executes an action asynchronously and waits until a predicate is true, or a timeout occurs.
+   * Waits until a predicate is true, or a timeout occurs.
    *
-   * @param action    The action to execute.
    * @param predicate The predicate that indicates the operation is complete.
    * @param timeout   The maximum time to wait for the predicate to return true.
-   * @return The final value returned from the predicate. False indicates the the operation timed out.
-   * @return
    */
-  def executeAsyncAndWait(action: () => Any,
-                          predicate: () => Boolean,
-                          timeout: Duration): Boolean = {
-    this.executeAsyncAndWait(action, predicate, _ => (), timeout)
+  private def waitInternal(predicate: () => Boolean, timeout: Duration): Unit = {
+    val stopTime = Instant.now().plus(timeout)
+
+    while (Instant.now().isBefore(stopTime) && !predicate()) {
+      Thread.sleep(10)
+    }
   }
 
   /**
@@ -125,48 +166,6 @@ object Concurrent {
     else {
       // Return the result of the predicate at the time execution finished.
       predicate()
-    }
-  }
-
-  /**
-   * Waits until a predicate is true, or a timeout occurs.
-   *
-   * @param predicate The predicate that indicates the operation is complete.
-   * @param timeout   The maximum time to wait for the predicate to return true.
-   * @return The final value returned from the predicate. False indicates the the operation timed out.
-   */
-  def wait(predicate: () => Boolean, timeout: Duration): Boolean = {
-    this.wait(predicate, () => (), timeout)
-  }
-
-  /**
-   * Waits until a predicate is true, or a timeout occurs.
-   *
-   * @param predicate The predicate that indicates the operation is complete.
-   * @param shutdown  An action to invoke after the execution completes or times out.
-   * @param timeout   The maximum time to wait for the predicate to return true.
-   * @return The final value returned from the predicate. False indicates the the operation timed out.
-   */
-  def wait(predicate: () => Boolean, shutdown: () => Any, timeout: Duration): Boolean = {
-    waitInternal(predicate, timeout)
-
-    shutdown()
-
-    // Return the result of the predicate at the time execution finished.
-    predicate()
-  }
-
-  /**
-   * Waits until a predicate is true, or a timeout occurs.
-   *
-   * @param predicate The predicate that indicates the operation is complete.
-   * @param timeout   The maximum time to wait for the predicate to return true.
-   */
-  private def waitInternal(predicate: () => Boolean, timeout: Duration): Unit = {
-    val stopTime = Instant.now().plus(timeout)
-
-    while (Instant.now().isBefore(stopTime) && !predicate()) {
-      Thread.sleep(10)
     }
   }
 }

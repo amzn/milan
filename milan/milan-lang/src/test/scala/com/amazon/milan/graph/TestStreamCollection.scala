@@ -1,5 +1,6 @@
-package com.amazon.milan.lang
+package com.amazon.milan.graph
 
+import com.amazon.milan.lang.{Stream, field, fields}
 import com.amazon.milan.serialization.MilanObjectMapper
 import com.amazon.milan.test.{IntKeyValueRecord, IntRecord}
 import com.amazon.milan.typeutil.TypeDescriptor
@@ -10,7 +11,7 @@ import org.junit.{After, Before, Test}
 
 
 @Test
-class TestStreamGraph {
+class TestStreamCollection {
   @Before
   def before(): Unit = {
     Configurator.setRootLevel(Level.DEBUG)
@@ -22,74 +23,73 @@ class TestStreamGraph {
   }
 
   @Test
-  def test_StreamGraph_SerializeAndDeserialize_ReturnsEquivalentGraph(): Unit = {
+  def test_StreamCollection_SerializeAndDeserialize_ReturnsEquivalentGraph(): Unit = {
     val input = Stream.of[IntRecord]
     val mapped = input.map(r => fields(field("r", r)))
 
-    val graph = new StreamGraph(mapped)
+    val streams = StreamCollection.build(mapped)
 
     val mapper = new MilanObjectMapper()
-    val json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(graph)
+    val json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(streams)
 
     // Parse the json into an array, just to check the correct number of streams are in the json.
-    val parsed = mapper.readValue[StreamGraph](json, classOf[StreamGraph])
+    val parsed = mapper.readValue[StreamCollection](json, classOf[StreamCollection])
 
-    assertEquals(graph, parsed)
+    assertEquals(streams, parsed)
   }
 
   @Test
-  def test_StreamGraph_GetDereferencedGraph_Then_GetStreams_WithOneStreamAddedWithOneInput_ReturnsBothStreamNodesWithoutReferences(): Unit = {
+  def test_StreamCollection_GetDereferencedGraph_Then_GetStreams_WithOneStreamAddedWithOneInput_ReturnsBothStreamNodesWithoutReferences(): Unit = {
     val input = Stream.of[IntRecord]
     val mapped = input.map(r => fields(field("record", r)))
 
-    val graph = new StreamGraph(mapped)
+    val streams = StreamCollection.build(mapped)
 
-    val graphStreams = graph.getDereferencedGraph.getStreams.toList.sortBy(_.nodeId)
+    val graphStreams = streams.getDereferencedStreams.sortBy(_.nodeId)
     val originalStreams = List(input, mapped).map(_.expr).sortBy(_.nodeId)
     assertEquals(originalStreams, graphStreams)
   }
 
   @Test
-  def test_StreamGraph_GetDereferencedGraph_Then_GetStreams_AfterDeserialization_WithOneStreamAddedWithOneInput_ReturnsBothStreamNodesWithoutReferences(): Unit = {
+  def test_StreamCollection_GetDereferencedGraph_Then_GetStreams_AfterDeserialization_WithOneStreamAddedWithOneInput_ReturnsBothStreamNodesWithoutReferences(): Unit = {
     val input = Stream.of[IntRecord]
     val mapped = input.map(r => fields(field("record", r)))
 
-    val graph = new StreamGraph(mapped)
+    val streams = StreamCollection.build(mapped)
 
     val mapper = new MilanObjectMapper()
-    val json = mapper.writeValueAsString(graph)
+    val json = mapper.writeValueAsString(streams)
 
-    val parsedGraph = mapper.readValue[StreamGraph](json, classOf[StreamGraph])
+    val parsedGraph = mapper.readValue[StreamCollection](json, classOf[StreamCollection])
 
-    val graphStreams = parsedGraph.getDereferencedGraph.getStreams.toList.sortBy(_.nodeId)
+    val graphStreams = parsedGraph.getDereferencedStreams.sortBy(_.nodeId)
     val originalStreams = List(input, mapped).map(_.expr).sortBy(_.nodeId)
     assertEquals(originalStreams, graphStreams)
   }
 
   @Test
-  def test_StreamGraph_TypeCheckGraph_OfDeserializedGraph_WithFullJoinAndSelect_AssignsExpectedTypes(): Unit = {
+  def test_StreamCollection_TypeCheckGraph_OfDeserializedGraph_WithFullJoinAndSelect_AssignsExpectedTypes(): Unit = {
     val left = Stream.of[IntKeyValueRecord]
     val right = Stream.of[IntKeyValueRecord]
     val joined = left.fullJoin(right).where((l, r) => l.key == r.key)
     val output = joined.select((l, r) => IntKeyValueRecord(l.key, l.value + r.value))
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
 
-    val graphCopy = MilanObjectMapper.copy(graph).getDereferencedGraph
-    graphCopy.typeCheck()
+    val streamsCopy = MilanObjectMapper.copy(streams)
 
-    val leftCopy = graphCopy.getStream(left.streamId)
+    val leftCopy = streamsCopy.getStream(left.streamId)
     assertEquals(TypeDescriptor.streamOf[IntKeyValueRecord], leftCopy.tpe)
 
-    val rightCopy = graphCopy.getStream(right.streamId)
+    val rightCopy = streamsCopy.getStream(right.streamId)
     assertEquals(TypeDescriptor.streamOf[IntKeyValueRecord], rightCopy.tpe)
 
-    val outputCopy = graphCopy.getStream(output.streamId)
+    val outputCopy = streamsCopy.getStream(output.streamId)
     assertEquals(TypeDescriptor.streamOf[IntKeyValueRecord].fullName, outputCopy.tpe.fullName)
   }
 
   @Test
-  def test_StreamGraph_TypeCheckGraph_OfNestedStreamFunction_DoesntFail(): Unit = {
+  def test_StreamCollection_TypeCheckGraph_OfNestedStreamFunction_DoesntFail(): Unit = {
     val input = Stream.of[IntKeyValueRecord]
 
     def maxByValue(stream: Stream[IntKeyValueRecord]): Stream[IntKeyValueRecord] = {
@@ -98,8 +98,7 @@ class TestStreamGraph {
 
     val output = input.groupBy(r => r.key).flatMap((key, group) => maxByValue(group))
 
-    val graph = new StreamGraph(output).getDereferencedGraph
-
-    graph.typeCheck()
+    val streams = StreamCollection.build(output).getDereferencedStreams
+    typeCheckGraph(streams)
   }
 }

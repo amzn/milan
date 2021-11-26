@@ -1,7 +1,6 @@
 package com.amazon.milan.compiler.scala
 
 import com.amazon.milan.lang
-import com.amazon.milan.lang.StreamGraph
 
 
 object StreamAppTester {

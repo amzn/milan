@@ -2,18 +2,16 @@ package com.amazon.milan.compiler.flink.generator
 
 import com.amazon.milan.application.ApplicationConfiguration
 import com.amazon.milan.application.ApplicationConfiguration.StreamSink
-import com.amazon.milan.lang.StreamGraph
 import com.amazon.milan.program.{Aggregate, Cycle, ExternalStream, Filter, FlatMap, GroupBy, GroupingExpression, JoinExpression, Last, LeftWindowedJoin, ScanExpression, SelectTerm, SlidingRecordWindow, StreamExpression, StreamMap, TimeWindowExpression, Tree, Union, WindowApply}
 import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, GroupedStreamTypeDescriptor}
 
 
 object GeneratorContext {
   def createEmpty(applicationInstanceId: String,
-                  graph: StreamGraph,
                   appConfig: ApplicationConfiguration,
                   output: GeneratorOutputs,
                   typeLifter: FlinkTypeLifter) =
-    new GeneratorContext(applicationInstanceId, graph, appConfig, output, typeLifter, Map.empty)
+    new GeneratorContext(applicationInstanceId, appConfig, output, typeLifter, Map.empty)
 }
 
 
@@ -21,7 +19,6 @@ object GeneratorContext {
  * Encapsulates the context for a Flink code generation operation.
  */
 class GeneratorContext(val applicationInstanceId: String,
-                       val graph: StreamGraph,
                        val appConfig: ApplicationConfiguration,
                        val output: GeneratorOutputs,
                        contextTypeLifter: FlinkTypeLifter,
@@ -56,7 +53,6 @@ class GeneratorContext(val applicationInstanceId: String,
   def withStreamTerm(termName: String, stream: GeneratedStream): GeneratorContext = {
     new GeneratorContext(
       this.applicationInstanceId,
-      this.graph,
       this.appConfig,
       this.output,
       this.contextTypeLifter,

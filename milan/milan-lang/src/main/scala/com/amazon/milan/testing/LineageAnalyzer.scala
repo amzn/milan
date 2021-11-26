@@ -52,37 +52,6 @@ class LineageAnalyzer(records: TraversableOnce[LineageRecord]) {
   }
 
   /**
-   * Find the first record upstream from a starting record that is derived from an ancestor record.
-   *
-   * @param startRecordId    The ID of the record where the search should start.
-   * @param ancestorRecordId The ID of the ancestor record to search for.
-   * @return The [[LineageRecord]] identifying the first record found that has the ancestor record as one of its source
-   *         records, or None if no matching record was found.
-   */
-  def findFirstUpstreamDependent(startRecordStreamId: String, startRecordId: String, ancestorRecordId: String): Option[LineageRecord] = {
-    this.findUpwards(startRecordStreamId, startRecordId, _.sourceRecords.exists(_.recordId == ancestorRecordId))
-  }
-
-  /**
-   * Gets all [[LineageRecord]] records where the specified target record is a source record.
-   *
-   * @param streamId The stream ID of the target record.
-   * @param recordId The target record ID.
-   * @return An array of [[LineageRecord]] objects that specify the target record as a source record.
-   */
-  def getImmediateDescendants(streamId: String, recordId: String): Array[LineageRecord] = {
-    this.recordsList.filter(_.sourceRecords.exists(r => r.streamId == streamId && r.recordId == recordId)).toArray
-  }
-
-  /**
-   * Gets the [[LineageRecord]] for a record with the specified ID from the specified stream, or None if no such lineage
-   * record exists.
-   */
-  private def getRecord(streamId: String, recordId: String): Option[LineageRecord] = {
-    this.recordsById.get(recordId).flatMap(_.find(_.subjectStreamId == streamId))
-  }
-
-  /**
    * Perform a breadth-first search looking for a [[LineageRecord]] that matches a predicate.
    *
    * @param startRecordId The ID of the record where the search will start.
@@ -131,5 +100,36 @@ class LineageAnalyzer(records: TraversableOnce[LineageRecord]) {
     }
       .find(_.isDefined)
       .flatten
+  }
+
+  /**
+   * Gets the [[LineageRecord]] for a record with the specified ID from the specified stream, or None if no such lineage
+   * record exists.
+   */
+  private def getRecord(streamId: String, recordId: String): Option[LineageRecord] = {
+    this.recordsById.get(recordId).flatMap(_.find(_.subjectStreamId == streamId))
+  }
+
+  /**
+   * Find the first record upstream from a starting record that is derived from an ancestor record.
+   *
+   * @param startRecordId    The ID of the record where the search should start.
+   * @param ancestorRecordId The ID of the ancestor record to search for.
+   * @return The [[LineageRecord]] identifying the first record found that has the ancestor record as one of its source
+   *         records, or None if no matching record was found.
+   */
+  def findFirstUpstreamDependent(startRecordStreamId: String, startRecordId: String, ancestorRecordId: String): Option[LineageRecord] = {
+    this.findUpwards(startRecordStreamId, startRecordId, _.sourceRecords.exists(_.recordId == ancestorRecordId))
+  }
+
+  /**
+   * Gets all [[LineageRecord]] records where the specified target record is a source record.
+   *
+   * @param streamId The stream ID of the target record.
+   * @param recordId The target record ID.
+   * @return An array of [[LineageRecord]] objects that specify the target record as a source record.
+   */
+  def getImmediateDescendants(streamId: String, recordId: String): Array[LineageRecord] = {
+    this.recordsList.filter(_.sourceRecords.exists(r => r.streamId == streamId && r.recordId == recordId)).toArray
   }
 }

@@ -3,6 +3,7 @@ package com.amazon.milan.compiler.flink.generator
 import com.amazon.milan.application.ApplicationConfiguration
 import com.amazon.milan.application.sources.ListDataSource
 import com.amazon.milan.compiler.flink.testing.{IntRecord, KeyValueRecord, StringRecord, TestApplicationExecutor}
+import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import org.junit.Assert._
 import org.junit.Test
@@ -36,7 +37,7 @@ class TestFlinkGenJoin {
     val conditioned = joined.where((l, r) => l.key == r.key)
     val selected = conditioned.select((l, r) => TestFlinkGenJoin.combineRecords(l, r))
 
-    val graph = new StreamGraph(selected)
+    val streams = StreamCollection.build(selected)
 
     val leftInputRecords = List(new KeyValueRecord("1", "l1"), new KeyValueRecord("2", "l2"))
     val rightInputRecords = List(new KeyValueRecord("1", "r1"), new KeyValueRecord("2", "r2"))
@@ -44,7 +45,7 @@ class TestFlinkGenJoin {
     config.setSource(left, new ListDataSource(leftInputRecords))
     config.setSource(right, new ListDataSource(rightInputRecords))
 
-    val result = TestApplicationExecutor.executeApplication(graph, config, 60, selected)
+    val result = TestApplicationExecutor.executeApplication(streams, config, 60, selected)
 
     val outputs = result.getRecords(selected)
     assertTrue(outputs.contains(new KeyValueRecord("1", "l1r1")))
@@ -63,7 +64,7 @@ class TestFlinkGenJoin {
       field("rightValue", if (r == null) "" else r.value)
     ))
 
-    val graph = new StreamGraph(selected)
+    val streams = StreamCollection.build(selected)
 
     val leftInputRecords = List(new KeyValueRecord("1", "l1"), new KeyValueRecord("2", "l2"))
     val rightInputRecords = List(new KeyValueRecord("1", "r1"), new KeyValueRecord("2", "r2"))
@@ -71,7 +72,7 @@ class TestFlinkGenJoin {
     config.setSource(left, new ListDataSource(leftInputRecords))
     config.setSource(right, new ListDataSource(rightInputRecords))
 
-    val result = TestApplicationExecutor.executeApplication(graph, config, 60, selected)
+    val result = TestApplicationExecutor.executeApplication(streams, config, 60, selected)
 
     val outputs = result.getRecords(selected)
     assertTrue(outputs.contains(("l1", "r1")))
@@ -87,7 +88,7 @@ class TestFlinkGenJoin {
     val conditioned = joined.where((l, r) => l.key == r.key)
     val selected = conditioned.select((l, r) => TestFlinkGenJoin.combineRecords(l, r))
 
-    val graph = new StreamGraph(selected)
+    val streams = StreamCollection.build(selected)
 
     val leftInputRecords = List(KeyValueRecord("1", "l1"), KeyValueRecord("2", "l2"))
     val rightInputRecords = List(KeyValueRecord("1", "r1"), KeyValueRecord("2", "r2"), KeyValueRecord("1", "r1b"), KeyValueRecord("2", "r2b"))
@@ -95,7 +96,7 @@ class TestFlinkGenJoin {
     config.setSource(left, new ListDataSource(leftInputRecords))
     config.setSource(right, new ListDataSource(rightInputRecords))
 
-    val result = TestApplicationExecutor.executeApplication(graph, config, 60, selected)
+    val result = TestApplicationExecutor.executeApplication(streams, config, 60, selected)
 
     val outputs = result.getRecords(selected)
 

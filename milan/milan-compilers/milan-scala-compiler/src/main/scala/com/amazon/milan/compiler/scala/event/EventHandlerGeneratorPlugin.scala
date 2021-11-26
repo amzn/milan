@@ -47,6 +47,10 @@ trait EventHandlerGeneratorPlugin {
 }
 
 
+class EmptyEventHandlerGeneratorPlugin extends EventHandlerGeneratorPlugin {
+}
+
+
 object EventHandlerGeneratorPlugin {
   /**
    * The prefix of properties that specify event handler generator plugins.

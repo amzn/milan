@@ -1,7 +1,6 @@
 package com.amazon.milan.cmd
 
 import java.lang.reflect.{Field, Method}
-
 import scala.collection.mutable
 
 
@@ -104,16 +103,6 @@ class ArgumentsBase {
     }
   }
 
-  private def addToListBuffer(listBuffer: Any, key: String, value: String): Unit = {
-    val appendMethod = listBuffer.getClass.getMethods.find(m => m.getName == "append").get
-
-    if (appendMethod == null) {
-      throw new Exception(s"Parameters argument field has unsupported type ${listBuffer.getClass.getName}")
-    }
-
-    appendMethod.invoke(listBuffer, List((key, value)))
-  }
-
   private def setArgument(argDef: NamedArgument, field: Field, stringValue: String): Unit = {
     val parsedValue = field.getType match {
       case t if t == classOf[String] =>
@@ -134,6 +123,16 @@ class ArgumentsBase {
     setMethod.invoke(this, parsedValue.asInstanceOf[AnyRef])
 
     this.argumentsWithValues.add(argDef)
+  }
+
+  private def addToListBuffer(listBuffer: Any, key: String, value: String): Unit = {
+    val appendMethod = listBuffer.getClass.getMethods.find(m => m.getName == "append").get
+
+    if (appendMethod == null) {
+      throw new Exception(s"Parameters argument field has unsupported type ${listBuffer.getClass.getName}")
+    }
+
+    appendMethod.invoke(listBuffer, List((key, value)))
   }
 
   private def findArgumentsVariables(): Array[(NamedArgument, Field)] = {

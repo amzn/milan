@@ -51,7 +51,7 @@ class TestScalarFunctionGenerator {
     TypeChecker.typeCheck(tree)
 
     val code = ScalarFunctionGenerator.default.getScalaAnonymousFunction(tree)
-    val expectedCode = "(t: Tuple2[Int, String]) => t match { case (i, s) => i }"
+    val expectedCode = "(t: Tuple2[Int, String]) => t match { case Tuple2(i, s) => i }"
     assertEquals(expectedCode, code)
   }
 }

@@ -7,10 +7,11 @@ import java.time.Duration
 
 import com.amazon.milan.application.sinks.FileDataSink
 import com.amazon.milan.application.{ApplicationConfiguration, ApplicationInstance}
+import com.amazon.milan.compiler.flink.generator.{FlinkGenerator, GeneratorConfig}
 import com.amazon.milan.compiler.scala.RuntimeEvaluator
 import com.amazon.milan.dataformats.{JsonDataInputFormat, JsonDataOutputFormat}
-import com.amazon.milan.compiler.flink.generator.{FlinkGenerator, GeneratorConfig}
-import com.amazon.milan.lang.{Stream, StreamGraph}
+import com.amazon.milan.graph.StreamCollection
+import com.amazon.milan.lang.Stream
 import com.amazon.milan.serialization.MilanObjectMapper
 import com.amazon.milan.typeutil.{TypeDescriptor, types}
 import com.typesafe.scalalogging.Logger
@@ -51,7 +52,7 @@ object TestApplicationExecutor {
                          continuationPredicate: ApplicationExecutionResult => Boolean,
                          outputStreams: Stream[_]*): ApplicationExecutionResult = {
     this.executeApplication(
-      instance.application.graph,
+      instance.application.streams,
       instance.config,
       maxRuntimeSeconds,
       continuationPredicate,
@@ -71,7 +72,7 @@ object TestApplicationExecutor {
                          maxRuntimeSeconds: Int,
                          outputStreams: Stream[_]*): ApplicationExecutionResult = {
     this.executeApplication(
-      instance.application.graph,
+      instance.application.streams,
       instance.config,
       maxRuntimeSeconds,
       outputStreams: _*)
@@ -81,25 +82,25 @@ object TestApplicationExecutor {
    * Executes a Milan application by generating a Flink program, compiling, and running it.
    * Data for the streams in the application can be captured and returned.
    *
-   * @param graph             The Milan application graph.
+   * @param streams           The Milan application graph.
    * @param config            The Milan application configuration.
    * @param maxRuntimeSeconds The maximum allowed runtime for the generated application.
    * @param outputStreams     Streams for which the records will be returned in the results.
    * @return An [[ApplicationExecutionResult]] object containing the records written to the output streams.
    */
-  def executeApplication(graph: StreamGraph,
+  def executeApplication(streams: StreamCollection,
                          config: ApplicationConfiguration,
                          maxRuntimeSeconds: Int,
                          outputStreams: Stream[_]*): ApplicationExecutionResult = {
     val executor = new TestApplicationExecutor
-    executor.executeApplication(graph, config, maxRuntimeSeconds, outputStreams: _*)
+    executor.executeApplication(streams, config, maxRuntimeSeconds, outputStreams: _*)
   }
 
   /**
    * Executes a Milan application by generating a Flink program, compiling, and running it.
    * Data for the streams in the application can be captured and returned.
    *
-   * @param graph                 The Milan application graph.
+   * @param streams               The Milan application graph.
    * @param config                The Milan application configuration.
    * @param maxRuntimeSeconds     The maximum allowed runtime for the generated application.
    * @param continuationPredicate A function that will be periodically called with the outputs collected up to that
@@ -108,13 +109,13 @@ object TestApplicationExecutor {
    * @param outputStreams         Streams for which the records will be returned in the results.
    * @return An [[ApplicationExecutionResult]] object containing the records written to the output streams.
    */
-  def executeApplication(graph: StreamGraph,
+  def executeApplication(streams: StreamCollection,
                          config: ApplicationConfiguration,
                          maxRuntimeSeconds: Int,
                          continuationPredicate: ApplicationExecutionResult => Boolean,
                          outputStreams: Stream[_]*): ApplicationExecutionResult = {
     val executor = new TestApplicationExecutor
-    executor.executeApplication(graph, config, maxRuntimeSeconds, continuationPredicate, outputStreams: _*)
+    executor.executeApplication(streams, config, maxRuntimeSeconds, continuationPredicate, outputStreams: _*)
   }
 }
 
@@ -123,7 +124,7 @@ object TestApplicationExecutor {
  */
 class TestApplicationExecutor {
   // All of the runtime dependencies of the milan-flink-compiler package. This needs to be updated whenever the versions change in the pom.
-  private val dependencies = "io.netty:netty-codec-http2:4.1.42.Final,org.apache.flink:flink-statebackend-rocksdb_2.12:1.9.1,org.scala-lang:scala-compiler:2.12.10,software.amazon.awssdk:emr:2.10.25,com.thoughtworks.paranamer:paranamer:2.8,io.netty:netty-common:4.1.42.Final,com.fasterxml.jackson.core:jackson-annotations:2.10.0,software.amazon.awssdk:utils:2.10.25,software.amazon.awssdk:auth:2.10.25,org.objenesis:objenesis:2.6,com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.10.0,com.esotericsoftware.minlog:minlog:1.2,com.fasterxml.jackson.core:jackson-core:2.10.0,com.fasterxml.jackson.module:jackson-module-scala_2.12:2.10.0,com.amazonaws:jmespath-java:1.11.683,com.typesafe:ssl-config-core_2.12:0.3.7,software.amazon.awssdk:aws-core:2.10.25,com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.10.0,com.amazonaws:aws-java-sdk-kms:1.11.683,com.fasterxml.jackson.module:jackson-module-paranamer:2.10.0,org.scala-lang:scala-library:2.12.10,org.clapper:grizzled-slf4j_2.12:1.3.2,commons-cli:commons-cli:1.3.1,org.apache.logging.log4j:log4j-slf4j-impl:2.11.1,org.apache.flink:flink-shaded-netty:4.1.32.Final-7.0,io.netty:netty-resolver:4.1.42.Final,org.apache.logging.log4j:log4j-api:2.11.1,org.scala-lang.modules:scala-xml_2.12:1.0.6,com.typesafe.akka:akka-protobuf_2.12:2.5.21,com.google.code.findbugs:jsr305:1.3.9,org.apache.logging.log4j:log4j-core:2.11.1,org.apache.commons:commons-compress:1.18,software.amazon.awssdk:annotations:2.10.25,commons-lang:commons-lang:2.6,com.twitter:chill-java:0.7.6,com.fasterxml.jackson.dataformat:jackson-dataformat-csv:2.10.0,org.apache.flink:flink-streaming-scala_2.12:1.9.1,software.amazon.awssdk:regions:2.10.25,com.data-artisans:frocksdbjni:5.17.2-artisans-1.0,commons-codec:commons-codec:1.10,com.typesafe.scala-logging:scala-logging_2.12:3.9.2,org.apache.httpcomponents:httpclient:4.5.9,software.amazon.awssdk:apache-client:2.10.25,org.apache.httpcomponents:httpcore:4.4.11,software.amazon.awssdk:http-client-spi:2.10.25,org.scala-lang.modules:scala-parser-combinators_2.12:1.1.1,org.apache.flink:flink-annotations:1.9.1,org.apache.flink:flink-streaming-java_2.12:1.9.1,io.netty:netty-buffer:4.1.42.Final,com.google.guava:guava:18.0,io.netty:netty-transport-native-epoll:linux-x86_64,software.amazon.awssdk:aws-query-protocol:2.10.25,com.amazonaws:aws-java-sdk-core:1.11.683,org.apache.flink:flink-queryable-state-client-java:1.9.1,software.amazon.awssdk:s3:2.10.25,com.amazonaws:aws-java-sdk-s3:1.11.683,com.typesafe.akka:akka-actor_2.12:2.5.21,org.javassist:javassist:3.19.0-GA,org.scala-lang:scala-reflect:2.12.10,org.scala-lang.modules:scala-java8-compat_2.12:0.8.0,org.apache.flink:flink-core:1.9.1,org.apache.flink:flink-metrics-core:1.9.1,com.typesafe:config:1.3.3,io.dropwizard.metrics:metrics-core:3.1.5,org.apache.flink:flink-shaded-jackson:2.9.8-7.0,commons-io:commons-io:2.7,org.xerial.snappy:snappy-java:1.1.4,software.amazon.awssdk:aws-json-protocol:2.10.25,io.netty:netty-transport-native-unix-common:4.1.42.Final,com.typesafe.akka:akka-slf4j_2.12:2.5.21,software.amazon.awssdk:profiles:2.10.25,com.typesafe.netty:netty-reactive-streams:2.0.3,io.netty:netty-transport:4.1.42.Final,org.apache.flink:flink-runtime_2.12:1.9.1,org.apache.flink:flink-scala_2.12:1.9.1,org.reactivestreams:reactive-streams:1.0.2,com.github.scopt:scopt_2.12:3.5.0,com.fasterxml.jackson.core:jackson-databind:2.10.0,org.apache.flink:flink-hadoop-fs:1.9.1,org.apache.flink:flink-shaded-asm-6:6.2.1-7.0,org.apache.commons:commons-lang3:3.3.2,software.amazon.awssdk:protocol-core:2.10.25,com.typesafe.akka:akka-stream_2.12:2.5.21,io.netty:netty-codec:4.1.42.Final,org.apache.flink:flink-metrics-dropwizard:1.9.1,software.amazon.awssdk:kinesis:2.10.25,software.amazon.awssdk:ec2:2.10.25,com.twitter:chill_2.12:0.7.6,org.apache.commons:commons-math3:3.5,com.typesafe.netty:netty-reactive-streams-http:2.0.3,joda-time:joda-time:2.5,org.apache.flink:flink-shaded-guava:18.0-7.0,software.amazon.awssdk:netty-nio-client:2.10.25,software.amazon.eventstream:eventstream:1.0.1,com.esotericsoftware.kryo:kryo:2.24.0,org.apache.flink:flink-optimizer_2.12:1.9.1,commons-collections:commons-collections:3.2.2,software.amazon.awssdk:aws-cbor-protocol:2.10.25,io.netty:netty-codec-http:4.1.42.Final,org.slf4j:slf4j-api:1.7.25,commons-logging:commons-logging:1.1.3,software.amazon.ion:ion-java:1.0.2,org.apache.flink:force-shading:1.9.1,io.netty:netty-handler:4.1.42.Final,org.apache.flink:flink-connector-kinesis_2.11:1.7-SNAPSHOT,org.apache.flink:flink-java:1.9.1,software.amazon.awssdk:sdk-core:2.10.25,software.amazon.awssdk:aws-xml-protocol:2.10.25,org.apache.flink:flink-clients_2.12:1.9.1"
+  private val dependencies = "io.netty:netty-codec-http2:4.1.42.Final,org.apache.flink:flink-statebackend-rocksdb_2.12:1.9.1,org.scala-lang:scala-compiler:2.12.10,software.amazon.awssdk:emr:2.10.25,com.thoughtworks.paranamer:paranamer:2.8,io.netty:netty-common:4.1.42.Final,com.fasterxml.jackson.core:jackson-annotations:2.10.0,software.amazon.awssdk:utils:2.10.25,software.amazon.awssdk:auth:2.10.25,org.objenesis:objenesis:2.6,com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.10.0,com.esotericsoftware.minlog:minlog:1.2,com.fasterxml.jackson.core:jackson-core:2.10.0,com.fasterxml.jackson.module:jackson-module-scala_2.12:2.10.0,com.amazonaws:jmespath-java:1.11.683,com.typesafe:ssl-config-core_2.12:0.3.7,software.amazon.awssdk:aws-core:2.10.25,com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.10.0,com.amazonaws:aws-java-sdk-kms:1.11.683,com.fasterxml.jackson.module:jackson-module-paranamer:2.10.0,org.scala-lang:scala-library:2.12.10,org.clapper:grizzled-slf4j_2.12:1.3.2,commons-cli:commons-cli:1.3.1,org.apache.logging.log4j:log4j-slf4j-impl:2.11.1,org.apache.flink:flink-shaded-netty:4.1.32.Final-7.0,io.netty:netty-resolver:4.1.42.Final,org.apache.logging.log4j:log4j-api:2.11.1,org.scala-lang.modules:scala-xml_2.12:1.0.6,com.typesafe.akka:akka-protobuf_2.12:2.5.21,com.google.code.findbugs:jsr305:1.3.9,org.apache.logging.log4j:log4j-core:2.11.1,org.apache.commons:commons-compress:1.18,software.amazon.awssdk:annotations:2.10.25,commons-lang:commons-lang:2.6,com.twitter:chill-java:0.7.6,com.fasterxml.jackson.dataformat:jackson-dataformat-csv:2.10.0,org.apache.flink:flink-streaming-scala_2.12:1.9.1,software.amazon.awssdk:regions:2.10.25,com.data-artisans:frocksdbjni:5.17.2-artisans-1.0,commons-codec:commons-codec:1.10,com.typesafe.scala-logging:scala-logging_2.12:3.9.2,org.apache.httpcomponents:httpclient:4.5.9,software.amazon.awssdk:apache-client:2.10.25,org.apache.httpcomponents:httpcore:4.4.11,software.amazon.awssdk:http-client-spi:2.10.25,org.scala-lang.modules:scala-parser-combinators_2.12:1.1.1,org.apache.flink:flink-annotations:1.9.1,org.apache.flink:flink-streaming-java_2.12:1.9.1,io.netty:netty-buffer:4.1.42.Final,com.google.guava:guava:18.0,io.netty:netty-transport-native-epoll:linux-x86_64,software.amazon.awssdk:aws-query-protocol:2.10.25,com.amazonaws:aws-java-sdk-core:1.11.683,org.apache.flink:flink-queryable-state-client-java:1.9.1,software.amazon.awssdk:s3:2.10.25,com.amazonaws:aws-java-sdk-s3:1.11.683,com.typesafe.akka:akka-actor_2.12:2.5.21,org.javassist:javassist:3.19.0-GA,org.scala-lang:scala-reflect:2.12.10,org.scala-lang.modules:scala-java8-compat_2.12:0.8.0,org.apache.flink:flink-core:1.9.1,org.apache.flink:flink-metrics-core:1.9.1,com.typesafe:config:1.3.3,io.dropwizard.metrics:metrics-core:3.1.5,org.apache.flink:flink-shaded-jackson:2.9.8-7.0,commons-io:commons-io:2.6,org.xerial.snappy:snappy-java:1.1.4,software.amazon.awssdk:aws-json-protocol:2.10.25,io.netty:netty-transport-native-unix-common:4.1.42.Final,com.typesafe.akka:akka-slf4j_2.12:2.5.21,software.amazon.awssdk:profiles:2.10.25,com.typesafe.netty:netty-reactive-streams:2.0.3,io.netty:netty-transport:4.1.42.Final,org.apache.flink:flink-runtime_2.12:1.9.1,org.apache.flink:flink-scala_2.12:1.9.1,org.reactivestreams:reactive-streams:1.0.2,com.github.scopt:scopt_2.12:3.5.0,com.fasterxml.jackson.core:jackson-databind:2.10.0,org.apache.flink:flink-hadoop-fs:1.9.1,org.apache.flink:flink-shaded-asm-6:6.2.1-7.0,org.apache.commons:commons-lang3:3.3.2,software.amazon.awssdk:protocol-core:2.10.25,com.typesafe.akka:akka-stream_2.12:2.5.21,io.netty:netty-codec:4.1.42.Final,org.apache.flink:flink-metrics-dropwizard:1.9.1,software.amazon.awssdk:kinesis:2.10.25,software.amazon.awssdk:ec2:2.10.25,com.twitter:chill_2.12:0.7.6,org.apache.commons:commons-math3:3.5,com.typesafe.netty:netty-reactive-streams-http:2.0.3,joda-time:joda-time:2.5,org.apache.flink:flink-shaded-guava:18.0-7.0,software.amazon.awssdk:netty-nio-client:2.10.25,software.amazon.eventstream:eventstream:1.0.1,com.esotericsoftware.kryo:kryo:2.24.0,org.apache.flink:flink-optimizer_2.12:1.9.1,commons-collections:commons-collections:3.2.2,software.amazon.awssdk:aws-cbor-protocol:2.10.25,io.netty:netty-codec-http:4.1.42.Final,org.slf4j:slf4j-api:1.7.25,commons-logging:commons-logging:1.1.3,software.amazon.ion:ion-java:1.0.2,org.apache.flink:force-shading:1.9.1,io.netty:netty-handler:4.1.42.Final,org.apache.flink:flink-connector-kinesis_2.11:1.7-SNAPSHOT,org.apache.flink:flink-java:1.9.1,software.amazon.awssdk:sdk-core:2.10.25,software.amazon.awssdk:aws-xml-protocol:2.10.25,org.apache.flink:flink-clients_2.12:1.9.1"
 
   // Test dependencies of the milan-flink package.
   private val testDependencies = "junit:junit:4.12"
@@ -160,7 +161,7 @@ class TestApplicationExecutor {
                          continuationPredicate: ApplicationExecutionResult => Boolean,
                          outputStreams: Stream[_]*): ApplicationExecutionResult = {
     this.executeApplication(
-      instance.application.graph,
+      instance.application.streams,
       instance.config,
       maxRuntimeSeconds,
       continuationPredicate,
@@ -180,7 +181,7 @@ class TestApplicationExecutor {
                          maxRuntimeSeconds: Int,
                          outputStreams: Stream[_]*): ApplicationExecutionResult = {
     this.executeApplication(
-      instance.application.graph,
+      instance.application.streams,
       instance.config,
       maxRuntimeSeconds,
       outputStreams: _*)
@@ -190,7 +191,7 @@ class TestApplicationExecutor {
    * Executes a Milan application by generating a Flink program, compiling, and running it.
    * Data for the streams in the application can be captured and returned.
    *
-   * @param graph                 The Milan application graph.
+   * @param streams               The Milan application graph.
    * @param config                The Milan application configuration.
    * @param maxRuntimeSeconds     The maximum allowed runtime for the generated application.
    * @param continuationPredicate A function that will be periodically called with the outputs collected up to that
@@ -199,7 +200,7 @@ class TestApplicationExecutor {
    * @param outputStreams         Streams for which the records will be returned in the results.
    * @return An [[ApplicationExecutionResult]] object containing the records written to the output streams.
    */
-  def executeApplication(graph: StreamGraph,
+  def executeApplication(streams: StreamCollection,
                          config: ApplicationConfiguration,
                          maxRuntimeSeconds: Int,
                          continuationPredicate: ApplicationExecutionResult => Boolean,
@@ -211,7 +212,7 @@ class TestApplicationExecutor {
     val outputFiles = this.addOutputSinks(workingFolder, config, outputStreams)
 
     // Generate the scala code for the application.
-    val generatedCode = this.generator.generateScala(graph, config, "generated", "TestApplication")
+    val generatedCode = this.generator.generateScala(streams, config, "generated", "TestApplication")
 
     // Create the output directory for the compilation.
     val classesFolder = workingFolder.resolve("classes")
@@ -261,17 +262,17 @@ class TestApplicationExecutor {
    * Executes a Milan application by generating a Flink program, compiling, and running it.
    * Data for the streams in the application can be captured and returned.
    *
-   * @param graph             The Milan application graph.
+   * @param streams           The Milan application graph.
    * @param config            The Milan application configuration.
    * @param maxRuntimeSeconds The maximum allowed runtime for the generated application.
    * @param outputStreams     Streams for which the records will be returned in the results.
    * @return An [[ApplicationExecutionResult]] object containing the records written to the output streams.
    */
-  def executeApplication(graph: StreamGraph,
+  def executeApplication(streams: StreamCollection,
                          config: ApplicationConfiguration,
                          maxRuntimeSeconds: Int,
                          outputStreams: Stream[_]*): ApplicationExecutionResult = {
-    this.executeApplication(graph, config, maxRuntimeSeconds, _ => true, outputStreams: _*)
+    this.executeApplication(streams, config, maxRuntimeSeconds, _ => true, outputStreams: _*)
   }
 
   /**
@@ -489,7 +490,7 @@ class TestApplicationExecutor {
   private def getMilanClassPathEntries: Seq[Path] = {
     val milanClasses = Seq(
       classOf[com.amazon.milan.compiler.flink.Compiler], // milan-flink-compiler
-      classOf[com.amazon.milan.lang.StreamGraph], // milan-lang
+      classOf[com.amazon.milan.graph.StreamCollection], // milan-lang
       classOf[com.amazon.milan.typeutil.TypeProvider] // milan-typeutil
     )
 

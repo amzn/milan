@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
+import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import com.amazon.milan.testing.applications._
 import com.amazon.milan.{Id, SemanticVersion}
@@ -20,7 +21,7 @@ object TestCompileApplicationInstance {
   class Provider extends ApplicationInstanceProvider {
     override def getApplicationInstance(params: List[(String, String)]): ApplicationInstance = {
       val input = Stream.of[Record]
-      val graph = new StreamGraph(input)
+      val streams = StreamCollection.build(input)
       val config = new ApplicationConfiguration
       config.setListSource(input, Record("1", 1))
 
@@ -29,7 +30,7 @@ object TestCompileApplicationInstance {
 
       new ApplicationInstance(
         instanceId,
-        new Application(appId, graph, SemanticVersion.ZERO),
+        new Application(appId, streams, SemanticVersion.ZERO),
         config)
     }
   }

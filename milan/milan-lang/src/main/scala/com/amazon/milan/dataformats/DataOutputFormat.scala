@@ -1,9 +1,9 @@
 package com.amazon.milan.dataformats
 
-import java.io.{ByteArrayOutputStream, OutputStream}
-
 import com.amazon.milan.serialization.{GenericTypeInfoProvider, GenericTypedJsonDeserializer, GenericTypedJsonSerializer, SetGenericTypeInfo}
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
+
+import java.io.{ByteArrayOutputStream, OutputStream}
 
 
 /**

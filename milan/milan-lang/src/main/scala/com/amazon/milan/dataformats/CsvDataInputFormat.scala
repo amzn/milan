@@ -1,9 +1,5 @@
 package com.amazon.milan.dataformats
 
-import java.io.InputStream
-import java.nio.ByteBuffer
-import java.nio.charset.StandardCharsets
-
 import com.amazon.milan.serialization.{DataFormatConfiguration, DataFormatFlags, JavaTypeFactory}
 import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
@@ -15,6 +11,9 @@ import com.typesafe.scalalogging.Logger
 import org.apache.commons.lang.builder.HashCodeBuilder
 import org.slf4j.LoggerFactory
 
+import java.io.InputStream
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 import scala.collection.JavaConverters._
 
 
@@ -91,54 +90,6 @@ class CsvDataInputFormat[T: TypeDescriptor](val schema: Array[String],
     }
   }
 
-  override def readValue(bytes: Array[Byte], offset: Int, length: Int): Option[T] = {
-    val valueString = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(bytes, offset, length)).toString
-    if (this.skipHeader && valueString.startsWith(this.schema(0))) {
-      None
-    }
-    else {
-      this.readValueCount += 1
-      try {
-        Some(this.reader.readValue[T](valueString))
-      }
-      catch {
-        case ex: Exception =>
-          this.readValueErrorCount += 1
-          val errorRate = this.readValueErrorCount.toFloat / this.readValueCount.toFloat
-          this.logger.warn(s"Error '${ex.getMessage}' reading record, total error count = ${this.readValueErrorCount}, error rate = $errorRate.")
-          None
-      }
-    }
-  }
-
-  override def readValues(stream: InputStream): TraversableOnce[T] = {
-    this.reader.readValues[T](stream).asScala
-  }
-
-  /**
-   * Creates a [[CsvMapper]] using the data format configuration.
-   */
-  private def createCsvMapper(): CsvMapper = {
-    val mapper = new CsvMapper()
-    mapper.registerModule(DefaultScalaModule)
-    mapper.registerModule(new JavaTimeModule)
-    mapper.registerModule(new InstantModule)
-    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, this.config.isEnabled(DataFormatFlags.FailOnUnknownProperties))
-    mapper.configure(CsvParser.Feature.IGNORE_TRAILING_UNMAPPABLE, !this.config.isEnabled(DataFormatFlags.FailOnUnknownProperties))
-    mapper
-  }
-
-  /**
-   * Creates an [[ObjectReader]] for CSV rows using the format flags supplied in the constructor.
-   */
-  private def createReader(): ObjectReader = {
-    val schemaBuilder = CsvSchema.builder()
-    this.schema.foreach(schemaBuilder.addColumn)
-    val csvSchema = schemaBuilder.build().withColumnSeparator(this.columnSeparator)
-    val csvSchemaWithNullValue = if (this.nullIdentifier.nonEmpty) csvSchema.withNullValue(this.nullIdentifier) else csvSchema
-    mapper.readerFor(this.recordJavaType).`with`(csvSchemaWithNullValue)
-  }
-
   /**
    * If the FailOnUnknownProperties flag was used, verify that all schema columns match to a field or getter method
    * of the class.
@@ -166,6 +117,30 @@ class CsvDataInputFormat[T: TypeDescriptor](val schema: Array[String],
     }
   }
 
+  override def readValue(bytes: Array[Byte], offset: Int, length: Int): Option[T] = {
+    val valueString = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(bytes, offset, length)).toString
+    if (this.skipHeader && valueString.startsWith(this.schema(0))) {
+      None
+    }
+    else {
+      this.readValueCount += 1
+      try {
+        Some(this.reader.readValue[T](valueString))
+      }
+      catch {
+        case ex: Exception =>
+          this.readValueErrorCount += 1
+          val errorRate = this.readValueErrorCount.toFloat / this.readValueCount.toFloat
+          this.logger.warn(s"Error '${ex.getMessage}' reading record, total error count = ${this.readValueErrorCount}, error rate = $errorRate.")
+          None
+      }
+    }
+  }
+
+  override def readValues(stream: InputStream): TraversableOnce[T] = {
+    this.reader.readValues[T](stream).asScala
+  }
+
   override def hashCode(): Int = this.hashCodeValue
 
   override def equals(obj: Any): Boolean = {
@@ -177,5 +152,29 @@ class CsvDataInputFormat[T: TypeDescriptor](val schema: Array[String],
       case _ =>
         false
     }
+  }
+
+  /**
+   * Creates a [[CsvMapper]] using the data format configuration.
+   */
+  private def createCsvMapper(): CsvMapper = {
+    val mapper = new CsvMapper()
+    mapper.registerModule(DefaultScalaModule)
+    mapper.registerModule(new JavaTimeModule)
+    mapper.registerModule(new InstantModule)
+    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, this.config.isEnabled(DataFormatFlags.FailOnUnknownProperties))
+    mapper.configure(CsvParser.Feature.IGNORE_TRAILING_UNMAPPABLE, !this.config.isEnabled(DataFormatFlags.FailOnUnknownProperties))
+    mapper
+  }
+
+  /**
+   * Creates an [[ObjectReader]] for CSV rows using the format flags supplied in the constructor.
+   */
+  private def createReader(): ObjectReader = {
+    val schemaBuilder = CsvSchema.builder()
+    this.schema.foreach(schemaBuilder.addColumn)
+    val csvSchema = schemaBuilder.build().withColumnSeparator(this.columnSeparator)
+    val csvSchemaWithNullValue = if (this.nullIdentifier.nonEmpty) csvSchema.withNullValue(this.nullIdentifier) else csvSchema
+    mapper.readerFor(this.recordJavaType).`with`(csvSchemaWithNullValue)
   }
 }

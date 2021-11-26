@@ -19,14 +19,16 @@ import com.amazon.milan.application.ApplicationConfiguration._
 /**
  * Contains the configuration of the data sources and sinks for an application.
  */
-class ApplicationConfiguration {
+class ApplicationConfiguration(var dataSources: Map[String, DataSource[_]],
+                               var dataSinks: List[StreamSink],
+                               var lineageSinks: List[DataSink[LineageRecord]],
+                               var metrics: List[StreamMetric],
+                               var stateStores: Map[String, Map[String, StateStore]]) {
   private var metricPrefix: String = ""
 
-  var dataSources: Map[String, DataSource[_]] = Map.empty
-  var dataSinks: List[StreamSink] = List.empty
-  var lineageSinks: List[DataSink[LineageRecord]] = List.empty
-  var metrics: List[StreamMetric] = List.empty
-  var stateStores: Map[String, Map[String, StateStore]] = Map.empty
+  def this() {
+    this(Map.empty, List.empty, List.empty, List.empty, Map.empty)
+  }
 
   /**
    * Sets the source of a data stream.
@@ -115,9 +117,9 @@ class ApplicationConfiguration {
   def addMetric[T](stream: Stream[T], metricDefinition: MetricDefinition[T]): Unit =
     this.metrics = this.metrics :+ StreamMetric(stream.streamId, metricDefinition)
 
-  def setMetricPrefix(prefix: String): Unit = this.metricPrefix = prefix
-
   def getMetricPrefix: String = this.metricPrefix
+
+  def setMetricPrefix(prefix: String): Unit = this.metricPrefix = prefix
 
   override def equals(obj: Any): Boolean = obj match {
     case o: ApplicationConfiguration =>

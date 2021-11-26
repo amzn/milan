@@ -13,8 +13,6 @@ trait FunctionReferenceHost {
 
   import c.universe._
 
-  private def abort(message: String): Nothing = c.abort(c.enclosingPosition, message)
-
   /**
    * Gets a [[FunctionReference]] instance, from an AST node.
    * The AST node can be either a Select node, or an Apply node whose function pointer is a Select node.
@@ -63,6 +61,8 @@ trait FunctionReferenceHost {
         abort(s"Function expression not supported: '$other'.")
     }
   }
+
+  private def abort(message: String): Nothing = c.abort(c.enclosingPosition, message)
 
   /**
    * Gets a [[FunctionReference]] instance, from a Select AST node.

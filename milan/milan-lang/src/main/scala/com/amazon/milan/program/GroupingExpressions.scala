@@ -48,15 +48,6 @@ class GroupBy(val source: Tree,
     this(source, expr, Id.newId())
   }
 
-  def this(source: Tree,
-           expr: FunctionDef,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(source, expr, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
   override def withNameAndId(name: String, id: String): StreamExpression =
     new GroupBy(this.source, this.expr, id, name, this.tpe)
 
@@ -69,6 +60,15 @@ class GroupBy(val source: Tree,
       this.nodeId,
       this.nodeName,
       this.tpe)
+
+  def this(source: Tree,
+           expr: FunctionDef,
+           nodeId: String,
+           nodeName: String,
+           resultType: TypeDescriptor[_]) {
+    this(source, expr, nodeId, nodeName)
+    this.tpe = resultType
+  }
 
   override def toString: String = s"${this.expressionType}(${this.source}, ${this.expr})"
 
@@ -113,15 +113,15 @@ class SlidingRecordWindow(val source: Tree,
     this(source, windowSize, Id.newId())
   }
 
-  def this(source: Tree, windowSize: Int, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
-    this(source, windowSize, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
   override def getChildren: Iterable[Tree] = Seq(this.source)
 
   override def replaceChildren(children: List[Tree]): Tree =
     new SlidingRecordWindow(children(0), this.windowSize, this.nodeId, this.nodeName, this.tpe)
+
+  def this(source: Tree, windowSize: Int, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
+    this(source, windowSize, nodeId, nodeName)
+    this.tpe = resultType
+  }
 
   override def withNameAndId(name: String, id: String): StreamExpression =
     new SlidingRecordWindow(this.source, this.windowSize, name, id, this.tpe)
@@ -188,6 +188,9 @@ class TumblingWindow(val source: Tree,
     this(source, dateExtractor, period, offset, Id.newId())
   }
 
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new TumblingWindow(this.source, this.dateExtractor, this.period, this.offset, id, name, this.tpe)
+
   def this(source: Tree,
            dateExtractor: FunctionDef,
            period: Duration,
@@ -198,9 +201,6 @@ class TumblingWindow(val source: Tree,
     this(source, dateExtractor, period, offset, nodeId, nodeName)
     this.tpe = resultType
   }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new TumblingWindow(this.source, this.dateExtractor, this.period, this.offset, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(this.source, this.dateExtractor, this.period, this.offset)
 
@@ -260,18 +260,6 @@ class SlidingWindow(val source: Tree,
     this(source, dateExtractor, size, slide, offset, Id.newId())
   }
 
-  def this(source: Tree,
-           dateExtractor: FunctionDef,
-           size: Duration,
-           slide: Duration,
-           offset: Duration,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(source, dateExtractor, size, slide, offset, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
   override def withNameAndId(name: String, id: String): StreamExpression =
     new SlidingWindow(this.source, this.dateExtractor, this.size, this.slide, this.offset, id, name, this.tpe)
 
@@ -287,6 +275,18 @@ class SlidingWindow(val source: Tree,
       this.nodeId,
       this.nodeName,
       this.tpe)
+
+  def this(source: Tree,
+           dateExtractor: FunctionDef,
+           size: Duration,
+           slide: Duration,
+           offset: Duration,
+           nodeId: String,
+           nodeName: String,
+           resultType: TypeDescriptor[_]) {
+    this(source, dateExtractor, size, slide, offset, nodeId, nodeName)
+    this.tpe = resultType
+  }
 
   override def toString: String = s"${this.expressionType}(${this.source}, ${this.dateExtractor}, ${this.size}, ${this.slide}, ${this.offset})"
 

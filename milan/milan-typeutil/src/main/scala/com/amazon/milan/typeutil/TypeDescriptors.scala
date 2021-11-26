@@ -22,7 +22,7 @@ final class TupleTypeDescriptor[T](val typeName: String,
                                    val fields: List[FieldDescriptor[_]]) extends TypeDescriptor[T] {
 
   def this(fields: List[FieldDescriptor[_]]) {
-    this(s"Tuple${fields.length}", fields.map(_.fieldType), fields)
+    this(if (fields.isEmpty) "Product" else s"Tuple${fields.length}", fields.map(_.fieldType), fields)
   }
 }
 

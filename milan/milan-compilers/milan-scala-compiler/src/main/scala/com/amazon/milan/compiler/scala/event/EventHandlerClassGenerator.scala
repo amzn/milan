@@ -1,14 +1,14 @@
 package com.amazon.milan.compiler.scala.event
 
+import com.amazon.milan.application.ApplicationInstance
+import com.amazon.milan.compiler.scala._
+import com.amazon.milan.graph._
+import com.amazon.milan.program.{Aggregate, ExternalStream, FlatMap, GroupBy, InvalidProgramException, JoinExpression, ScanExpression, SelectTerm, SingleInputStreamExpression, SlidingRecordWindow, StreamExpression, StreamMap, Tree, TwoInputStreamExpression, WindowApply}
+import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, GroupedStreamTypeDescriptor, JoinedStreamsTypeDescriptor}
+
 import java.io.{ByteArrayOutputStream, OutputStream}
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
-
-import com.amazon.milan.application.ApplicationInstance
-import com.amazon.milan.compiler.scala._
-import com.amazon.milan.graph.{DependencyGraph, FlowGraph}
-import com.amazon.milan.program.{ExternalStream, FlatMap, GroupBy, InvalidProgramException, JoinExpression, ScanExpression, SelectTerm, SingleInputStreamExpression, StreamExpression, StreamMap, Tree, TwoInputStreamExpression}
-import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, GroupedStreamTypeDescriptor, JoinedStreamsTypeDescriptor}
 
 /**
  * Generates a Scala class that implements a Milan application.
@@ -50,11 +50,11 @@ object EventHandlerClassGenerator {
   def generateClass(application: ApplicationInstance,
                     className: String,
                     outputStream: OutputStream): Unit = {
-    val streamGraph = application.application.graph.getDereferencedGraph
-    streamGraph.typeCheck()
+    val streams = application.application.streams.getDereferencedStreams
+    typeCheckGraph(streams)
 
-    val dependencyGraph = DependencyGraph.build(streamGraph.getStreams)
-    val flowGraph = FlowGraph.build(streamGraph.getStreams)
+    val dependencyGraph = DependencyGraph.build(streams)
+    val flowGraph = FlowGraph.build(streams)
     val outputs = new GeneratorOutputs(this.typeLifter.typeEmitter)
     val plugins = EventHandlerGeneratorPlugin.loadAllPlugins(this.typeLifter)
 
@@ -67,10 +67,11 @@ object EventHandlerClassGenerator {
         flowGraph,
         plugins)
 
-    val allStreams = dependencyGraph.topologicalSort
-    allStreams
+    val rootDataStreams = dependencyGraph.topologicalSort
       .filter(_.contextStream.isEmpty)
-      .foreach(stream => this.getOrGenerateStream(context, stream.expr))
+      .filter(_.expr.streamType.isInstanceOf[DataStreamTypeDescriptor])
+
+    rootDataStreams.foreach(stream => this.getOrGenerateStream(context, stream.expr))
 
     outputs.generate(className, outputStream)
   }
@@ -125,6 +126,12 @@ object EventHandlerClassGenerator {
 
         case externalStream: ExternalStream =>
           this.componentGenerator.generateExternalStream(context.outputs, externalStream)
+
+        case aggregateStream: Aggregate =>
+          this.generateAggregate(context, aggregateStream)
+
+        case windowApply: WindowApply =>
+          this.generateWindowApply(context, windowApply)
       }
 
     // Generate the collector method for the stream, which is important because the generated stream handler method
@@ -133,6 +140,40 @@ object EventHandlerClassGenerator {
     this.generateCollector(context, outputStream)
 
     outputStream
+  }
+
+  private def generateAggregate(context: GeneratorContext, aggregateExpr: Aggregate): StreamInfo = {
+    aggregateExpr.source match {
+      case window: SlidingRecordWindow =>
+        val inputStream = this.getOrGenerateStream(context, window.source)
+        if (inputStream.isKeyed) {
+          this.componentGenerator.generateAggregateOfGroupedRecordWindow(context, inputStream, aggregateExpr, window)
+        }
+        else {
+          throw new NotImplementedError()
+        }
+
+      case source =>
+        val inputStream = this.getOrGenerateStream(context, source)
+        this.componentGenerator.generateAggregateOfDataStream(context, inputStream, aggregateExpr)
+    }
+  }
+
+  private def generateWindowApply(context: GeneratorContext, applyExpr: WindowApply): StreamInfo = {
+    applyExpr.source match {
+      case windowExpr: SlidingRecordWindow =>
+        val inputStream = this.getOrGenerateStream(context, windowExpr.source)
+
+        if (inputStream.isKeyed) {
+          this.componentGenerator.generateApplyRecordWindowOfKeyedStream(context, inputStream, applyExpr, windowExpr)
+        }
+        else {
+          throw new NotImplementedError()
+        }
+
+      case _ =>
+        throw new NotImplementedError()
+    }
   }
 
   /**
@@ -190,7 +231,16 @@ object EventHandlerClassGenerator {
    * Generates the implementation of a [[StreamMap]] expression that operates on a grouping.
    */
   private def generateMapGroup(context: GeneratorContext, mapExpr: StreamMap): StreamInfo = {
-    throw new NotImplementedError()
+    // When you map a grouping, you don't actually do anything.
+    // You just apply the map function to the input stream while retaining the keyed properties of the input.
+    val groupStreamTerm = mapExpr.expr.arguments(1).name
+    val inputStream = this.getOrGenerateStream(context, mapExpr.source)
+    val mapContext = context.withStreamTerm(groupStreamTerm, inputStream)
+
+    // Perform the operations defined in the body of the map function.
+    val mappedStream = this.getOrGenerateStream(mapContext, mapExpr.expr.body)
+
+    mappedStream
   }
 
   /**
@@ -214,7 +264,7 @@ object EventHandlerClassGenerator {
    * Gets a list of [[StreamConsumerInfo]] objects that describe consumers of the output of a stream.
    */
   private def getConsumers(context: GeneratorContext, provider: StreamInfo): List[StreamConsumerInfo] = {
-    this.getStreamConsumers(context, provider) ++ this.getSinkConsumers(context, provider)
+    this.getStreamConsumers(context, provider.expr) ++ this.getSinkConsumers(context, provider)
   }
 
   /**
@@ -228,24 +278,33 @@ object EventHandlerClassGenerator {
   /**
    * Gets a list of [[StreamConsumerInfo]] objects for the streams that consume a stream.
    */
-  private def getStreamConsumers(context: GeneratorContext, provider: StreamInfo): List[StreamConsumerInfo] = {
-    val providerExpr = provider.expr
+  private def getStreamConsumers(context: GeneratorContext, providerExpr: StreamExpression): List[StreamConsumerInfo] = {
     val consumerStreams = context.flowGraph.getDependentExpressions(providerExpr)
 
-    consumerStreams.map {
+    consumerStreams.flatMap {
+      case windowExpr: SlidingRecordWindow =>
+        // SlidingRecordWindow expressions don't consume records directly, they send them on to their downstream
+        // consumers.
+        this.getStreamConsumers(context, windowExpr)
+
+      case groupMapExpr@StreamMap(GroupBy(_, _), _) =>
+        // StreamMap of GroupBy expressions don't consume records directly, they send them on to their downstream
+        // consumers.
+        this.getStreamConsumers(context, groupMapExpr)
+
       case expr@TwoInputStreamExpression(left, right) =>
         if (left == providerExpr) {
-          StreamConsumerInfo(expr.nodeName, "left")
+          List(StreamConsumerInfo(expr.nodeName, "left"))
         }
         else if (right == providerExpr) {
-          StreamConsumerInfo(expr.nodeName, "right")
+          List(StreamConsumerInfo(expr.nodeName, "right"))
         }
         else {
           throw new InvalidProgramException(s"Upstream expression $providerExpr wasn't found in the inputs of $expr.")
         }
 
       case expr: SingleInputStreamExpression =>
-        StreamConsumerInfo(expr.nodeName, "input")
+        List(StreamConsumerInfo(expr.nodeName, "input"))
 
       case expr =>
         throw new InvalidProgramException(s"Unsupported stream expression: $expr")

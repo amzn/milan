@@ -15,6 +15,7 @@ import org.apache.commons.lang.builder.HashCodeBuilder
 trait StreamExpression extends Tree {
   val nodeId: String
   val nodeName: String
+  val stateful: Boolean = false
 
   def withName(name: String): StreamExpression = this.withNameAndId(name, this.nodeId)
 
@@ -34,10 +35,10 @@ trait StreamExpression extends Tree {
   override def hashCode(): Int = HashCodeBuilder.reflectionHashCode(this)
 
   @JsonIgnore
-  def streamType: StreamTypeDescriptor = this.tpe.asStream
+  def recordType: TypeDescriptor[_] = this.streamType.recordType
 
   @JsonIgnore
-  def recordType: TypeDescriptor[_] = this.streamType.recordType
+  def streamType: StreamTypeDescriptor = this.tpe.asStream
 }
 
 
@@ -49,14 +50,13 @@ trait StreamExpression extends Tree {
 @JsonSerialize
 @JsonDeserialize
 class Marker(val id: String) extends StreamExpression {
+  override val nodeId: String = this.id
+  override val nodeName: String = this.id
+
   def this(id: String, resultType: StreamTypeDescriptor) {
     this(id)
     this.tpe = resultType
   }
-
-  override val nodeId: String = this.id
-
-  override val nodeName: String = this.id
 
   override def withNameAndId(name: String, id: String): StreamExpression = throw new NotImplementedError()
 
@@ -108,12 +108,12 @@ class Ref(val nodeId: String, val nodeName: String) extends StreamExpression {
     this(nodeId, nodeId)
   }
 
+  override def withNameAndId(name: String, id: String): StreamExpression = new Ref(id, name, this.tpe)
+
   def this(nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
     this(nodeId, nodeName)
     this.tpe = resultType
   }
-
-  override def withNameAndId(name: String, id: String): StreamExpression = new Ref(id, name, this.tpe)
 
   override def toString: String = s"""${this.expressionType}("${this.nodeId}")"""
 
@@ -149,13 +149,13 @@ class Cycle(val source: Tree, var cycleNodeId: String, val nodeId: String, val n
     this(source, cycleNodeId, Id.newId())
   }
 
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new Cycle(this.source, this.cycleNodeId, id, name, this.tpe)
+
   def this(source: Tree, cycleNodeId: String, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
     this(source, cycleNodeId, nodeId, nodeName)
     this.tpe = resultType
   }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new Cycle(this.source, this.cycleNodeId, id, name, this.tpe)
 
   override def replaceChildren(children: List[Tree]): Tree =
     new Cycle(this.source, this.cycleNodeId, this.nodeId, this.nodeName, this.tpe)
@@ -208,21 +208,14 @@ class Aggregate(val source: Tree,
                 val nodeId: String,
                 val nodeName: String) extends SingleInputStreamExpression {
 
+  override val stateful: Boolean = true
+
   def this(source: Tree, expr: FunctionDef, nodeId: String) {
     this(source, expr, nodeId, nodeId)
   }
 
   def this(source: Tree, expr: FunctionDef) {
     this(source, expr, Id.newId())
-  }
-
-  def this(source: Tree,
-           expr: FunctionDef,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(source, expr, nodeId, nodeName)
-    this.tpe = resultType
   }
 
   override def withNameAndId(name: String, id: String): StreamExpression =
@@ -237,6 +230,15 @@ class Aggregate(val source: Tree,
       this.nodeId,
       this.nodeName,
       this.tpe)
+
+  def this(source: Tree,
+           expr: FunctionDef,
+           nodeId: String,
+           nodeName: String,
+           resultType: TypeDescriptor[_]) {
+    this(source, expr, nodeId, nodeName)
+    this.tpe = resultType
+  }
 
   override def toString: String = s"${this.expressionType}(${this.source}, ${this.expr})"
 
@@ -274,6 +276,9 @@ class StreamMap(val source: Tree,
     this(source, expr, Id.newId())
   }
 
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new StreamMap(this.source, this.expr, id, name, this.tpe)
+
   def this(source: Tree,
            expr: FunctionDef,
            nodeId: String,
@@ -282,9 +287,6 @@ class StreamMap(val source: Tree,
     this(source, expr, nodeId, nodeName)
     this.tpe = resultType
   }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new StreamMap(this.source, this.expr, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(source, expr)
 
@@ -332,15 +334,6 @@ class FlatMap(val source: Tree,
     this(source, expr, Id.newId())
   }
 
-  def this(source: Tree,
-           expr: FunctionDef,
-           nodeId: String,
-           nodeName: String,
-           resultType: TypeDescriptor[_]) {
-    this(source, expr, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
   override def withNameAndId(name: String, id: String): StreamExpression =
     new FlatMap(this.source, this.expr, id, name, this.tpe)
 
@@ -353,6 +346,15 @@ class FlatMap(val source: Tree,
       this.nodeId,
       this.nodeName,
       this.tpe)
+
+  def this(source: Tree,
+           expr: FunctionDef,
+           nodeId: String,
+           nodeName: String,
+           resultType: TypeDescriptor[_]) {
+    this(source, expr, nodeId, nodeName)
+    this.tpe = resultType
+  }
 
   override def toString: String = s"${this.expressionType}(${this.source}, ${this.expr})"
 
@@ -376,6 +378,8 @@ class WindowApply(val source: Tree,
                   val expr: FunctionDef,
                   val nodeId: String,
                   val nodeName: String) extends SingleInputStreamExpression {
+  override val stateful: Boolean = true
+
   def this(source: Tree, expr: FunctionDef, nodeId: String) {
     this(source, expr, nodeId, nodeId)
   }
@@ -383,6 +387,9 @@ class WindowApply(val source: Tree,
   def this(source: Tree, expr: FunctionDef) {
     this(source, expr, Id.newId())
   }
+
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new WindowApply(this.source, this.expr, id, name, this.tpe)
 
   def this(source: Tree,
            expr: FunctionDef,
@@ -392,9 +399,6 @@ class WindowApply(val source: Tree,
     this(source, expr, nodeId, nodeName)
     this.tpe = resultType
   }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new WindowApply(this.source, this.expr, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(source, expr)
 
@@ -442,6 +446,9 @@ class Filter(val source: Tree,
     this(source, predicate, Id.newId())
   }
 
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new Filter(this.source, this.predicate, id, name, this.tpe)
+
   def this(source: Tree,
            predicate: FunctionDef,
            nodeId: String,
@@ -450,9 +457,6 @@ class Filter(val source: Tree,
     this(source, predicate, nodeId, nodeName)
     this.tpe = resultType
   }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new Filter(this.source, this.predicate, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(source, predicate)
 
@@ -482,6 +486,7 @@ object Filter {
  * Base trait for stream expressions that simplify to scan operations.
  */
 trait ScanExpression extends SingleInputStreamExpression {
+  override val stateful: Boolean = true
 }
 
 object ScanExpression {
@@ -521,13 +526,13 @@ class StreamArgMax(val source: Tree,
     this(source, argExpr, Id.newId())
   }
 
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new StreamArgMax(this.source, this.argExpr, id, name, this.tpe)
+
   def this(source: Tree, argExpr: FunctionDef, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
     this(source, argExpr, nodeId, nodeName)
     this.tpe = resultType
   }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new StreamArgMax(this.source, this.argExpr, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(this.source, this.argExpr)
 
@@ -569,13 +574,13 @@ class StreamArgMin(val source: Tree,
     this(source, argExpr, Id.newId())
   }
 
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new StreamArgMin(this.source, this.argExpr, id, name, this.tpe)
+
   def this(source: Tree, argExpr: FunctionDef, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
     this(source, argExpr, nodeId, nodeName)
     this.tpe = resultType
   }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new StreamArgMin(this.source, this.argExpr, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(this.source, this.argExpr)
 
@@ -626,11 +631,6 @@ class SumBy(val source: Tree,
     this(source, argExpr, outputExpr, Id.newId())
   }
 
-  def this(source: Tree, argExpr: FunctionDef, outputExpr: FunctionDef, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
-    this(source, argExpr, outputExpr, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
   override def withNameAndId(name: String, id: String): StreamExpression =
     new SumBy(this.source, this.argExpr, this.outputExpr, id, name, this.tpe)
 
@@ -644,6 +644,11 @@ class SumBy(val source: Tree,
       this.nodeId,
       this.nodeName,
       this.tpe)
+
+  def this(source: Tree, argExpr: FunctionDef, outputExpr: FunctionDef, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
+    this(source, argExpr, outputExpr, nodeId, nodeName)
+    this.tpe = resultType
+  }
 
   override def toString: String = s"${this.expressionType}(${this.source}, ${this.argExpr}, ${this.outputExpr})"
 
@@ -665,6 +670,7 @@ object SumBy {
 class Last(val source: Tree,
            val nodeId: String,
            val nodeName: String) extends SingleInputStreamExpression {
+  override val stateful: Boolean = true
 
   def this(source: Tree, nodeId: String) {
     this(source, nodeId, nodeId)
@@ -674,13 +680,13 @@ class Last(val source: Tree,
     this(source, Id.newId())
   }
 
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new Last(this.source, id, name, this.tpe)
+
   def this(source: Tree, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
     this(source, nodeId, nodeId)
     this.tpe = resultType
   }
-
-  override def withNameAndId(name: String, id: String): StreamExpression =
-    new Last(this.source, id, name, this.tpe)
 
   override def getChildren: Iterable[Tree] = Seq(this.source)
 
@@ -720,11 +726,6 @@ class Union(val left: Tree,
     this(left, right, Id.newId())
   }
 
-  def this(left: Tree, right: Tree, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
-    this(left, right, nodeId, nodeName)
-    this.tpe = resultType
-  }
-
   override def withNameAndId(name: String, id: String): StreamExpression =
     new Union(this.left, this.right, id, name, this.tpe)
 
@@ -732,6 +733,11 @@ class Union(val left: Tree,
 
   override def replaceChildren(children: List[Tree]): Tree =
     new Union(children(0), children(1), this.nodeId, this.nodeName, this.tpe)
+
+  def this(left: Tree, right: Tree, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
+    this(left, right, nodeId, nodeName)
+    this.tpe = resultType
+  }
 
   override def toString: String = s"${this.expressionType}(${this.left}, ${this.right})"
 

@@ -1,12 +1,11 @@
 package com.amazon.milan.lang.internal
 
-import java.util.UUID
-
 import com.amazon.milan.lang.{GroupedStream, Stream}
 import com.amazon.milan.program.{FlatMap, FunctionDef, Marker, SelectTerm, StreamMap, ValueDef}
 import com.amazon.milan.typeutil.{TypeDescriptor, TypeInfoHost}
 import com.amazon.milan.{Id, program}
 
+import java.util.UUID
 import scala.reflect.macros.whitebox
 
 
@@ -22,11 +21,13 @@ class GroupedStreamMacros(val c: whitebox.Context) extends StreamMacroHost with 
     val exprTree = this.createAggregate[TOut](aggregateExpression, validationExpression)
 
     val exprVal = TermName(c.freshName("expr"))
+    val recordTypeExpr = TermName(c.freshName("recordType"))
 
     val tree =
       q"""
           val $exprVal = $exprTree
-          new ${weakTypeOf[Stream[TOut]]}($exprVal, $exprVal.recordType)
+          val $recordTypeExpr = $exprVal.recordType.asInstanceOf[${weakTypeOf[TypeDescriptor[TOut]]}]
+          new ${weakTypeOf[Stream[TOut]]}($exprVal, $recordTypeExpr)
        """
     c.Expr[Stream[TOut]](tree)
   }

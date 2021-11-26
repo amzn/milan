@@ -2,8 +2,9 @@ package com.amazon.milan.compiler.flink.generator
 
 import com.amazon.milan.application.ApplicationConfiguration
 import com.amazon.milan.application.sources.S3DataSource
-import com.amazon.milan.dataformats.JsonDataInputFormat
 import com.amazon.milan.compiler.flink.testing.{IntRecord, TestApplicationExecutor}
+import com.amazon.milan.dataformats.JsonDataInputFormat
+import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import com.amazon.milan.testing.applications._
 import org.junit.Assert._
@@ -22,11 +23,11 @@ class TestFlinkGenerator {
     val input = Stream.of[IntRecord].withName("input")
     val output = input.map(r => IntRecord(r.i + 1)).withName("output")
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
     val config = new ApplicationConfiguration
     config.setListSource(input, IntRecord(1))
 
-    val result = TestApplicationExecutor.executeApplication(graph, config, 10, output)
+    val result = TestApplicationExecutor.executeApplication(streams, config, 10, output)
     val outputRecords = result.getRecords(output)
     assertEquals(List(IntRecord(2)), outputRecords)
   }
@@ -36,11 +37,11 @@ class TestFlinkGenerator {
     val input = Stream.of[IntRecord].withName("input")
     val output = input.map(r => IntRecord(r.i + 1)).withName("output")
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
     val config = new ApplicationConfiguration
     config.setSource(input, new S3DataSource[IntRecord]("bucket", "prefix", new JsonDataInputFormat[IntRecord]()))
 
-    val generatedCode = this.generator.generateScala(graph, config, "", "TestApp")
+    val generatedCode = this.generator.generateScala(streams, config, "", "TestApp")
 
     this.eval(generatedCode)
   }

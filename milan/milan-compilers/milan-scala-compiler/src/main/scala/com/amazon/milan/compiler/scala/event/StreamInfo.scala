@@ -1,6 +1,5 @@
 package com.amazon.milan.compiler.scala.event
 
-import com.amazon.milan.compiler.scala.CodeBlock
 import com.amazon.milan.program.StreamExpression
 import com.amazon.milan.typeutil.{StreamTypeDescriptor, TupleTypeDescriptor, TypeDescriptor, types}
 
@@ -21,6 +20,7 @@ case class StreamInfo(expr: StreamExpression,
 
   /**
    * Gets the type of the stream.
+   *
    * @return
    */
   def streamType: StreamTypeDescriptor = expr.tpe.asStream
@@ -30,10 +30,22 @@ case class StreamInfo(expr: StreamExpression,
    */
   def streamId: String = expr.nodeId
 
+  /**
+   * Gets a new [[StreamInfo]] that is equivalent to this one, but with the expression replaced with the specified
+   * expression.
+   */
   def withExpression(newExpr: StreamExpression): StreamInfo = {
     StreamInfo(newExpr, this.contextKeyType, this.keyType)
   }
 
+  /**
+   * Gets whether the stream is keyed.
+   */
+  def isKeyed: Boolean = (keyType != types.EmptyTuple) || contextKeyType.fields.nonEmpty
+
+  /**
+   * Gets a new [[StreamInfo]] equivalent to this one with the specified key type.
+   */
   def withKeyType(newKeyType: TypeDescriptor[_]): StreamInfo = {
     StreamInfo(this.expr, this.contextKeyType, newKeyType)
   }
@@ -51,11 +63,11 @@ case class StreamInfo(expr: StreamExpression,
    * Adds the current key to the context key in a new [[StreamInfo]].
    */
   def addKeyToContext(): StreamInfo = {
-    if (this.keyType == types.Nothing) {
+    if (this.keyType == types.EmptyTuple) {
       this
     }
     else {
-      this.addContextKeyType(this.keyType).withKeyType(types.Nothing)
+      this.addContextKeyType(this.keyType).withKeyType(types.EmptyTuple)
     }
   }
 }

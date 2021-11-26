@@ -6,12 +6,13 @@ import com.amazon.milan.compiler.scala._
 import com.amazon.milan.compiler.scala.event.operators.LeftEnrichmentJoin
 import com.amazon.milan.compiler.scala.trees.{JoinKeyExpressionExtractor, JoinPreconditionExtractor, KeySelectorExtractor, TreeArgumentSplitter}
 import com.amazon.milan.lang.StateIdentifier
-import com.amazon.milan.program.{ConstantValue, ExternalStream, FlatMap, FunctionDef, GroupBy, InvalidProgramException, JoinExpression, StreamMap, Tree, TypeChecker, ValueDef}
+import com.amazon.milan.program.{ConstantValue, ExternalStream, FlatMap, FunctionDef, GroupBy, InvalidProgramException, JoinExpression, SlidingRecordWindow, StreamMap, Tree, TypeChecker, ValueDef, WindowApply}
 import com.amazon.milan.typeutil.{TypeDescriptor, types}
 
 
 class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
   extends ScalarFunctionGenerator(typeLifter.typeEmitter, new IdentityTreeTransformer)
+    with EventHandlerAggregateFunctionGenerator
     with ConsumerGenerator
     with StateInterfaceGenerator
     with ScanOperationGenerator {
@@ -35,7 +36,8 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
 
     val recordArg = ValName("record")
     val methodBody =
-      qc"""val mappedValue = $mapFunctionName($recordArg.value)
+      qc"""
+          |val mappedValue = $mapFunctionName($recordArg.value)
           |val outputRecord = $recordArg.withValue(mappedValue)
           |$collectorMethod(outputRecord)
           |"""
@@ -74,7 +76,7 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
     val consumerInfo = StreamConsumerInfo(mapExpr.nodeName, "input")
     this.generateConsumer(outputs, inputJoinedStream, consumerInfo, recordArg, consumerBody)
 
-    StreamInfo(mapExpr, inputJoinedStream.contextKeyType, types.Nothing)
+    StreamInfo(mapExpr, inputJoinedStream.contextKeyType, types.EmptyTuple)
   }
 
   /**
@@ -105,24 +107,26 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
    */
   def generateCollector(outputs: GeneratorOutputs,
                         provider: StreamInfo,
-                        consumers: List[StreamConsumerInfo]):  MethodName = {
+                        consumers: List[StreamConsumerInfo]): MethodName = {
     val collectorName = outputs.getCollectorName(provider.expr)
 
-    val recordArg = ValName("record")
-    val argDef = qc"$recordArg: ${this.getRecordWrapperTypeName(provider)}"
+    if (!outputs.collectorExists(collectorName.value)) {
+      val recordArg = ValName("record")
+      val argDef = qc"$recordArg: ${this.getRecordWrapperTypeName(provider)}"
 
-    val consumerCalls =
-      consumers
-        .map(consumer => s"${outputs.getConsumerName(consumer)}($recordArg)")
-        .mkString("\n")
+      val consumerCalls =
+        consumers
+          .map(consumer => s"${outputs.getConsumerName(consumer)}($recordArg)")
+          .mkString("\n")
 
-    val collectorDef =
-      q"""private def $collectorName($argDef): Unit = {
-         |  ${code(consumerCalls).indentTail(1)}
-         |}
-         |""".codeStrip
+      val collectorDef =
+        q"""private def $collectorName($argDef): Unit = {
+           |  ${code(consumerCalls).indentTail(1)}
+           |}
+           |""".codeStrip
 
-    outputs.addMethod(collectorDef)
+      outputs.addCollectorMethod(collectorName.value, collectorDef)
+    }
 
     collectorName
   }
@@ -149,7 +153,7 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
     outputs.addMethod(methodDef)
     outputs.addExternalStream(stream.nodeName, methodName, stream.recordType)
 
-    StreamInfo(stream, types.EmptyTuple, types.Nothing)
+    StreamInfo(stream, types.EmptyTuple, types.EmptyTuple)
   }
 
   /**
@@ -219,6 +223,16 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
 
     // The record and key types of the output stream are the same as the mapped stream from above.
     mappedStream.withExpression(flatMapExpr)
+  }
+
+  /**
+   * Generates the implementation of a [[WindowApply]] expression where the input is a sliding record window.
+   */
+  def generateApplyRecordWindowOfKeyedStream(context: GeneratorContext,
+                                             inputStream: StreamInfo,
+                                             applyExpr: WindowApply,
+                                             inputWindowExpr: SlidingRecordWindow): StreamInfo = {
+    throw new NotImplementedError()
   }
 
   /**

@@ -8,29 +8,6 @@ import com.amazon.milan.typeutil.TypeDescriptor
 object DependencyGraph {
 
   /**
-   * A node in a dependency graph.
-   *
-   * @param expr          The stream expression represented by this node.
-   * @param contextStream The context of the stream.
-   *                      If the stream exists as part of a function of another stream (e.g. inside the mapping function of a
-   *                      Map or FlatMap) then this will reference the parent stream.
-   * @param children      The nodes that this node depends on.
-   */
-  case class Node(expr: StreamExpression,
-                  contextStream: Option[StreamExpression],
-                  contextKeyType: Option[TypeDescriptor[_]],
-                  children: List[Node]) {
-    def nodeId: String = expr.nodeId
-
-    override def hashCode(): Int = expr.nodeId.hashCode
-
-    override def equals(obj: Any): Boolean = obj match {
-      case o: Node => this.expr.nodeId == o.expr.nodeId
-      case _ => false
-    }
-  }
-
-  /**
    * Builds a [[DependencyGraph]] with a single output stream.
    */
   def build(outputStream: Stream[_]): DependencyGraph = {
@@ -54,11 +31,6 @@ object DependencyGraph {
   }
 
   /**
-   * Gets an empty [[DependencyGraphBuilder]] instance.
-   */
-  def builder = new DependencyGraphBuilder
-
-  /**
    * Gets the minimal subgraph that terminates at the specified output nodes, and does not contain any nodes that the
    * specified input nodes depend on.
    *
@@ -78,12 +50,40 @@ object DependencyGraph {
     def replaceInputs(expr: StreamExpression): StreamExpression =
       newInputs.getOrElse(expr.nodeId, expr)
 
-    val transformedOutputs = outputs.map(output => transformGraph(output, replaceInputs))
+    val transformedOutputs = outputs.map(output => transformStreamAndDependencies(output, replaceInputs))
 
     val builder = DependencyGraph.builder
     transformedOutputs.foreach(output => builder.addStream(output))
 
     builder.build
+  }
+
+  /**
+   * Gets an empty [[DependencyGraphBuilder]] instance.
+   */
+  def builder = new DependencyGraphBuilder
+
+  /**
+   * A node in a dependency graph.
+   *
+   * @param expr          The stream expression represented by this node.
+   * @param contextStream The context of the stream.
+   *                      If the stream exists as part of a function of another stream (e.g. inside the mapping function of a
+   *                      Map or FlatMap) then this will reference the parent stream.
+   * @param children      The nodes that this node depends on.
+   */
+  case class Node(expr: StreamExpression,
+                  contextStream: Option[StreamExpression],
+                  contextKeyType: Option[TypeDescriptor[_]],
+                  children: List[Node]) {
+    def nodeId: String = expr.nodeId
+
+    override def hashCode(): Int = expr.nodeId.hashCode
+
+    override def equals(obj: Any): Boolean = obj match {
+      case o: Node => this.expr.nodeId == o.expr.nodeId
+      case _ => false
+    }
   }
 }
 
@@ -93,6 +93,8 @@ import com.amazon.milan.graph.DependencyGraph.Node
 /**
  * A view of a graph of Milan stream expressions where parent nodes depend on their child nodes.
  * This is an inverted view of the graph from the one provided by [[FlowGraph]].
+ *
+ * @param rootNodes A list of nodes that have no dependencies (i.e. no downstream consumers) in the graph.
  */
 class DependencyGraph(val rootNodes: List[Node]) {
   /**

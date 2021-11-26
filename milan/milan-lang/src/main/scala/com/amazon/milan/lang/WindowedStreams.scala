@@ -1,10 +1,9 @@
 package com.amazon.milan.lang
 
-import java.time.Instant
-
 import com.amazon.milan.lang.internal.WindowedStreamMacros
 import com.amazon.milan.program.{GroupingExpression, StreamExpression}
 
+import java.time.Instant
 import scala.language.experimental.macros
 
 

@@ -30,13 +30,40 @@ abstract class GraphTraverser[T] {
    */
   protected def registerDependency(parent: T, child: T): Unit
 
+  /**
+   * Begins graph traversal at the specified expression.
+   *
+   * @param expr A stream expression.
+   */
   protected def traverse(expr: StreamExpression): Unit = {
-    val context = Context(Map.empty, None, None)
-    this.traverse(expr, context)
+    this.traverse(expr, _ => false)
   }
 
+  /**
+   * Begins graph traversal at the specified expression, with the ability to control traversal into expressions.
+   *
+   * @param expr                 A stream expression.
+   * @param isBoundaryExpression A function that identifies expressions that should not be traversed into.
+   */
+  protected def traverse(expr: StreamExpression,
+                         isBoundaryExpression: StreamExpression => Boolean): Unit = {
+    val context = Context(Map.empty, None, None)
+    this.traverse(expr, context, isBoundaryExpression)
+  }
+
+  /**
+   * Gets the [[TraverseNode]] for an expression, traversing into the expression if it has not already been
+   * visited.
+   *
+   * @param expr                 The expression to traverse.
+   * @param context              The traversal context.
+   * @param isBoundaryExpression Returns true if an expression should not be included in the traversal.
+   * @return The [[TraverseNode]] corresponding to the expression.
+   */
   @tailrec
-  private def traverse(expr: Tree, context: Context): Option[TraverseNode] = {
+  private def traverse(expr: Tree,
+                       context: Context,
+                       isBoundaryExpression: StreamExpression => Boolean): Option[TraverseNode] = {
     // StreamExpressions become nodes, and the inputs to those expressions are added as children of those nodes.
     // The exceptions are Map and FlatMap when the input is a grouped stream; these don't become nodes themselves,
     // but the stream expressions inside their map functions do. The Map and FlatMap expressions become the context
@@ -45,11 +72,14 @@ abstract class GraphTraverser[T] {
       case SelectTerm(name) =>
         context.nodeTerms.get(name)
 
+      case streamExpr: StreamExpression if isBoundaryExpression(streamExpr) =>
+        None
+
       case streamExpr: StreamExpression =>
-        Some(this.traverseStreamExpression(streamExpr, context))
+        this.traverseStreamExpression(streamExpr, context, isBoundaryExpression)
 
       case FunctionDef(_, body) =>
-        this.traverse(body, context)
+        this.traverse(body, context, isBoundaryExpression)
 
       case _ =>
         None
@@ -60,30 +90,41 @@ abstract class GraphTraverser[T] {
    * Gets the [[TraverseNode]] for a [[StreamExpression]], traversing into the expression if it has not already been
    * visited.
    *
-   * @param streamExpr The [[StreamExpression]] to traverse.
-   * @param context    The traversal context.
+   * @param streamExpr           The [[StreamExpression]] to traverse.
+   * @param context              The traversal context.
+   * @param isBoundaryExpression Returns true if an expression should not be included in the traversal.
    * @return The [[TraverseNode]] corresponding to the expression.
    */
-  private def traverseStreamExpression(streamExpr: StreamExpression, context: Context): TraverseNode = {
+  private def traverseStreamExpression(streamExpr: StreamExpression,
+                                       context: Context,
+                                       isBoundaryExpression: StreamExpression => Boolean): Option[TraverseNode] = {
     this.nodes.get(streamExpr.nodeId) match {
       case Some(node) =>
         // We've already traversed this node so don't do it again.
-        node
+        Some(node)
 
       case None =>
-        this.traverseStreamExpressionImpl(streamExpr, context)
+        this.traverseStreamExpressionImpl(streamExpr, context, isBoundaryExpression)
     }
   }
 
   /**
    * Traverses into a [[StreamExpression]] and returns the resulting [[TraverseNode]] object.
    *
-   * @param streamExpr The [[StreamExpression]] to traverse.
-   * @param context    The traversal context.
+   * @param streamExpr           The [[StreamExpression]] to traverse.
+   * @param context              The traversal context.
+   * @param isBoundaryExpression Returns true if an expression should not be included in the traversal.
    * @return The [[TraverseNode]] containing the results of the traversal.
    */
-  private def traverseStreamExpressionImpl(streamExpr: StreamExpression, context: Context): TraverseNode = {
-    val inputNodes = this.traverseInputs(streamExpr, context)
+  private def traverseStreamExpressionImpl(streamExpr: StreamExpression,
+                                           context: Context,
+                                           isBoundaryExpression: StreamExpression => Boolean): Option[TraverseNode] = {
+    // If this is a boundary expression then short-circuit.
+    if (isBoundaryExpression(streamExpr)) {
+      None
+    }
+
+    val inputNodes = this.traverseInputs(streamExpr, context, isBoundaryExpression)
 
     val thisUserNode = this.createNode(streamExpr, context)
     val thisNode = TraverseNode(streamExpr, thisUserNode, context)
@@ -98,12 +139,12 @@ abstract class GraphTraverser[T] {
       case mapExpr@StreamMap(input, mapFunction) if input.tpe.isInstanceOf[GroupedStreamTypeDescriptor] =>
         assert(inputNodes.length == 1)
         val functionContext = this.getFunctionContext(inputNodes.head, mapExpr, mapFunction, context)
-        this.traverse(mapFunction, functionContext)
+        this.traverse(mapFunction, functionContext, isBoundaryExpression)
 
       case flatMapExpr@FlatMap(input, flatMapFunction) if input.tpe.isInstanceOf[GroupedStreamTypeDescriptor] =>
         assert(inputNodes.length == 1)
         val functionContext = this.getFunctionContext(inputNodes.head, flatMapExpr, flatMapFunction, context)
-        this.traverse(flatMapFunction, functionContext)
+        this.traverse(flatMapFunction, functionContext, isBoundaryExpression)
 
       case _ =>
         inputNodes.foreach(input => this.registerDependency(thisNode.node, input.node))
@@ -120,7 +161,7 @@ abstract class GraphTraverser[T] {
         ()
     }
 
-    thisNode
+    Some(thisNode)
   }
 
   /**
@@ -130,13 +171,16 @@ abstract class GraphTraverser[T] {
    * @param context The traversal context.
    * @return A list of [[TraverseNode]] objects, one for each of the stream inputs to the expression.
    */
-  private def traverseInputs(expr: Tree, context: Context): List[TraverseNode] = {
+  private def traverseInputs(expr: Tree,
+                             context: Context,
+                             isBoundaryExpression: StreamExpression => Boolean): List[TraverseNode] = {
     expr match {
       case SingleInputStreamExpression(input) =>
-        this.traverse(input, context).toList
+        this.traverse(input, context, isBoundaryExpression).toList
 
       case TwoInputStreamExpression(input1, input2) =>
-        this.traverse(input1, context).toList ++ this.traverse(input2, context).toList
+        this.traverse(input1, context, isBoundaryExpression).toList ++
+          this.traverse(input2, context, isBoundaryExpression).toList
 
       case _ =>
         List()

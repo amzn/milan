@@ -103,7 +103,13 @@ abstract class TypeJoiner[TLeft, TRight] {
       case (false, true) => right.genericArguments.length + 1
       case (false, false) => 2
     }
-    s"Tuple$elementCount"
+
+    if (elementCount == 0) {
+      "Product"
+    }
+    else {
+      s"Tuple$elementCount"
+    }
   }
 }
 

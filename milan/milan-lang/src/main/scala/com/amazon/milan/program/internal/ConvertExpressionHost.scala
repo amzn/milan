@@ -16,75 +16,6 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
   import c.universe._
 
   /**
-   * Represents the context in which an expression is being generated.
-   */
-  private trait ExpressionContext {
-    def isArgument(name: String): Boolean
-
-    def convertApplyExpression(apply: Apply): c.universe.Tree
-  }
-
-  /**
-   * Standard expression context.
-   */
-  private class BaseExpressionContext extends ExpressionContext {
-    override def isArgument(name: String): Boolean = false
-
-    override def convertApplyExpression(apply: c.universe.Apply): c.universe.Tree = throw new NotImplementedError()
-  }
-
-  /**
-   * An [[ExpressionContext]] used when the current context is the body of a function with scalar arguments.
-   *
-   * @param argNames The names of the input arguments to the function that contains the expression.
-   */
-  private class ScalarFunctionBodyExpressionContext(argNames: List[String],
-                                                    parentContext: ExpressionContext)
-    extends ExpressionContext {
-
-    override def isArgument(name: String): Boolean = {
-      this.argNames.contains(name) || this.parentContext.isArgument(name)
-    }
-
-    override def convertApplyExpression(apply: c.universe.Apply): c.universe.Tree = {
-      val functionReference = getFunctionReferenceFromTree(apply.fun)
-      val argsList = getFunctionArguments(this, apply.args)
-
-      if (functionReference.objectTypeName == "builtin") {
-        getBuiltinFunction(functionReference, argsList)
-      }
-      else {
-        val outType = createTypeInfo[Any](apply.tpe)
-        q"new ${typeOf[ApplyFunction]}($functionReference, $argsList, ${outType.toTypeDescriptor})"
-      }
-    }
-  }
-
-  /**
-   * An [[ExpressionContext]] used when the current context is the body of a function with stream arguments.
-   *
-   * @param argNames The names of the input arguments to the function that contains the expression.
-   */
-  private class StreamFunctionBodyExpressionContext(argNames: List[String],
-                                                    parentContext: ExpressionContext)
-    extends ExpressionContext {
-
-    override def isArgument(name: String): Boolean = {
-      this.argNames.contains(name) || this.parentContext.isArgument(name)
-    }
-
-    override def convertApplyExpression(apply: c.universe.Apply): c.universe.Tree = {
-      // Apply expressions in a function of a Stream need to go inside the definition of the function in order to
-      // convert the body of that function as well.
-      apply
-    }
-  }
-
-  protected def abort(message: String): Nothing = c.abort(c.enclosingPosition, message)
-
-  protected def warning(message: String): Unit = c.warning(c.enclosingPosition, message)
-
-  /**
    * Gets a Milan [[FunctionDef]] expression from a scala AST representing a function definition.
    *
    * @param functionTree The scala AST of the function to convert.
@@ -125,6 +56,10 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
         getMilanExpressionTree(context, tree)
     }
   }
+
+  protected def abort(message: String): Nothing = c.abort(c.enclosingPosition, message)
+
+  protected def warning(message: String): Unit = c.warning(c.enclosingPosition, message)
 
   private def getMilanFunction(valDefs: List[ValDef],
                                body: c.universe.Tree): c.Expr[FunctionDef] = {
@@ -407,6 +342,71 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
       case "aggregation.argmax" => q"new ${typeOf[ArgMax]}(new ${typeOf[Tuple]}($args))"
       case "aggregation.count" => q"new ${typeOf[Count]}()"
       case unknown => throw new InvalidProgramException(s"Unrecognized built-in function '$unknown'.")
+    }
+  }
+
+  /**
+   * Represents the context in which an expression is being generated.
+   */
+  private trait ExpressionContext {
+    def isArgument(name: String): Boolean
+
+    def convertApplyExpression(apply: Apply): c.universe.Tree
+  }
+
+  /**
+   * Standard expression context.
+   */
+  private class BaseExpressionContext extends ExpressionContext {
+    override def isArgument(name: String): Boolean = false
+
+    override def convertApplyExpression(apply: c.universe.Apply): c.universe.Tree = throw new NotImplementedError()
+  }
+
+  /**
+   * An [[ExpressionContext]] used when the current context is the body of a function with scalar arguments.
+   *
+   * @param argNames The names of the input arguments to the function that contains the expression.
+   */
+  private class ScalarFunctionBodyExpressionContext(argNames: List[String],
+                                                    parentContext: ExpressionContext)
+    extends ExpressionContext {
+
+    override def isArgument(name: String): Boolean = {
+      this.argNames.contains(name) || this.parentContext.isArgument(name)
+    }
+
+    override def convertApplyExpression(apply: c.universe.Apply): c.universe.Tree = {
+      val functionReference = getFunctionReferenceFromTree(apply.fun)
+      val argsList = getFunctionArguments(this, apply.args)
+
+      if (functionReference.objectTypeName == "builtin") {
+        getBuiltinFunction(functionReference, argsList)
+      }
+      else {
+        val outType = createTypeInfo[Any](apply.tpe)
+        q"new ${typeOf[ApplyFunction]}($functionReference, $argsList, ${outType.toTypeDescriptor})"
+      }
+    }
+  }
+
+  /**
+   * An [[ExpressionContext]] used when the current context is the body of a function with stream arguments.
+   *
+   * @param argNames The names of the input arguments to the function that contains the expression.
+   */
+  private class StreamFunctionBodyExpressionContext(argNames: List[String],
+                                                    parentContext: ExpressionContext)
+    extends ExpressionContext {
+
+    override def isArgument(name: String): Boolean = {
+      this.argNames.contains(name) || this.parentContext.isArgument(name)
+    }
+
+    override def convertApplyExpression(apply: c.universe.Apply): c.universe.Tree = {
+      // Apply expressions in a function of a Stream need to go inside the definition of the function in order to
+      // convert the body of that function as well.
+      apply
     }
   }
 }

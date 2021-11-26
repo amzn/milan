@@ -3,8 +3,8 @@ package com.amazon.milan.compiler.scala.event
 import com.amazon.milan.application.sinks.SingletonMemorySink
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
 import com.amazon.milan.compiler.scala.RuntimeEvaluator
+import com.amazon.milan.graph._
 import com.amazon.milan.lang
-import com.amazon.milan.lang.StreamGraph
 
 
 object EventAppTester {
@@ -24,12 +24,14 @@ object EventAppTester {
   }
 
   def compile(outputStream: lang.Stream[_], config: ApplicationConfiguration): RecordConsumer = {
-    val graph = new StreamGraph(outputStream)
-    this.compile(graph, config)
+    val streams = StreamCollection.build(outputStream)
+    this.compile(streams, config)
   }
 
-  def compile(graph: StreamGraph, config: ApplicationConfiguration): RecordConsumer = {
-    val instance = new ApplicationInstance(new Application(graph), config)
+  def compile(streams: StreamCollection, config: ApplicationConfiguration): RecordConsumer = {
+    typeCheckGraph(streams.streams)
+
+    val instance = new ApplicationInstance(new Application(streams), config)
     val className = "TestClass"
     val classDef = EventHandlerClassGenerator.generateClass(instance, className)
 

@@ -318,12 +318,12 @@ object TupleElement {
 @JsonSerialize
 @JsonDeserialize
 class ValueDef(val name: String) extends Tree {
+  override def replaceChildren(children: List[Tree]): Tree = new ValueDef(this.name, this.tpe)
+
   def this(name: String, ty: TypeDescriptor[_]) {
     this(name)
     this.tpe = ty
   }
-
-  override def replaceChildren(children: List[Tree]): Tree = new ValueDef(this.name, this.tpe)
 
   override def equals(obj: Any): Boolean = obj match {
     case ValueDef(n, t) => this.name == n && (this.tpe == null || t == null || this.tpe.equals(t))
@@ -514,6 +514,7 @@ abstract class BinaryMathOperator(val isAssociative: Boolean) extends Tree {
 
   override def equals(obj: Any): Boolean = obj match {
     case b: BinaryMathOperator => this.expressionType == b.expressionType && this.left.equals(b.left) && this.right.equals(b.right)
+    case _ => false
   }
 }
 

@@ -6,6 +6,7 @@ import com.amazon.milan.SemanticVersion
 import com.amazon.milan.application.sinks.LogSink
 import com.amazon.milan.application.sources.ListDataSource
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
+import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import com.amazon.milan.lang.aggregation._
 import com.amazon.milan.tools.ApplicationInstanceProvider
@@ -22,7 +23,7 @@ class TimeWindowSample extends ApplicationInstanceProvider {
       .slidingWindow(r => r.dateTime, Duration.ofSeconds(5), Duration.ofSeconds(1), Duration.ZERO)
       .select((windowStart, r) => fields(field("windowStart", windowStart), field("sum", sum(r.value))))
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
 
     val config = new ApplicationConfiguration()
 
@@ -35,7 +36,7 @@ class TimeWindowSample extends ApplicationInstanceProvider {
     config.addSink(output, outputSink)
 
     new ApplicationInstance(
-      new Application("TimeWindowSample", graph, SemanticVersion.ZERO),
+      new Application("TimeWindowSample", streams, SemanticVersion.ZERO),
       config)
   }
 }

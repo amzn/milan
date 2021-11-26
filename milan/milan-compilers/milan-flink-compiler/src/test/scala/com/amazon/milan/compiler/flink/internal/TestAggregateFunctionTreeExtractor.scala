@@ -1,6 +1,7 @@
 package com.amazon.milan.compiler.flink.internal
 
 import com.amazon.milan.compiler.flink.testing.TwoIntRecord
+import com.amazon.milan.compiler.scala.trees.AggregateFunctionTreeExtractor
 import com.amazon.milan.lang.aggregation._
 import com.amazon.milan.program._
 import com.amazon.milan.typeutil.{createTypeDescriptor, types}
@@ -15,7 +16,7 @@ class TestAggregateFunctionTreeExtractor {
     val function = Tree.fromExpression((key: Int, r: TwoIntRecord) => mean(r.a) - min(r.b)).asInstanceOf[FunctionDef]
     TypeChecker.typeCheck(function, List(types.Int, createTypeDescriptor[TwoIntRecord]))
 
-    val functions = AggregateFunctionTreeExtractor.getAggregateInputFunctions(function)
+    val functions = AggregateFunctionTreeExtractor.getAggregateInputFunctionsWithKey(function)
     assertEquals(2, functions.length)
 
     // These will throw an exception if the pattern doesn't match.
@@ -28,7 +29,7 @@ class TestAggregateFunctionTreeExtractor {
     val function = Tree.fromExpression((key: Int, r: TwoIntRecord) => mean(r.a) - min(r.b)).asInstanceOf[FunctionDef]
     TypeChecker.typeCheck(function, List(types.Int, createTypeDescriptor[TwoIntRecord]))
 
-    val output = AggregateFunctionTreeExtractor.getResultTupleToOutputFunction(function)
+    val output = AggregateFunctionTreeExtractor.getResultTupleToOutputFunctionWithKey(function)
     val FunctionDef(List(ValueDef("key", _), ValueDef("result", _)), Minus(TupleElement(SelectTerm("result"), 0), TupleElement(SelectTerm("result"), 1))) = output
   }
 
@@ -45,7 +46,7 @@ class TestAggregateFunctionTreeExtractor {
     val function = Tree.fromExpression((key: Int, r: TwoIntRecord) => sum(r.a) + key).asInstanceOf[FunctionDef]
     TypeChecker.typeCheck(function, List(types.Int, createTypeDescriptor[TwoIntRecord]))
 
-    val mapFunc = AggregateFunctionTreeExtractor.getResultTupleToOutputFunction(function)
+    val mapFunc = AggregateFunctionTreeExtractor.getResultTupleToOutputFunctionWithKey(function)
     val FunctionDef(List(ValueDef("key", _), ValueDef("result", _)), Plus(TupleElement(SelectTerm("result"), 0), SelectTerm("key"))) = mapFunc
   }
 
@@ -54,6 +55,6 @@ class TestAggregateFunctionTreeExtractor {
     val function = Tree.fromExpression((key: Int, r: Int) => sum(key)).asInstanceOf[FunctionDef]
     TypeChecker.typeCheck(function, List(types.Int, types.Int))
 
-    AggregateFunctionTreeExtractor.getAggregateInputFunctions(function)
+    AggregateFunctionTreeExtractor.getAggregateInputFunctionsWithKey(function)
   }
 }

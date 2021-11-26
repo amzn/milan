@@ -2,7 +2,8 @@ package com.amazon.milan.compiler.flink.generator
 
 import com.amazon.milan.application.ApplicationConfiguration
 import com.amazon.milan.compiler.flink.testing._
-import com.amazon.milan.lang.{Stream, StreamGraph, _}
+import com.amazon.milan.graph.StreamCollection
+import com.amazon.milan.lang.{Stream, _}
 import com.amazon.milan.testing.applications._
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -21,12 +22,12 @@ class TestFlinkGenMap {
     val input = Stream.of[IntRecord]
     val mapped = input.map(r => mapIntToString(r))
 
-    val graph = new StreamGraph(mapped)
+    val streams = StreamCollection.build(mapped)
 
     val config = new ApplicationConfiguration
     config.setListSource(input, IntRecord(1), IntRecord(2), IntRecord(3))
 
-    val result = TestApplicationExecutor.executeApplication(graph, config, 60, mapped)
+    val result = TestApplicationExecutor.executeApplication(streams, config, 60, mapped)
 
     val expectedOutputRecords = List(StringRecord("1"), StringRecord("2"), StringRecord("3"))
 
@@ -44,12 +45,12 @@ class TestFlinkGenMap {
       field("i", r.i),
       field("s", r.i.toString)))
 
-    val graph = new StreamGraph(mapped)
+    val streams = StreamCollection.build(mapped)
 
     val config = new ApplicationConfiguration
     config.setListSource(input, IntRecord(1), IntRecord(2), IntRecord(3))
 
-    val result = TestApplicationExecutor.executeApplication(graph, config, 60, mapped)
+    val result = TestApplicationExecutor.executeApplication(streams, config, 60, mapped)
 
     val expectedOutputRecords = List((1, "1"), (2, "2"), (3, "3"))
 
@@ -65,12 +66,12 @@ class TestFlinkGenMap {
     val input = Stream.of[IntRecord]
     val mapped = input.map(r => fields(field("i", r.i)))
 
-    val graph = new StreamGraph(mapped)
+    val streams = StreamCollection.build(mapped)
 
     val config = new ApplicationConfiguration
     config.setListSource(input, IntRecord(1), IntRecord(2), IntRecord(3))
 
-    val result = TestApplicationExecutor.executeApplication(graph, config, 60, mapped)
+    val result = TestApplicationExecutor.executeApplication(streams, config, 60, mapped)
 
     val expectedOutputRecords = List(Tuple1(1), Tuple1(2), Tuple1(3))
 

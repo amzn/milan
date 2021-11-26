@@ -4,7 +4,7 @@ import java.time.{Duration, Instant}
 
 import com.amazon.milan.application.ApplicationConfiguration
 import com.amazon.milan.compiler.flink.testing.{ApplicationExecutionResult, TestApplicationExecutor}
-import com.amazon.milan.lang.StreamGraph
+import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.testing.DelayedListDataSource
 import com.amazon.milan.testing.applications._
 import org.apache.logging.log4j.Level
@@ -32,9 +32,9 @@ class TestBodaApp {
 
   // TODO: re-enable this test once a join between a stream and a window is fixed.
   def test_BodaApp_LifeCycleOfOneRide(): Unit = {
-    val streams = BodaApp.buildApp()
+    val app = BodaApp.buildApp()
 
-    val graph = new StreamGraph(streams.outputDriverAllocations, streams.outputRideInfo, streams.outputRideWaitTimes)
+    val streams = StreamCollection.build(app.outputDriverAllocations, app.outputRideInfo, app.outputRideWaitTimes)
 
     val config = new ApplicationConfiguration()
 
@@ -50,8 +50,8 @@ class TestBodaApp {
       new DriverLocation("driver_3", Instant.now(), randomLocation())
     )
 
-    config.setListSource(streams.inputDriverStatus, runForever = true, initialDriverStatus: _*)
-    config.setListSource(streams.inputDriverLocation, runForever = true, initialDriverLocation: _*)
+    config.setListSource(app.inputDriverStatus, runForever = true, initialDriverStatus: _*)
+    config.setListSource(app.inputDriverLocation, runForever = true, initialDriverLocation: _*)
 
     val requestTime = Instant.now()
     val request = new RideRequest("ride_1", "user_1", requestTime, randomLocation(), randomLocation())
@@ -62,7 +62,7 @@ class TestBodaApp {
         .add(request)
         .build(runForever = true)
 
-    config.setSource(streams.inputRideRequests, rideRequestSource)
+    config.setSource(app.inputRideRequests, rideRequestSource)
 
     val rideEventSource =
       DelayedListDataSource.builder()
@@ -72,23 +72,23 @@ class TestBodaApp {
         .add(new RideEvent("ride_1", requestTime.plusSeconds(25), RideEventType.COMPLETE, CompletedEventData(request.toLocation)))
         .build(runForever = true)
 
-    config.setSource(streams.inputRideEvents, rideEventSource)
+    config.setSource(app.inputRideEvents, rideEventSource)
 
     def shouldContinue(intermediateResults: ApplicationExecutionResult): Boolean = {
       true
     }
 
     val results = TestApplicationExecutor.executeApplication(
-      graph,
+      streams,
       config,
       30,
       intermediateResults => shouldContinue(intermediateResults),
-      streams.outputDriverAllocations,
-      streams.outputDriverInfo,
-      streams.outputRideInfo,
-      streams.outputRideWaitTimes)
+      app.outputDriverAllocations,
+      app.outputDriverInfo,
+      app.outputRideInfo,
+      app.outputRideWaitTimes)
 
-    val rideInfoRecords = results.getRecords(streams.outputRideInfo)
+    val rideInfoRecords = results.getRecords(app.outputRideInfo)
     assertEquals("ride_1", rideInfoRecords.head.rideId)
     assertEquals(RideStatus.DRIVER_ASSIGNED, rideInfoRecords.head.rideStatus)
 

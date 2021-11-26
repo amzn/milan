@@ -13,6 +13,13 @@ object Tree {
   private val jsonMapper = new MilanObjectMapper()
 
   /**
+   * Gets an escaped version of a string.
+   */
+  private def escape(str: String): String = {
+    jsonMapper.writeValueAsString(str)
+  }
+
+  /**
    * Get the Milan expression tree for a scala expression.
    *
    * @param expr A scala expression.
@@ -36,13 +43,6 @@ object Tree {
    * @return The Milan expression tree corresponding to the scala expression.
    */
   def fromFunction[T1, T2, TOut](expr: (T1, T2) => TOut): FunctionDef = macro TreeMacros.fromFunction
-
-  /**
-   * Gets an escaped version of a string.
-   */
-  private def escape(str: String): String = {
-    jsonMapper.writeValueAsString(str)
-  }
 }
 
 
@@ -53,23 +53,22 @@ object Tree {
 @JsonDeserialize(using = classOf[TreeDeserializer])
 abstract class Tree extends Serializable with TypeInfoProvider {
   /**
+   * The expression type.
+   */
+  @JsonIgnore
+  val expressionType: String = getClass.getSimpleName
+  /**
    * The type of the tree.
    * This can be null for trees that have not been fully typechecked.
    */
   var tpe: TypeDescriptor[_] = _
 
-  /**
-   * The expression type.
-   */
-  @JsonIgnore
-  val expressionType: String = getClass.getSimpleName
+  def copy(): Tree = this.replaceChildren(this.getChildren.toList)
 
   @JsonIgnore
   def getChildren: Iterable[Tree] = List()
 
   def replaceChildren(children: List[Tree]): Tree = this
-
-  def copy(): Tree = this.replaceChildren(this.getChildren.toList)
 
   override def toString: String = {
     val cls = getClass

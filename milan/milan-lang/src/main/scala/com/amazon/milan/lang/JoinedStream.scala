@@ -53,15 +53,6 @@ class JoinedStreamWithCondition[TLeft, TRight](val expr: StreamExpression) {
   }
 
   /**
-   * Defines the output of a join operation after the join conditions have been specified.
-   *
-   * @param f A function that computes the output.
-   * @tparam TOut The type of the output.
-   * @return A [[Stream]] representing the resulting output stream.
-   */
-  def select[TOut](f: (TLeft, TRight) => TOut): Stream[TOut] = macro JoinedStreamMacros.select[TLeft, TRight, TOut]
-
-  /**
    * Gets a [[StreamMap]] expression that performs the mapping for a selectAll() operation.
    */
   private def getSelectAllMapExpression(source: StreamExpression,
@@ -103,4 +94,13 @@ class JoinedStreamWithCondition[TLeft, TRight](val expr: StreamExpression) {
     val streamType = new DataStreamTypeDescriptor(outputType)
     new StreamMap(source, mapFunction, id, id, streamType)
   }
+
+  /**
+   * Defines the output of a join operation after the join conditions have been specified.
+   *
+   * @param f A function that computes the output.
+   * @tparam TOut The type of the output.
+   * @return A [[Stream]] representing the resulting output stream.
+   */
+  def select[TOut](f: (TLeft, TRight) => TOut): Stream[TOut] = macro JoinedStreamMacros.select[TLeft, TRight, TOut]
 }

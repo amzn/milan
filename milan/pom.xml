@@ -17,12 +17,13 @@
         <scala.compat.version>2.12</scala.compat.version>
         <spec2.version>4.2.0</spec2.version>
         <flink.version>1.9.1</flink.version>
-        <aws.sdk.version>2.10.25</aws.sdk.version>
+        <aws.sdk.version>2.13.37</aws.sdk.version>
         <slf4j.version>1.7.25</slf4j.version>
         <log4j.version>2.11.1</log4j.version>
         <jackson.version>2.10.0</jackson.version>
         <scala.logging.version>3.9.2</scala.logging.version>
         <milan.version>0.8-SNAPSHOT</milan.version>
+        <maven.surefire.version>2.22.2</maven.surefire.version>
     </properties>
 
     <modules>

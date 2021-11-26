@@ -2,7 +2,7 @@ package com.amazon.milan.samples.exec
 
 
 
-class MapFunction_grouped_KeyAssigner_ceb0710a
+class MapFunction_grouped_KeyAssigner_7e569bfa
   extends com.amazon.milan.compiler.flink.runtime.ModifyRecordKeyMapFunction[com.amazon.milan.samples.KeyValueRecord, Product, Tuple1[Int]](
     org.apache.flink.api.scala.createTypeInformation[com.amazon.milan.samples.KeyValueRecord],
     new com.amazon.milan.compiler.flink.types.ScalaTupleTypeInformation[Tuple1[Int]](Array(org.apache.flink.api.scala.createTypeInformation[Int]))) {
@@ -21,7 +21,7 @@ class MapFunction_grouped_KeyAssigner_ceb0710a
   }
 }
 
-class ScanOperation_c86077c1_3e06_4117_9d74_1f8a817e9035_17a22059
+class ScanOperation_1f0fd831_34d3_4498_8795_17714508c6c6_8e7fd9c9
   extends com.amazon.milan.compiler.flink.runtime.AssociativeScanOperation[com.amazon.milan.samples.KeyValueRecord, Int, com.amazon.milan.samples.KeyValueRecord](
   org.apache.flink.api.scala.createTypeInformation[Int],
   org.apache.flink.api.scala.createTypeInformation[com.amazon.milan.samples.KeyValueRecord]) {
@@ -43,9 +43,9 @@ class ScanOperation_c86077c1_3e06_4117_9d74_1f8a817e9035_17a22059
 
 }
 
-class ProcessFunction_grouped_ScanOperation9da5a0ed
+class ProcessFunction_grouped_ScanOperationcdaab15f
   extends com.amazon.milan.compiler.flink.runtime.ScanOperationKeyedProcessFunction[com.amazon.milan.samples.KeyValueRecord, Tuple1[Int], Int, com.amazon.milan.samples.KeyValueRecord](
-  new ScanOperation_c86077c1_3e06_4117_9d74_1f8a817e9035_17a22059(),
+  new ScanOperation_1f0fd831_34d3_4498_8795_17714508c6c6_8e7fd9c9(),
   new com.amazon.milan.compiler.flink.types.ScalaTupleTypeInformation[Tuple1[Int]](Array(org.apache.flink.api.scala.createTypeInformation[Int])))
 
 class GroupByFlatMap extends com.amazon.milan.compiler.flink.runtime.MilanApplicationBase {
@@ -53,33 +53,33 @@ class GroupByFlatMap extends com.amazon.milan.compiler.flink.runtime.MilanApplic
     false
 
   override def buildFlinkApplication(env: org.apache.flink.streaming.api.environment.StreamExecutionEnvironment): Unit = {
-    val stream_input_typeinfo_16c5eca0 = org.apache.flink.api.scala.createTypeInformation[com.amazon.milan.samples.KeyValueRecord]
-    val stream_input_values_5bfa8770 = com.amazon.milan.compiler.flink.runtime.RuntimeUtil.loadJsonList[com.amazon.milan.samples.KeyValueRecord]("[{\"key\":1,\"value\":1,\"recordId\":\"9cfe3b65-0019-49d2-9a69-fe2ba402ee3c\"},{\"key\":1,\"value\":2,\"recordId\":\"439fc041-9105-43af-ba78-febc5c927229\"},{\"key\":2,\"value\":5,\"recordId\":\"3cb0c8c8-5311-4054-83b0-5ffcdd118371\"},{\"key\":3,\"value\":6,\"recordId\":\"37b852c1-7c76-4b5b-9a84-8172c6225174\"},{\"key\":2,\"value\":3,\"recordId\":\"f70f0a74-da48-4284-b10a-e98e77ebdace\"},{\"key\":3,\"value\":1,\"recordId\":\"013b30dc-59a5-4c51-9fc7-206fb851551f\"}]")
-    val stream_input_records_57174b58 = com.amazon.milan.compiler.flink.runtime.DataSourceUtil.addListDataSource[com.amazon.milan.samples.KeyValueRecord](
+    val stream_input_typeinfo_66ae8a2f = org.apache.flink.api.scala.createTypeInformation[com.amazon.milan.samples.KeyValueRecord]
+    val stream_input_values_e554b09f = com.amazon.milan.compiler.flink.runtime.RuntimeUtil.loadJsonList[com.amazon.milan.samples.KeyValueRecord]("[{\"key\":1,\"value\":1,\"recordId\":\"06c747da-6627-43f8-bf2d-ce662d224e62\"},{\"key\":1,\"value\":2,\"recordId\":\"773f1497-ad30-40c0-8083-f8a8ffc0506c\"},{\"key\":2,\"value\":5,\"recordId\":\"2a2bb9b2-8184-408e-9e07-b1026c5c824b\"},{\"key\":3,\"value\":6,\"recordId\":\"cd1f00d9-5c25-4db3-b0cb-2cc8fdb2855c\"},{\"key\":2,\"value\":3,\"recordId\":\"5457d19e-c25d-4334-8460-e87ff1349d9f\"},{\"key\":3,\"value\":1,\"recordId\":\"c6216326-0565-4eb6-ba24-974ca10f5733\"}]")
+    val stream_input_records_5c98990c = com.amazon.milan.compiler.flink.runtime.DataSourceUtil.addListDataSource[com.amazon.milan.samples.KeyValueRecord](
       env,
-      stream_input_values_5bfa8770,
+      stream_input_values_e554b09f,
       false,
-      stream_input_typeinfo_16c5eca0)
-    val stream_input = stream_input_records_57174b58.map(new com.amazon.milan.compiler.flink.runtime.WrapRecordsMapFunction[com.amazon.milan.samples.KeyValueRecord](stream_input_typeinfo_16c5eca0))
+      stream_input_typeinfo_66ae8a2f)
+    val stream_input = stream_input_records_5c98990c.map(new com.amazon.milan.compiler.flink.runtime.WrapRecordsMapFunction[com.amazon.milan.samples.KeyValueRecord](stream_input_typeinfo_66ae8a2f))
     
-    val stream_grouped_keyAssignerMapFunction_a532f91b = new MapFunction_grouped_KeyAssigner_ceb0710a()
-    val stream_grouped_mappedWithKeys_02d769b5 = stream_input.map(stream_grouped_keyAssignerMapFunction_a532f91b)
+    val stream_grouped_keyAssignerMapFunction_3c0de761 = new MapFunction_grouped_KeyAssigner_7e569bfa()
+    val stream_grouped_mappedWithKeys_bd3cc383 = stream_input.map(stream_grouped_keyAssignerMapFunction_3c0de761)
     
-    val stream_grouped_keySelector_88362d3b = new com.amazon.milan.compiler.flink.runtime.RecordWrapperKeySelector[com.amazon.milan.samples.KeyValueRecord, Tuple1[Int]](
+    val stream_grouped_keySelector_b29f89ee = new com.amazon.milan.compiler.flink.runtime.RecordWrapperKeySelector[com.amazon.milan.samples.KeyValueRecord, Tuple1[Int]](
       new com.amazon.milan.compiler.flink.types.ScalaTupleTypeInformation[Tuple1[Int]](Array(org.apache.flink.api.scala.createTypeInformation[Int])))
-    val stream_grouped_keyed_41053b7c = stream_grouped_mappedWithKeys_02d769b5.keyBy(stream_grouped_keySelector_88362d3b, stream_grouped_keySelector_88362d3b.getKeyType)
+    val stream_grouped_keyed_17176985 = stream_grouped_mappedWithKeys_bd3cc383.keyBy(stream_grouped_keySelector_b29f89ee, stream_grouped_keySelector_b29f89ee.getKeyType)
     
-    val stream_c86077c1_3e06_4117_9d74_1f8a817e9035_processFunction_52b410da = new ProcessFunction_grouped_ScanOperation9da5a0ed()
-    val stream_c86077c1_3e06_4117_9d74_1f8a817e9035_unkeyed = stream_grouped_keyed_41053b7c.process(stream_c86077c1_3e06_4117_9d74_1f8a817e9035_processFunction_52b410da, stream_c86077c1_3e06_4117_9d74_1f8a817e9035_processFunction_52b410da.getProducedType)
+    val stream_1f0fd831_34d3_4498_8795_17714508c6c6_processFunction_dcd77405 = new ProcessFunction_grouped_ScanOperationcdaab15f()
+    val stream_1f0fd831_34d3_4498_8795_17714508c6c6_unkeyed = stream_grouped_keyed_17176985.process(stream_1f0fd831_34d3_4498_8795_17714508c6c6_processFunction_dcd77405, stream_1f0fd831_34d3_4498_8795_17714508c6c6_processFunction_dcd77405.getProducedType)
     
-    val stream_c86077c1_3e06_4117_9d74_1f8a817e9035_keyed_keySelector_93e87fd4 = new com.amazon.milan.compiler.flink.runtime.RecordWrapperKeySelector[com.amazon.milan.samples.KeyValueRecord, Tuple1[Int]](
+    val stream_1f0fd831_34d3_4498_8795_17714508c6c6_keyed_keySelector_5b6a38c4 = new com.amazon.milan.compiler.flink.runtime.RecordWrapperKeySelector[com.amazon.milan.samples.KeyValueRecord, Tuple1[Int]](
       new com.amazon.milan.compiler.flink.types.ScalaTupleTypeInformation[Tuple1[Int]](Array(org.apache.flink.api.scala.createTypeInformation[Int])))
-    val stream_c86077c1_3e06_4117_9d74_1f8a817e9035_keyed_keyed_457b5aee = stream_c86077c1_3e06_4117_9d74_1f8a817e9035_unkeyed.keyBy(stream_c86077c1_3e06_4117_9d74_1f8a817e9035_keyed_keySelector_93e87fd4, stream_c86077c1_3e06_4117_9d74_1f8a817e9035_keyed_keySelector_93e87fd4.getKeyType)
+    val stream_1f0fd831_34d3_4498_8795_17714508c6c6_keyed_keyed_c7cab477 = stream_1f0fd831_34d3_4498_8795_17714508c6c6_unkeyed.keyBy(stream_1f0fd831_34d3_4498_8795_17714508c6c6_keyed_keySelector_5b6a38c4, stream_1f0fd831_34d3_4498_8795_17714508c6c6_keyed_keySelector_5b6a38c4.getKeyType)
     
-    val stream_output_recordTypeInfo_4b6e41d6 = org.apache.flink.api.scala.createTypeInformation[com.amazon.milan.samples.KeyValueRecord]
-    val stream_output_keyTypeInfo_bcde908e = new com.amazon.milan.compiler.flink.types.ScalaTupleTypeInformation[Tuple1[Int]](Array(org.apache.flink.api.scala.createTypeInformation[Int]))
-    val stream_output_flatMap_0370db18 = new com.amazon.milan.compiler.flink.runtime.IdentityFlatMapFunction[com.amazon.milan.samples.KeyValueRecord, Tuple1[Int]](stream_output_recordTypeInfo_4b6e41d6, stream_output_keyTypeInfo_bcde908e)
-    val stream_output = stream_c86077c1_3e06_4117_9d74_1f8a817e9035_keyed_keyed_457b5aee.flatMap(stream_output_flatMap_0370db18)
+    val stream_output_recordTypeInfo_f78063ae = org.apache.flink.api.scala.createTypeInformation[com.amazon.milan.samples.KeyValueRecord]
+    val stream_output_keyTypeInfo_0cad3105 = new com.amazon.milan.compiler.flink.types.ScalaTupleTypeInformation[Tuple1[Int]](Array(org.apache.flink.api.scala.createTypeInformation[Int]))
+    val stream_output_flatMap_7252f2bc = new com.amazon.milan.compiler.flink.runtime.IdentityFlatMapFunction[com.amazon.milan.samples.KeyValueRecord, Tuple1[Int]](stream_output_recordTypeInfo_f78063ae, stream_output_keyTypeInfo_0cad3105)
+    val stream_output = stream_1f0fd831_34d3_4498_8795_17714508c6c6_keyed_keyed_c7cab477.flatMap(stream_output_flatMap_7252f2bc)
     
     stream_output.print()
   }

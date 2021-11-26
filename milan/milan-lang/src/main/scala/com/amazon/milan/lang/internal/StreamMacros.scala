@@ -1,13 +1,12 @@
 package com.amazon.milan.lang.internal
 
-import java.time.{Duration, Instant}
-
 import com.amazon.milan.lang.{GroupedStream, Stream, TimeWindowedStream}
 import com.amazon.milan.program.internal.{FilteredStreamHost, LiftableImpls}
 import com.amazon.milan.program.{ExternalStream, FunctionDef, GroupBy, NamedField, NamedFields, SelectField, SelectTerm, SlidingWindow, StreamArgMax, StreamArgMin, StreamMap, SumBy, TumblingWindow, ValueDef}
 import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, FieldDescriptor, GroupedStreamTypeDescriptor, TupleTypeDescriptor, TypeDescriptor, TypeJoiner}
 import com.amazon.milan.{Id, program}
 
+import java.time.{Duration, Instant}
 import scala.reflect.macros.whitebox
 
 
@@ -202,6 +201,10 @@ class StreamMacros(val c: whitebox.Context)
     c.Expr[TimeWindowedStream[T]](tree)
   }
 
+  private def getDuration(duration: c.Expr[Duration]): c.Expr[program.Duration] = {
+    c.Expr[program.Duration](q"new ${typeOf[program.Duration]}($duration.toMillis)")
+  }
+
   /**
    * Creates a [[Stream]] of the argmax of an input stream.
    */
@@ -265,10 +268,6 @@ class StreamMacros(val c: whitebox.Context)
        """
 
     c.Expr[Stream[TOut]](tree)
-  }
-
-  private def getDuration(duration: c.Expr[Duration]): c.Expr[program.Duration] = {
-    c.Expr[program.Duration](q"new ${typeOf[program.Duration]}($duration.toMillis)")
   }
 }
 

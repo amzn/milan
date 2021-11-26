@@ -62,12 +62,26 @@ class TypeLifter(val typeEmitter: TypeEmitter) {
       val partsIterator = sc.parts.iterator
       val subsIterator = subs.iterator
 
-      val sb = new StringBuilder(partsIterator.next())
-
-      var unrollNextPart = false
-      var unrollSeparator = ""
+      var lastPart = partsIterator.next()
+      val sb = new StringBuilder()
 
       while (subsIterator.hasNext) {
+        val (unrollNextPart, unrollSeparator, partToAppend) =
+          if (lastPart.endsWith("./")) {
+            (true, ",\n", lastPart.substring(0, lastPart.length - 2))
+          }
+          else if (lastPart.endsWith("..")) {
+            (true, ", ", lastPart.substring(0, lastPart.length - 2))
+          }
+          else if (lastPart.endsWith("//")) {
+            (true, "\n", lastPart.substring(0, lastPart.length - 2))
+          }
+          else {
+            (false, "", lastPart)
+          }
+
+        sb.append(partToAppend)
+
         val lifted =
           if (unrollNextPart) {
             liftSequence(subsIterator.next(), unrollSeparator)
@@ -77,22 +91,10 @@ class TypeLifter(val typeEmitter: TypeEmitter) {
           }
         sb.append(lifted)
 
-        val nextPart = partsIterator.next()
-        if (nextPart.endsWith("..")) {
-          unrollNextPart = true
-          unrollSeparator = ", "
-          sb.append(nextPart.substring(0, nextPart.length - 2))
-        }
-        else if (nextPart.endsWith("//")) {
-          unrollNextPart = true
-          unrollSeparator = "\n"
-          sb.append(nextPart.substring(0, nextPart.length - 2))
-        }
-        else {
-          unrollNextPart = false
-          sb.append(nextPart)
-        }
+        lastPart = partsIterator.next()
       }
+
+      sb.append(lastPart)
 
       sb.toString()
     }
@@ -105,6 +107,11 @@ class TypeLifter(val typeEmitter: TypeEmitter) {
     def qn(subs: Any*): ClassName = {
       val value = q(subs: _*).codeStrip
       ClassName(value)
+    }
+
+    def qv(subs: Any*): ValName = {
+      val value = q(subs: _*).codeStrip
+      ValName(value)
     }
 
     /**

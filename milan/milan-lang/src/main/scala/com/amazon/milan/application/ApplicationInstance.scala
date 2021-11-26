@@ -27,4 +27,13 @@ class ApplicationInstance(val instanceDefinitionId: String,
   def toJsonString: String = {
     MilanObjectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(this)
   }
+
+  override def equals(obj: Any): Boolean = obj match {
+    case o: ApplicationInstance =>
+      this.instanceDefinitionId == o.instanceDefinitionId &&
+        this.application.equals(o.application) &&
+        this.config.equals(o.config)
+
+    case _ => false
+  }
 }

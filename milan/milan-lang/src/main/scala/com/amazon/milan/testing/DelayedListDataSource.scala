@@ -1,10 +1,10 @@
 package com.amazon.milan.testing
 
-import java.time.Duration
-
 import com.amazon.milan.application.DataSource
 import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
+
+import java.time.Duration
 
 
 /**
@@ -70,13 +70,6 @@ class DelayedListDataSource[T: TypeDescriptor](val values: List[ItemOrDelay[T]],
 
   private var recordTypeDescriptor = implicitly[TypeDescriptor[T]]
 
-  override def getGenericArguments: List[TypeDescriptor[_]] = List(this.recordTypeDescriptor)
-
-  override def setGenericArguments(genericArgs: List[TypeDescriptor[_]]): Unit = {
-    this.recordTypeDescriptor = genericArgs.head.asInstanceOf[TypeDescriptor[T]]
-
-  }
-
   override def equals(obj: Any): Boolean = obj match {
     case o: DelayedListDataSource[_] =>
       this.getGenericArguments.equals(o.getGenericArguments) &&
@@ -84,6 +77,13 @@ class DelayedListDataSource[T: TypeDescriptor](val values: List[ItemOrDelay[T]],
 
     case _ =>
       false
+  }
+
+  override def getGenericArguments: List[TypeDescriptor[_]] = List(this.recordTypeDescriptor)
+
+  override def setGenericArguments(genericArgs: List[TypeDescriptor[_]]): Unit = {
+    this.recordTypeDescriptor = genericArgs.head.asInstanceOf[TypeDescriptor[T]]
+
   }
 }
 

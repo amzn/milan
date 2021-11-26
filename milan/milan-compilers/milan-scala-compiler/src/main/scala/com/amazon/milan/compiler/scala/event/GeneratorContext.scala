@@ -1,12 +1,13 @@
 package com.amazon.milan.compiler.scala.event
 
-import java.io.OutputStream
-
 import com.amazon.milan.application.ApplicationInstance
 import com.amazon.milan.compiler.scala._
 import com.amazon.milan.graph.{DependencyGraph, FlowGraph}
 import com.amazon.milan.program.StreamExpression
 import com.amazon.milan.typeutil.TypeDescriptor
+
+import java.io.OutputStream
+import java.util.UUID
 
 
 /**
@@ -77,6 +78,8 @@ case class ExternalStreamConsumer(streamName: String, consumerMethodName: Method
 class GeneratorOutputs(typeEmitter: TypeEmitter) {
   private var methods: List[String] = List.empty
   private var fields: List[String] = List.empty
+  private var fieldNames: Set[String] = Set.empty
+  private var collectorNames: Set[String] = Set.empty
 
   private var externalStreamMethods: List[ExternalStreamConsumer] = List.empty
 
@@ -161,12 +164,53 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
   }
 
   /**
+   * Adds a collector method to the output.
+   *
+   * @param collectorName    The name of the method, used to ensure no duplicates are added.
+   * @param methodDefinition The method definition.
+   */
+  def addCollectorMethod(collectorName: String, methodDefinition: String): Unit = {
+    if (this.collectorNames.contains(collectorName)) {
+      throw new IllegalArgumentException(s"Collector method $collectorName already exists.")
+    }
+
+    this.collectorNames = this.collectorNames + collectorName
+    this.addMethod(methodDefinition)
+  }
+
+  /**
+   * Gets whether a collector has already been added.
+   *
+   * @param collectorName The name of the collector
+   * @return True if the collector has already been added, otherwise false.
+   */
+  def collectorExists(collectorName: String): Boolean =
+    this.collectorNames.contains((collectorName))
+
+  /**
    * Adds a field to the generated class.
    *
    * @param fieldDefinition The full field definition, including any access modifier.
    */
   def addField(fieldDefinition: String): Unit = {
     this.fields = this.fields :+ fieldDefinition
+  }
+
+  /**
+   * Gets a unique, valid field name with the specified prefix.
+   *
+   * @param prefix The field prefix.
+   * @return A field name.
+   */
+  def newFieldName(prefix: String): String = {
+    val name = this.cleanName(prefix + UUID.randomUUID().toString.substring(0, 8))
+    if (this.fieldNames.contains(name)) {
+      this.newFieldName(prefix)
+    }
+    else {
+      this.fieldNames = this.fieldNames + name
+      name
+    }
   }
 
   /**
@@ -184,7 +228,10 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
   def generate(className: String, outputStream: OutputStream): Unit = {
     outputStream.writeUtf8(s"class $className extends com.amazon.milan.compiler.scala.event.RecordConsumer {\n")
 
-    this.fields.foreach(field => outputStream.writeUtf8(field.indent(1)))
+    this.fields.foreach(field => {
+      outputStream.writeUtf8(field.indent(1))
+      outputStream.writeUtf8("\n\n")
+    })
     outputStream.writeUtf8("\n\n")
 
     val consumeParts =

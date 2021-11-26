@@ -1,9 +1,9 @@
 package com.amazon.milan.compiler.flink.generator
 
 import com.amazon.milan.compiler.scala._
-import com.amazon.milan.compiler.flink.internal.AggregateFunctionTreeExtractor
 import com.amazon.milan.compiler.flink.runtime.{BuiltinAggregateFunctions, _}
 import com.amazon.milan.compiler.flink.types._
+import com.amazon.milan.compiler.scala.trees.AggregateFunctionTreeExtractor
 import com.amazon.milan.program.{Aggregate, AggregateExpression, ArgAggregateExpression, ArgMax, ArgMin, Count, First, FunctionDef, GroupingExpression, Max, Mean, Min, Sum, TimeWindowExpression, TypeChecker}
 import com.amazon.milan.typeutil.{TupleTypeDescriptor, TypeDescriptor, types}
 
@@ -104,7 +104,7 @@ trait AggregateFunctionGenerator extends FunctionGenerator {
     // We need to separate out those aggregate function calls and create a flink AggregateFunction for each one.
     // Each of these separate AggregateFunctions will have the same input type, which is the input stream record type.
     val aggregateExpressions = AggregateFunctionTreeExtractor.getAggregateExpressions(aggExpr.expr)
-    val aggregateExpressionInputMaps = AggregateFunctionTreeExtractor.getAggregateInputFunctions(aggExpr.expr)
+    val aggregateExpressionInputMaps = AggregateFunctionTreeExtractor.getAggregateInputFunctionsWithKey(aggExpr.expr)
     val aggregateFunctionClassInfos = aggregateExpressions.zip(aggregateExpressionInputMaps)
       .map { case (expr, fun) => this.generateAggregateFunctionForExpression(outputs, aggExpr.nodeName, inputRecordType, expr, fun) }
 
@@ -266,7 +266,7 @@ trait AggregateFunctionGenerator extends FunctionGenerator {
 
     // Get the Milan FunctionDef for the function that converts the output from the combined aggregation
     // function to the final output record type.
-    val outputMapFunctionDef = AggregateFunctionTreeExtractor.getResultTupleToOutputFunction(mapFunctionDef)
+    val outputMapFunctionDef = AggregateFunctionTreeExtractor.getResultTupleToOutputFunctionWithKey(mapFunctionDef)
       .withArgumentTypes(List(groupKeyType, accumulatorType))
     TypeChecker.typeCheck(outputMapFunctionDef)
     val getOutputDef = getFunctionDefinition(output, "getOutput", outputMapFunctionDef, outputRecordType)
@@ -296,7 +296,7 @@ trait AggregateFunctionGenerator extends FunctionGenerator {
 
     // Get the Milan FunctionDef for the function that converts the output from the combined aggregation
     // function to the final output record type.
-    val outputMapFunctionDef = AggregateFunctionTreeExtractor.getResultTupleToOutputFunction(mapFunctionDef)
+    val outputMapFunctionDef = AggregateFunctionTreeExtractor.getResultTupleToOutputFunctionWithKey(mapFunctionDef)
       .withArgumentTypes(List(keyType, accumulatorType))
 
     TypeChecker.typeCheck(outputMapFunctionDef)

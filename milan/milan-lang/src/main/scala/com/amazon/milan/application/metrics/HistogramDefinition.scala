@@ -84,6 +84,11 @@ class HistogramDefinitionMacros(val c: whitebox.Context) extends ConvertExpressi
 
   import c.universe._
 
+  def createDefaultReservoir[T: c.WeakTypeTag](valueFunction: c.Expr[T => Long],
+                                               name: c.Expr[String]): c.Expr[HistogramDefinition[T]] = {
+    this.create(valueFunction, name, c.Expr[Int](q"1028"), c.Expr[Double](q"0.015D"))
+  }
+
   def create[T: c.WeakTypeTag](valueFunction: c.Expr[T => Long],
                                name: c.Expr[String],
                                reservoirSize: c.Expr[Int],
@@ -91,10 +96,5 @@ class HistogramDefinitionMacros(val c: whitebox.Context) extends ConvertExpressi
     val valueFunctionDef = this.getMilanFunction(valueFunction.tree)
     val tree = q"new ${weakTypeOf[HistogramDefinition[T]]}($valueFunctionDef, $name, $reservoirSize, $reservoirAlpha)"
     c.Expr[HistogramDefinition[T]](tree)
-  }
-
-  def createDefaultReservoir[T: c.WeakTypeTag](valueFunction: c.Expr[T => Long],
-                                               name: c.Expr[String]): c.Expr[HistogramDefinition[T]] = {
-    this.create(valueFunction, name, c.Expr[Int](q"1028"), c.Expr[Double](q"0.015D"))
   }
 }

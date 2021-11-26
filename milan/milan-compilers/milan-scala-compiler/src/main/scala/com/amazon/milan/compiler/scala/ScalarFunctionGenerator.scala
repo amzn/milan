@@ -147,6 +147,7 @@ class ScalarFunctionGenerator(typeEmitter: TypeEmitter,
         case ValueDef(name, ty) => scala"$name: $ty"
         case s: String => s
         case l: List[_] => l.map(getScalaCode).mkString(", ")
+        case i: Int => i.toString
         case o => throw new IllegalArgumentException(s"Can't convert expression '$o' to a scala expression.")
       }
     }
@@ -249,7 +250,7 @@ class ScalarFunctionGenerator(typeEmitter: TypeEmitter,
 
       val unpackContext = processContext(new UnpackConversionContext(valueNames, this))
       val bodyCode = unpackContext.getScalaCode(body)
-      scala"$target match { case ($valueNames) => " + bodyCode + " }"
+      scala"$target match { case Tuple${valueNames.length}($valueNames) => " + bodyCode + " }"
     }
 
     /**

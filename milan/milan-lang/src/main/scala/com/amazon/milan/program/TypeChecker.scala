@@ -21,7 +21,7 @@ object TypeChecker {
    * @param inputTypes  The types of the inputs that make up the context of the expression tree.
    */
   def typeCheck(functionDef: FunctionDef, inputTypes: List[TypeDescriptor[_]]): Unit = {
-    val context = Context(inputTypes, Map(), functionDef.arguments.map(arg => arg.name -> arg.tpe).toMap)
+    val context = Context(functionDef, inputTypes, Map(), functionDef.arguments.map(arg => arg.name -> arg.tpe).toMap)
     this.typeCheck(context)(functionDef)
   }
 
@@ -32,7 +32,7 @@ object TypeChecker {
    * @param functionDef A [[FunctionDef]] expression tree.
    */
   def typeCheck(functionDef: FunctionDef): Unit = {
-    val context = Context(List(), Map(), functionDef.arguments.map(arg => arg.name -> arg.tpe).toMap)
+    val context = Context(functionDef, List(), Map(), functionDef.arguments.map(arg => arg.name -> arg.tpe).toMap)
 
     val FunctionDef(_, body) = functionDef
 
@@ -47,7 +47,7 @@ object TypeChecker {
    * @param streamTypes A map of node IDs to types of streams that are external to the expression tree.
    */
   def typeCheck(expression: StreamExpression, streamTypes: Map[String, StreamTypeDescriptor]): Unit = {
-    val context = Context(List(), streamTypes, Map())
+    val context = Context(expression, List(), streamTypes, Map())
     this.typeCheck(context)(expression)
   }
 
@@ -101,7 +101,7 @@ object TypeChecker {
       case SumBy(_, argExpr, outputExpr) =>
         this.typeCheck(primaryContext)(argExpr)
 
-        val outputExprContext = parentContext.withContextTypes(primaryContext.contextTypes :+ argExpr.tpe)
+        val outputExprContext = parentContext.withContextTypes(expr, primaryContext.contextTypes :+ argExpr.tpe)
         this.typeCheck(outputExprContext)(outputExpr)
 
       case _: SingleInputStreamExpression =>
@@ -135,7 +135,7 @@ object TypeChecker {
         }
 
         val functionArgInfo = args.map(_.name).zip(context.contextTypes).toMap
-        context.addValues(functionArgInfo)
+        context.addValues(expr, functionArgInfo)
 
       case Unpack(term, names, _) =>
         if (!term.tpe.isTuple) {
@@ -150,11 +150,11 @@ object TypeChecker {
         }
 
         val unpackArgInfo = names.zip(valueFieldTypes).toMap
-        context.addValues(unpackArgInfo)
+        context.addValues(expr, unpackArgInfo)
 
       case s: StreamExpression =>
         val expressionContextTypes = this.getFunctionArgumentTypes(s, context)
-        context.withContextTypes(expressionContextTypes)
+        context.withContextTypes(expr, expressionContextTypes)
 
       case _ =>
         context
@@ -232,8 +232,15 @@ object TypeChecker {
   private def getAggregateFunctionArgumentTypes(aggInput: Tree, context: Context): List[TypeDescriptor[_]] = {
     aggInput.tpe match {
       case groupedStreamType: GroupedStreamTypeDescriptor =>
-        // Aggregate functions that map the output of a group-by or window have the group key as one of the inputs.
-        List(groupedStreamType.keyType) ++ this.getRecordTypes(groupedStreamType)
+        aggInput match {
+          case SlidingRecordWindow(_, _) =>
+            // Aggregate functions that map the output of a record window only have the record type as an argument.
+            this.getRecordTypes(groupedStreamType)
+
+          case _ =>
+            // Aggregate functions that map the output of a group-by or window have the group key as one of the inputs.
+            List(groupedStreamType.keyType) ++ this.getRecordTypes(groupedStreamType)
+        }
 
       case _ =>
         this.getMapFunctionArgumentTypes(aggInput, context)
@@ -393,20 +400,27 @@ object TypeChecker {
   }
 
 
-  private case class Context(contextTypes: List[TypeDescriptor[_]],
+  private case class Context(contextExpression: Tree,
+                             contextTypes: List[TypeDescriptor[_]],
                              streams: Map[String, StreamTypeDescriptor],
                              values: Map[String, TypeDescriptor[_]]) {
     def getValueType(name: String): TypeDescriptor[_] = {
       this.values.get(name) match {
-        case None => throw new InvalidProgramException(s"No value named '$name' in scope.")
-        case Some(ty) => ty
+        case None =>
+          throw new InvalidProgramException(s"No value named '$name' in scope.")
+
+        case Some(ty) =>
+          ty
       }
     }
 
     def getStreamType(nodeId: String): StreamTypeDescriptor = {
       this.streams.get(nodeId) match {
-        case None => throw new InvalidProgramException(s"No stream with Id '$nodeId' in scope.")
-        case Some(stream) => stream
+        case None =>
+          throw new InvalidProgramException(s"No stream with Id '$nodeId' in scope.")
+
+        case Some(stream) =>
+          stream
       }
     }
 
@@ -417,25 +431,25 @@ object TypeChecker {
       this.streams.contains(nodeId)
 
     /**
-     * Gets a [[Context]] that is equivalent to this [[Context]] but with additional named values added.
-     */
-    def addValues(valuesToAdd: Map[String, TypeDescriptor[_]]): Context = {
-      Context(this.contextTypes, this.streams, this.values ++ valuesToAdd)
-    }
-
-    /**
      * Gets a [[Context]] that is equivalent to this [[Context]] but with additional named values added based on
      * a set of [[FieldDescriptor]] objects.
      */
-    def addValueFields(fields: List[FieldDescriptor[_]]): Context = {
-      this.addValues(fields.map(f => f.name -> f.fieldType).toMap)
+    def addValueFields(newContextExpression: Tree, fields: List[FieldDescriptor[_]]): Context = {
+      this.addValues(newContextExpression, fields.map(f => f.name -> f.fieldType).toMap)
+    }
+
+    /**
+     * Gets a [[Context]] that is equivalent to this [[Context]] but with additional named values added.
+     */
+    def addValues(newContextExpression: Tree, valuesToAdd: Map[String, TypeDescriptor[_]]): Context = {
+      Context(newContextExpression, this.contextTypes, this.streams, this.values ++ valuesToAdd)
     }
 
     /**
      * Gets a [[Context]] that is equivalent to this [[Context]] with the contextTypes replaced.
      */
-    def withContextTypes(newContextTypes: List[TypeDescriptor[_]]): Context = {
-      Context(newContextTypes, this.streams, this.values)
+    def withContextTypes(newContextExpression: Tree, newContextTypes: List[TypeDescriptor[_]]): Context = {
+      Context(newContextExpression, newContextTypes, this.streams, this.values)
     }
   }
 

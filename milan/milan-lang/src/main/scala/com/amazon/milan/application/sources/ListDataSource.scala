@@ -24,12 +24,6 @@ class ListDataSource[T: TypeDescriptor](val values: List[T], val runForever: Boo
 
   private var recordTypeDescriptor = implicitly[TypeDescriptor[T]]
 
-  override def getGenericArguments: List[TypeDescriptor[_]] = List(this.recordTypeDescriptor)
-
-  override def setGenericArguments(genericArgs: List[TypeDescriptor[_]]): Unit = {
-    this.recordTypeDescriptor = genericArgs.head.asInstanceOf[TypeDescriptor[T]]
-  }
-
   override def equals(obj: Any): Boolean = obj match {
     case o: ListDataSource[_] =>
       this.getGenericArguments.equals(o.getGenericArguments) &&
@@ -37,5 +31,11 @@ class ListDataSource[T: TypeDescriptor](val values: List[T], val runForever: Boo
 
     case _ =>
       false
+  }
+
+  override def getGenericArguments: List[TypeDescriptor[_]] = List(this.recordTypeDescriptor)
+
+  override def setGenericArguments(genericArgs: List[TypeDescriptor[_]]): Unit = {
+    this.recordTypeDescriptor = genericArgs.head.asInstanceOf[TypeDescriptor[T]]
   }
 }

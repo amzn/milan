@@ -13,5 +13,5 @@ package object types {
   val Long = new NumericTypeDescriptor[Long]("Long")
   val String = new BasicTypeDescriptor[String]("String")
   val Nothing = new BasicTypeDescriptor[Nothing]("Nothing")
-  val EmptyTuple = new TupleTypeDescriptor[Product]("Tuple0", List(), List())
+  val EmptyTuple = new TupleTypeDescriptor[Product]("Product", List(), List())
 }

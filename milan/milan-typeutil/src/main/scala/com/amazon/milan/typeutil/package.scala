@@ -126,7 +126,7 @@ package object typeutil {
     }
   }
 
-  implicit class TypeUtilTypeDescriptorExtensions[_](typeDesc: TypeDescriptor[_]) {
+  implicit class TypeUtilTypeDescriptorExtensions[T](typeDesc: TypeDescriptor[T]) {
     def isCollection: Boolean = this.typeDesc.isInstanceOf[CollectionTypeDescriptor[_]]
 
     def isTuple: Boolean = this.typeDesc.isInstanceOf[TupleTypeDescriptor[_]]
@@ -141,7 +141,7 @@ package object typeutil {
 
     def toIterable: TypeDescriptor[Iterable[_]] = TypeDescriptor.iterableOf[Any](this.typeDesc.asInstanceOf[TypeDescriptor[Any]])
 
-    def toOption: TypeDescriptor[Option[_]] = TypeDescriptor.optionOf[Any](this.typeDesc)
+    def toOption: TypeDescriptor[Option[T]] = TypeDescriptor.optionOf[Any](this.typeDesc).asInstanceOf[TypeDescriptor[Option[T]]]
 
     def toDataStream: DataStreamTypeDescriptor = new DataStreamTypeDescriptor(this.typeDesc)
 

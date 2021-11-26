@@ -1,12 +1,11 @@
 package com.amazon.milan.lang
 
-import java.time.{Duration, Instant}
-
 import com.amazon.milan.Id
 import com.amazon.milan.lang.internal.StreamMacros
 import com.amazon.milan.program.{Cycle, FunctionDef, Last, NamedField, SelectTerm, StreamExpression, StreamMap, Union, ValueDef}
 import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, FieldDescriptor, TupleTypeDescriptor, TypeDescriptor, TypeJoiner}
 
+import java.time.{Duration, Instant}
 import scala.language.experimental.macros
 
 
@@ -47,23 +46,6 @@ class Stream[T](val expr: StreamExpression, val recordType: TypeDescriptor[T]) {
   }
 
   /**
-   * Define a filter relationship between this [[Stream]] and another [[Stream]] of the same type.
-   *
-   * @param predicate A predicate that indicates which records from this stream are present on the output stream.
-   * @return A [[Stream]] representing the output filtered stream.
-   */
-  def where(predicate: T => Boolean): Stream[T] = macro StreamMacros.where[T]
-
-  /**
-   * Defines a map relationship between this [[Stream]] and an [[Stream]].
-   *
-   * @param f The map function.
-   * @tparam TOut The type of the output objects.
-   * @return An [[Stream]]`[`[[TOut]]`]` representing the output mapped stream.
-   */
-  def map[TOut](f: T => TOut): Stream[TOut] = macro StreamMacros.map[T, TOut]
-
-  /**
    * Converts this [[Stream]] to a [[Stream]] with one field whose values contain the records from
    * this stream.
    *
@@ -81,17 +63,6 @@ class Stream[T](val expr: StreamExpression, val recordType: TypeDescriptor[T]) {
     val mapExpr = new StreamMap(this.expr, mapFunction, id, id, outputType)
     new Stream[Tuple1[T]](mapExpr, recordType)
   }
-
-  /**
-   * Adds fields to the current stream.
-   * The fields are computed from the record values.
-   *
-   * @param f      A function that computes the fields from records.
-   * @param joiner A [[TypeJoiner]] that can produce the output stream type.
-   * @tparam TF The type of the new field.
-   * @return A [[Stream]] containing the input records with the new field appended.
-   */
-  def addFields[TF <: Product](f: T => TF)(implicit joiner: TypeJoiner[T, TF]): Stream[joiner.OutputType] = macro StreamMacros.addFields[T, TF]
 
   /**
    * Defines a "full outer join" relationship between this stream and another stream.
@@ -156,6 +127,54 @@ class Stream[T](val expr: StreamExpression, val recordType: TypeDescriptor[T]) {
   }
 
   /**
+   * Defines a stream that contains the records from this stream and another stream of the same type.
+   *
+   * @param other Another stream.
+   * @return A stream containing records from both streams.
+   */
+  def union(other: Stream[T]): Stream[T] = {
+    val id = Id.newId()
+    new Stream[T](new Union(this.expr, other.expr, id, id, this.expr.tpe), this.recordType)
+  }
+
+  /**
+   * Begins a cycle at this stream. This allows connecting a downstream stream back into the graph at this point.
+   */
+  def beginCycle(): CycleStream[T] = {
+    val id = Id.newId()
+    val cycleExpr = new Cycle(this.expr, "", id, id, this.expr.tpe)
+    new CycleStream[T](cycleExpr, this.recordType)
+  }
+
+  /**
+   * Define a filter relationship between this [[Stream]] and another [[Stream]] of the same type.
+   *
+   * @param predicate A predicate that indicates which records from this stream are present on the output stream.
+   * @return A [[Stream]] representing the output filtered stream.
+   */
+  def where(predicate: T => Boolean): Stream[T] = macro StreamMacros.where[T]
+
+  /**
+   * Defines a map relationship between this [[Stream]] and an [[Stream]].
+   *
+   * @param f The map function.
+   * @tparam TOut The type of the output objects.
+   * @return An [[Stream]]`[`[[TOut]]`]` representing the output mapped stream.
+   */
+  def map[TOut](f: T => TOut): Stream[TOut] = macro StreamMacros.map[T, TOut]
+
+  /**
+   * Adds fields to the current stream.
+   * The fields are computed from the record values.
+   *
+   * @param f      A function that computes the fields from records.
+   * @param joiner A [[TypeJoiner]] that can produce the output stream type.
+   * @tparam TF The type of the new field.
+   * @return A [[Stream]] containing the input records with the new field appended.
+   */
+  def addFields[TF <: Product](f: T => TF)(implicit joiner: TypeJoiner[T, TF]): Stream[joiner.OutputType] = macro StreamMacros.addFields[T, TF]
+
+  /**
    * Defines a grouping over records in the stream.
    *
    * @param keyFunc A function that computes the group key for a record.
@@ -218,26 +237,6 @@ class Stream[T](val expr: StreamExpression, val recordType: TypeDescriptor[T]) {
    * @return A stream of the cumulative sum values.
    */
   def sumBy[TArg, TOut](argExtractor: T => TArg, createOutput: (T, TArg) => TOut): Stream[TOut] = macro StreamMacros.sumBy[T, TArg, TOut]
-
-  /**
-   * Defines a stream that contains the records from this stream and another stream of the same type.
-   *
-   * @param other Another stream.
-   * @return A stream containing records from both streams.
-   */
-  def union(other: Stream[T]): Stream[T] = {
-    val id = Id.newId()
-    new Stream[T](new Union(this.expr, other.expr, id, id, this.expr.tpe), this.recordType)
-  }
-
-  /**
-   * Begins a cycle at this stream. This allows connecting a downstream stream back into the graph at this point.
-   */
-  def beginCycle(): CycleStream[T] = {
-    val id = Id.newId()
-    val cycleExpr = new Cycle(this.expr, "", id, id, this.expr.tpe)
-    new CycleStream[T](cycleExpr, this.recordType)
-  }
 }
 
 

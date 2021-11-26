@@ -185,30 +185,6 @@ class TreeParser(typeFactory: TypeFactory) {
   }
 
   /**
-   * A node in the tree produced from parsing an expression string.
-   */
-  private trait ParseNode {
-    def asParentNode: ParentNode = this.asInstanceOf[ParentNode]
-
-    def asValueNode: ValueNode = this.asInstanceOf[ValueNode]
-  }
-
-  /**
-   * A node that contains a value.
-   *
-   * @param valueString The string representation of the value in the node.
-   */
-  private case class ValueNode(valueString: String) extends ParseNode
-
-  /**
-   * A node that contains children.
-   *
-   * @param name     The name of the node.
-   * @param children The node's children.
-   */
-  private case class ParentNode(name: String, children: List[ParseNode]) extends ParseNode
-
-  /**
    * Parses an expression tree string into a tree of [[ParseNode]] objects.
    *
    * @param treeString An expression tree string.
@@ -341,6 +317,30 @@ class TreeParser(typeFactory: TypeFactory) {
   private def isDigit(c: Char): Boolean = {
     c >= '0' && c <= '9'
   }
+
+  /**
+   * A node in the tree produced from parsing an expression string.
+   */
+  private trait ParseNode {
+    def asParentNode: ParentNode = this.asInstanceOf[ParentNode]
+
+    def asValueNode: ValueNode = this.asInstanceOf[ValueNode]
+  }
+
+  /**
+   * A node that contains a value.
+   *
+   * @param valueString The string representation of the value in the node.
+   */
+  private case class ValueNode(valueString: String) extends ParseNode
+
+  /**
+   * A node that contains children.
+   *
+   * @param name     The name of the node.
+   * @param children The node's children.
+   */
+  private case class ParentNode(name: String, children: List[ParseNode]) extends ParseNode
 }
 
 

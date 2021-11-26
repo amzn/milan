@@ -13,8 +13,6 @@ object DependencyGraphBuilder {
                     contextKeyType: Option[TypeDescriptor[_]]) {
     private var children: List[NodeBuilder] = List.empty
 
-    def nodeId: String = stream.nodeId
-
     def addChild(child: NodeBuilder): Unit = {
       this.children = this.children :+ child
     }
@@ -29,6 +27,8 @@ object DependencyGraphBuilder {
     }
 
     override def toString: String = s"NodeBuilder(${this.nodeId})"
+
+    def nodeId: String = stream.nodeId
 
     override def equals(obj: Any): Boolean = obj match {
       case o: NodeBuilder => this.nodeId == o.nodeId

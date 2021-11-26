@@ -2,6 +2,7 @@ package com.amazon.milan.compiler.flink.generator
 
 import com.amazon.milan.application.ApplicationConfiguration
 import com.amazon.milan.compiler.flink.testing.{IntRecord, TestApplicationExecutor}
+import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import com.amazon.milan.testing.applications._
 import org.junit.Assert._
@@ -19,12 +20,12 @@ class TestFlinkGenNamedFields {
       field("c", r.i.toString)
     ))
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
     val config = new ApplicationConfiguration
     config.setListSource(input, IntRecord(1))
 
     val results = TestApplicationExecutor.executeApplication(
-      graph,
+      streams,
       config,
       20,
       output)

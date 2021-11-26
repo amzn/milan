@@ -7,7 +7,7 @@ import java.nio.file.{Files, Path, StandardOpenOption}
 
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
 import com.amazon.milan.compiler.flink.internal.FlinkTypeEmitter
-import com.amazon.milan.lang.StreamGraph
+import com.amazon.milan.graph._
 import com.amazon.milan.program.{Cycle, StreamExpression}
 import com.amazon.milan.{Id, SemanticVersion}
 import com.typesafe.scalalogging.Logger
@@ -32,11 +32,11 @@ class FlinkGenerator(classLoader: ClassLoader, generatorConfig: GeneratorConfig)
     this(getClass.getClassLoader, generatorConfig)
   }
 
-  def generateScala(graph: StreamGraph,
+  def generateScala(streams: StreamCollection,
                     appConfig: ApplicationConfiguration,
                     packageName: String,
                     className: String): String = {
-    val application = new Application(Id.newId(), graph, SemanticVersion.ZERO)
+    val application = new Application(Id.newId(), streams, SemanticVersion.ZERO)
     val instance = new ApplicationInstance(Id.newId(), application, appConfig)
     this.generateScala(instance, packageName, className)
   }
@@ -64,20 +64,17 @@ class FlinkGenerator(classLoader: ClassLoader, generatorConfig: GeneratorConfig)
                     output: OutputStream,
                     packageName: String,
                     className: String): Unit = {
-    val finalGraph = instance.application.graph.getDereferencedGraph
-    finalGraph.typeCheck()
+    val streams = instance.application.streams.getDereferencedStreams
+    typeCheckGraph(streams)
 
     val outputs = new GeneratorOutputs(this.generatorTypeLifter)
-    val context = GeneratorContext.createEmpty(instance.instanceDefinitionId, finalGraph, instance.config, outputs, this.generatorTypeLifter)
+    val context = GeneratorContext.createEmpty(instance.instanceDefinitionId, instance.config, outputs, this.generatorTypeLifter)
 
     // Ensure that every data stream is generated.
-    finalGraph
-      .getStreams
-      .foreach(stream => this.ensureStreamIsGenerated(context, stream))
+    streams.foreach(stream => this.ensureStreamIsGenerated(context, stream))
 
     // Close any cycles.
-    finalGraph
-      .getStreams
+    streams
       .filter(_.isInstanceOf[Cycle])
       .map(_.asInstanceOf[Cycle])
       .foreach(context.closeCycle)

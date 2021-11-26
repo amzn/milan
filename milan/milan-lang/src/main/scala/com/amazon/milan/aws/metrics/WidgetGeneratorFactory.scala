@@ -45,30 +45,6 @@ class WidgetGeneratorFactory(val namespace: String, val region: String, val host
   }
 
   /**
-   * Get [[LineWidgetJsonGenerator]] objects for a Counter.
-   *
-   * @param metricName   Name of the metric.
-   * @param operatorName Name of the operator the Counter is operating on.
-   * @return List of widget generators.
-   */
-  private def getCounterLineWidget(metricName: String, operatorName: String): List[LineWidgetJsonGenerator] = {
-    this.getFlinkLineWidgets(metricName, operatorName, "Count")
-  }
-
-  /**
-   * Get [[LineWidgetJsonGenerator]] objects for a Histogram.
-   *
-   * @param metricName   Name of the metric.
-   * @param operatorName Name of the operator the Histogram is operating on.
-   * @return List of widget generators.
-   */
-  private def getHistogramLineWidget(metricName: String, operatorName: String): List[LineWidgetJsonGenerator] = {
-    val suffix = List("max", "min", "mean", "stddev", "p50", "p75", "p95", "p98", "p99", "p999")
-    val metricNames = suffix.map(s => s"${metricName}_$s")
-    metricNames.flatMap(name => this.getFlinkLineWidgets(name, operatorName, ""))
-  }
-
-  /**
    * Get line widget generators for metrics.
    *
    * @param metricName   Name of the metric.
@@ -94,5 +70,29 @@ class WidgetGeneratorFactory(val namespace: String, val region: String, val host
         this.liveData
       )
     )
+  }
+
+  /**
+   * Get [[LineWidgetJsonGenerator]] objects for a Counter.
+   *
+   * @param metricName   Name of the metric.
+   * @param operatorName Name of the operator the Counter is operating on.
+   * @return List of widget generators.
+   */
+  private def getCounterLineWidget(metricName: String, operatorName: String): List[LineWidgetJsonGenerator] = {
+    this.getFlinkLineWidgets(metricName, operatorName, "Count")
+  }
+
+  /**
+   * Get [[LineWidgetJsonGenerator]] objects for a Histogram.
+   *
+   * @param metricName   Name of the metric.
+   * @param operatorName Name of the operator the Histogram is operating on.
+   * @return List of widget generators.
+   */
+  private def getHistogramLineWidget(metricName: String, operatorName: String): List[LineWidgetJsonGenerator] = {
+    val suffix = List("max", "min", "mean", "stddev", "p50", "p75", "p95", "p98", "p99", "p999")
+    val metricNames = suffix.map(s => s"${metricName}_$s")
+    metricNames.flatMap(name => this.getFlinkLineWidgets(name, operatorName, ""))
   }
 }

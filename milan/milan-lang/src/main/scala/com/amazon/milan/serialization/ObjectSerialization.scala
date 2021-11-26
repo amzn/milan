@@ -6,6 +6,17 @@ import java.nio.file.{Files, Path}
 
 object ObjectSerialization {
   /**
+   * Deserializes an object from a file.
+   *
+   * @param path : The path to the file containing the serialized object.
+   * @tparam T : The type of object to deserialize.
+   * @return The deserialized object.
+   */
+  def deserialize[T](path: Path): T = {
+    deserialize(Files.readAllBytes(path))
+  }
+
+  /**
    * Deserializes an object from a byte array.
    *
    * @param bytes A byte array containing a serialized object.
@@ -30,14 +41,15 @@ object ObjectSerialization {
   }
 
   /**
-   * Deserializes an object from a file.
+   * Serializes an object to a file.
    *
-   * @param path : The path to the file containing the serialized object.
-   * @tparam T : The type of object to deserialize.
-   * @return The deserialized object.
+   * @param value The object to serialize.
+   * @param path  The path where the serialized object will be written.
+   * @tparam T The type of the object being serialized.
    */
-  def deserialize[T](path: Path): T = {
-    deserialize(Files.readAllBytes(path))
+  def serialize[T](value: T, path: Path): Unit = {
+    val bytes = serialize(value)
+    Files.write(path, bytes)
   }
 
   /**
@@ -56,18 +68,6 @@ object ObjectSerialization {
 
     bytesStream.close()
     bytesStream.toByteArray
-  }
-
-  /**
-   * Serializes an object to a file.
-   *
-   * @param value The object to serialize.
-   * @param path  The path where the serialized object will be written.
-   * @tparam T The type of the object being serialized.
-   */
-  def serialize[T](value: T, path: Path): Unit = {
-    val bytes = serialize(value)
-    Files.write(path, bytes)
   }
 
   /**

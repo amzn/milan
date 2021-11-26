@@ -4,6 +4,7 @@ import com.amazon.milan.SemanticVersion
 import com.amazon.milan.application.sinks.LogSink
 import com.amazon.milan.application.sources.ListDataSource
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
+import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import com.amazon.milan.tools.ApplicationInstanceProvider
 
@@ -29,7 +30,7 @@ class FullJoinSample extends ApplicationInstanceProvider {
     )).withName("output")
 
     // Create a stream graph, passing in the output stream. Upstream dependencies are added automatically.
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
 
     val config = new ApplicationConfiguration()
 
@@ -44,7 +45,7 @@ class FullJoinSample extends ApplicationInstanceProvider {
     config.addSink(output, outputSink)
 
     new ApplicationInstance(
-      new Application("FullJoinSample", graph, SemanticVersion.ZERO),
+      new Application("FullJoinSample", streams, SemanticVersion.ZERO),
       config)
   }
 }

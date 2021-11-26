@@ -2,6 +2,7 @@ package com.amazon.milan.compiler.flink.generator
 
 import com.amazon.milan.application.ApplicationConfiguration
 import com.amazon.milan.compiler.flink.testing._
+import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import com.amazon.milan.testing.applications._
 import org.junit.Assert._
@@ -22,14 +23,14 @@ class TestFlinkGenLast {
 
     val output = grouped.flatMap((key, group) => maxByValueAndLast(group)).withName("output")
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
 
     val config = new ApplicationConfiguration
     config.setListSource(input, IntKeyValueRecord(1, 1), IntKeyValueRecord(1, 3), IntKeyValueRecord(1, 2))
 
     // Keep running until we find records in the output file.
     val results = TestApplicationExecutor.executeApplication(
-      graph,
+      streams,
       config,
       20,
       r => r.getRecords(output).isEmpty,
@@ -49,14 +50,14 @@ class TestFlinkGenLast {
 
     val output = grouped.flatMap((key, group) => maxByValueAndLast(group)).withName("output")
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
 
     val inputRecords = Random.shuffle(List.tabulate(10)(group => List.tabulate(10)(i => IntKeyValueRecord(group, i))).flatten)
     val config = new ApplicationConfiguration
     config.setListSource(input, inputRecords: _*)
 
     val results = TestApplicationExecutor.executeApplication(
-      graph,
+      streams,
       config,
       20,
       r => r.getRecords(output).length < 10,

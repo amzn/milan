@@ -1,12 +1,12 @@
 package com.amazon.milan.dataformats
 
-import java.time.format.{DateTimeFormatter, DateTimeParseException}
-import java.time.temporal.{TemporalAccessor, TemporalQuery}
-import java.time.{Instant, LocalDateTime, ZoneOffset}
-
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.{DeserializationContext, JsonDeserializer}
+
+import java.time.format.{DateTimeFormatter, DateTimeParseException}
+import java.time.temporal.{TemporalAccessor, TemporalQuery}
+import java.time.{Instant, LocalDateTime, ZoneOffset}
 
 
 /**
@@ -24,15 +24,14 @@ class MilanInstantDeserializer extends JsonDeserializer[Instant] {
     DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
     DateTimeFormatter.ISO_DATE)
 
-  override def deserialize(parser: JsonParser, context: DeserializationContext): Instant = {
-    val textValue = parser.getText
-    this.parseInstant(textValue)
-  }
-
   private val createInstant = new TemporalQuery[Instant] {
     override def queryFrom(temporal: TemporalAccessor): Instant = LocalDateTime.from(temporal).toInstant(ZoneOffset.UTC)
   }
 
+  override def deserialize(parser: JsonParser, context: DeserializationContext): Instant = {
+    val textValue = parser.getText
+    this.parseInstant(textValue)
+  }
 
   private def parseInstant(dateTimeString: String): Instant = {
     // Try a bunch of formats.

@@ -87,6 +87,12 @@ object TypeDescriptor {
 
   def of[T]: TypeDescriptor[T] = macro TypeDescriptorMacros.create[T]
 
+  def ofMap(keyType: TypeDescriptor[_], valueType: TypeDescriptor[_]): TypeDescriptor[Map[_, _]] =
+    new ObjectTypeDescriptor[Map[_, _]]("Map", List(keyType, valueType), List.empty)
+
+  def ofList[T](itemType: TypeDescriptor[T]): TypeDescriptor[List[T]] =
+    new ObjectTypeDescriptor[List[T]]("List", List(itemType), List.empty)
+
   def streamOf[T]: StreamTypeDescriptor = macro TypeDescriptorMacros.createStream[T]
 
   def namedTupleOf[T <: Product](fieldNames: String*): TupleTypeDescriptor[T] = macro TypeDescriptorMacros.createNamedTuple[T]
@@ -156,7 +162,7 @@ object TypeDescriptor {
   }
 
   def augmentTuple(tuple: TupleTypeDescriptor[_], newElementType: TypeDescriptor[_]): TupleTypeDescriptor[_] = {
-    if (newElementType == types.Nothing) {
+    if (newElementType == types.EmptyTuple) {
       tuple
     }
     else {

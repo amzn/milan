@@ -1,15 +1,14 @@
 package com.amazon.milan.application.sinks
 
-import java.time.{Duration, Instant}
-import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
-import java.util.function
-
 import com.amazon.milan.Id
 import com.amazon.milan.application.DataSink
 import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
+import java.time.{Duration, Instant}
+import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
+import java.util.function
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.TimeoutException
@@ -19,13 +18,6 @@ object SingletonMemorySink {
   private val values = new ConcurrentHashMap[String, ArrayBuffer[MemorySinkRecord[_]]]()
   private val nextSeqNum = new mutable.HashMap[String, Int]()
   private val locks = new ConcurrentHashMap[String, Object]()
-
-  private def makeCreateBufferFunction[T]: java.util.function.Function[String, ArrayBuffer[MemorySinkRecord[_]]] =
-    new function.Function[String, ArrayBuffer[MemorySinkRecord[_]]] {
-      override def apply(t: String): ArrayBuffer[MemorySinkRecord[_]] =
-        (new ArrayBuffer[MemorySinkRecord[T]]()).asInstanceOf[ArrayBuffer[MemorySinkRecord[_]]]
-    }
-
   private val createLocker = new java.util.function.Function[String, Object] {
     override def apply(t: String): AnyRef = new Object()
   }
@@ -61,6 +53,12 @@ object SingletonMemorySink {
   def getBuffer[T](sinkId: String): ArrayBuffer[MemorySinkRecord[T]] = {
     this.values.computeIfAbsent(sinkId, makeCreateBufferFunction[T]).asInstanceOf[ArrayBuffer[MemorySinkRecord[T]]]
   }
+
+  private def makeCreateBufferFunction[T]: java.util.function.Function[String, ArrayBuffer[MemorySinkRecord[_]]] =
+    new function.Function[String, ArrayBuffer[MemorySinkRecord[_]]] {
+      override def apply(t: String): ArrayBuffer[MemorySinkRecord[_]] =
+        (new ArrayBuffer[MemorySinkRecord[T]]()).asInstanceOf[ArrayBuffer[MemorySinkRecord[_]]]
+    }
 }
 
 

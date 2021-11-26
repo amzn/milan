@@ -6,9 +6,9 @@ import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 import com.amazon.milan.graph.DependencyGraph
-import com.amazon.milan.{graph, lang}
 import com.amazon.milan.program.{ExternalStream, StreamExpression, Tree, ValueDef}
 import com.amazon.milan.typeutil.TypeDescriptor
+import com.amazon.milan.{graph, lang}
 
 import scala.annotation.tailrec
 import scala.collection.mutable
@@ -24,6 +24,19 @@ object ScalaStreamGenerator {
    */
   def generateAnonymousFunction(inputStreams: List[lang.Stream[_]],
                                 returnStream: lang.Stream[_]): String = {
+    val inputStreamExpressions = inputStreams.map(_.expr)
+    this.generateAnonymousFunction(inputStreamExpressions, returnStream.expr)
+  }
+
+  /**
+   * Generates code for an anonymous function which has the specified streams as its inputs and output.
+   *
+   * @param inputStreams A list of streams that will form the input arguments to the generated function.
+   * @param returnStream The stream that will be returned from the generated function.
+   * @return
+   */
+  def generateAnonymousFunction(inputStreams: List[StreamExpression],
+                                returnStream: StreamExpression): String = {
     val outputStream = new ByteArrayOutputStream()
     this.generateAnonymousFunction(inputStreams, returnStream, outputStream)
     StandardCharsets.UTF_8.decode(ByteBuffer.wrap(outputStream.toByteArray)).toString
@@ -37,19 +50,19 @@ object ScalaStreamGenerator {
    * @param output       An [[OutputStream]] where the generated function will be written.
    * @return
    */
-  def generateAnonymousFunction(inputStreams: List[lang.Stream[_]],
-                                returnStream: lang.Stream[_],
+  def generateAnonymousFunction(inputStreams: List[StreamExpression],
+                                returnStream: StreamExpression,
                                 output: OutputStream): Unit = {
     val bodyStream = new ByteArrayOutputStream()
-    val outputs = this.generateFunctionBody(inputStreams, returnStream, bodyStream)
+    val outputs = this.generateFunctionBody(returnStream, bodyStream)
 
     val externalStreamVals = outputs.getExternalStreams
 
     val inputStreamArgs =
       inputStreams.map(stream =>
-        externalStreamVals.get(stream.streamId) match {
+        externalStreamVals.get(stream.nodeId) match {
           case Some(value) => value
-          case None => ValueDef(s"notused_${GeneratorOutputs.cleanName(stream.streamName)}", stream.recordType)
+          case None => ValueDef(s"notused_${GeneratorOutputs.cleanName(stream.nodeName)}", stream.recordType)
         }
       )
 
@@ -60,14 +73,13 @@ object ScalaStreamGenerator {
     output.writeUtf8("\n}")
   }
 
-  private def generateFunctionBody(inputStreams: List[lang.Stream[_]],
-                                   returnStream: lang.Stream[_],
+  private def generateFunctionBody(returnStream: StreamExpression,
                                    outputStream: OutputStream): GeneratorOutputs = {
-    val graph = DependencyGraph.build(returnStream.expr)
+    val graph = DependencyGraph.build(returnStream)
     val outputs = this.generate(graph)
     outputs.writeMainBlocks(outputStream)
 
-    val returnStreamVal = outputs.streamValNames(returnStream.streamId)
+    val returnStreamVal = outputs.streamValNames(returnStream.nodeId)
 
     outputStream.writeUtf8(s"$returnStreamVal")
 

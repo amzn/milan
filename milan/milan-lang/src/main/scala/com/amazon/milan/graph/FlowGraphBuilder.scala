@@ -13,8 +13,6 @@ object FlowGraphBuilder {
                     val contextKeyType: Option[TypeDescriptor[_]]) {
     private var children: List[NodeBuilder] = List.empty
 
-    def nodeId: String = this.expr.nodeId
-
     def getChildren: List[NodeBuilder] = this.children
 
     def addChild(node: NodeBuilder): Unit = {
@@ -27,6 +25,8 @@ object FlowGraphBuilder {
     }
 
     override def hashCode(): Int = this.nodeId.hashCode
+
+    def nodeId: String = this.expr.nodeId
 
     override def equals(obj: Any): Boolean = obj match {
       case o: NodeBuilder => this.nodeId == o.nodeId
@@ -74,6 +74,17 @@ class FlowGraphBuilder extends GraphTraverser[NodeBuilder] {
    */
   def addStream(stream: Stream[_]): FlowGraphBuilder = {
     this.addStream(stream.expr)
+  }
+
+  /**
+   * Adds a set stream expressions and their dependencies to the graph.
+   *
+   * @param exprs A set of stream expressions.
+   * @return This [[FlowGraphBuilder]] instance.
+   */
+  def addStreams(exprs: Iterable[StreamExpression]): FlowGraphBuilder = {
+    exprs.foreach(this.addStream)
+    this
   }
 
   /**

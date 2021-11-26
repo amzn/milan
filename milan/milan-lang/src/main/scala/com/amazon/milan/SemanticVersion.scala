@@ -5,7 +5,7 @@ object SemanticVersion {
   /**
    * A [[SemanticVersion]] object with all version numbers as zero.
    */
-  val ZERO = SemanticVersion(0, 0, 0)
+  val ZERO: SemanticVersion = SemanticVersion(0, 0, 0)
 
   def parse(versionString: String): SemanticVersion = {
     val majorEnd = versionString.indexOf(".")
@@ -76,7 +76,7 @@ case class SemanticVersion(var major: Int,
    *
    * @return A SemanticVersion instance with no build metadata.
    */
-  def withoutBuildMetadata() = SemanticVersion(this.major, this.minor, this.patch, this.preRelease)
+  def withoutBuildMetadata(): SemanticVersion = SemanticVersion(this.major, this.minor, this.patch, this.preRelease)
 
   /**
    * Gets whether this version contains pre-release information.

@@ -1,12 +1,11 @@
 package com.amazon.milan.dataformats
 
-import java.io.InputStream
-
 import com.amazon.milan.HashUtil
 import com.amazon.milan.serialization.{DataFormatConfiguration, JavaTypeFactory, MilanObjectMapper}
 import com.amazon.milan.typeutil.TypeDescriptor
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
+import java.io.InputStream
 import scala.collection.JavaConverters._
 import scala.language.experimental.macros
 

@@ -45,6 +45,16 @@ class FileDataSource[T: TypeDescriptor](val path: String,
 object FileDataSource {
 
   /**
+   * Configuration parameters for file data sources.
+   *
+   * @param readMode Controls how the data source behaves after all of the initial files have been processed.
+   */
+  case class Configuration(readMode: ReadMode.ReadMode) {
+    def withReadMode(readMode: ReadMode.ReadMode): Configuration =
+      Configuration(readMode)
+  }
+
+  /**
    * Controls how a data source behaves after all of the initial existing files have been processed.
    */
   object ReadMode extends Enumeration {
@@ -59,16 +69,6 @@ object FileDataSource {
      * The location is continuously monitored for new files and will not stop until cancelled.
      */
     val Continuous: ReadMode = Value
-  }
-
-  /**
-   * Configuration parameters for file data sources.
-   *
-   * @param readMode Controls how the data source behaves after all of the initial files have been processed.
-   */
-  case class Configuration(readMode: ReadMode.ReadMode) {
-    def withReadMode(readMode: ReadMode.ReadMode): Configuration =
-      Configuration(readMode)
   }
 
   object Configuration {

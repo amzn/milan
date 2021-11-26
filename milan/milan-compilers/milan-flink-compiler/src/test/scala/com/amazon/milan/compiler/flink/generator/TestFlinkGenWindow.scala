@@ -5,6 +5,7 @@ import java.time.{Duration, Instant}
 import com.amazon.milan.Id
 import com.amazon.milan.application.ApplicationConfiguration
 import com.amazon.milan.compiler.flink.testing._
+import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import com.amazon.milan.lang.aggregation._
 import com.amazon.milan.testing.applications._
@@ -45,7 +46,7 @@ class TestFlinkGenWindow {
     val windowed = input.tumblingWindow(r => r.dateTime, Duration.ofMinutes(1), Duration.ZERO)
     val output = windowed.select((_, r) => argmax(r.i, r))
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
 
     val config = new ApplicationConfiguration()
     val now = Instant.now()
@@ -57,7 +58,7 @@ class TestFlinkGenWindow {
       DateIntRecord(now.plusSeconds(60), 7),
       DateIntRecord(now.plusSeconds(80), 3))
 
-    val results = TestApplicationExecutor.executeApplication(graph, config, 60, output)
+    val results = TestApplicationExecutor.executeApplication(streams, config, 60, output)
 
     val outputRecords = results.getRecords(output)
     assertTrue(outputRecords.length >= 5)
@@ -72,7 +73,7 @@ class TestFlinkGenWindow {
       field("i", sum(r.i))
     ))
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
 
     val config = new ApplicationConfiguration()
 
@@ -80,7 +81,7 @@ class TestFlinkGenWindow {
     val timestamp = Instant.ofEpochSecond(55 * 60)
     config.setListSource(input, DateIntRecord(timestamp, 1))
 
-    val results = TestApplicationExecutor.executeApplication(graph, config, 60, output)
+    val results = TestApplicationExecutor.executeApplication(streams, config, 60, output)
 
     val outputRecords = results.getRecords(output)
     assertTrue(outputRecords.length >= 6)
@@ -103,7 +104,7 @@ class TestFlinkGenWindow {
       .tumblingWindow(r => r.timeStamp, Duration.ofSeconds(5), Duration.ZERO)
       .flatMap((_, window) => maxByTimeStampAndValue(window))
 
-    val graph = new StreamGraph(output)
+    val streams = StreamCollection.build(output)
 
     val config = new ApplicationConfiguration()
 
@@ -119,7 +120,7 @@ class TestFlinkGenWindow {
       TestRecord(later, 1, 1, 10)
     )
 
-    val results = TestApplicationExecutor.executeApplication(graph, config, 60, output)
+    val results = TestApplicationExecutor.executeApplication(streams, config, 60, output)
 
     val outputRecords = results.getRecords(output)
     val lastRecordPerGroupAndWindow =
