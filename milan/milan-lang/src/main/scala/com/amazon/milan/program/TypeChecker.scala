@@ -196,12 +196,23 @@ object TypeChecker {
       case LeftWindowedJoin(left, right) =>
         this.getRecordTypes(left, context) ++ this.getRecordTypes(right, context)
 
+      case Scan(source, initialState, _) =>
+        this.getScanFunctionArgumentTypes(source, initialState, context)
+
       case SingleInputStreamExpression(source) =>
         this.getRecordTypes(source, context)
 
       case _: Union =>
         List()
     }
+  }
+
+  /**
+   * Gets the argument types for the step function of a scan operation.
+   */
+  private def getScanFunctionArgumentTypes(scanInput: Tree, initialState: Tree, context: Context): List[TypeDescriptor[_]] = {
+    val inputRecordType = this.getRecordType(scanInput, context)
+    List(initialState.tpe, inputRecordType)
   }
 
   /**

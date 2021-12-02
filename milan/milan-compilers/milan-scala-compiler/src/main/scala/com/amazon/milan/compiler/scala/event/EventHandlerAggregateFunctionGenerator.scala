@@ -7,6 +7,8 @@ import com.amazon.milan.lang.StateIdentifier
 import com.amazon.milan.program.{Aggregate, SlidingRecordWindow, TypeChecker}
 import com.amazon.milan.typeutil.{TypeDescriptor, types}
 
+import scala.language.existentials
+
 
 trait EventHandlerAggregateFunctionGenerator
   extends ScanOperationGenerator
@@ -93,24 +95,39 @@ trait EventHandlerAggregateFunctionGenerator
     val foldOperationInstanceDef =
       qc"new ${nameOf[FoldScanOperation[Any, Any, Any, Any]]}[${inputType.toTerm}, ${keyType.toTerm}, ${stateType.toTerm}, ${outputType.toTerm}]($scanOperationVal)"
 
-    val windowStateType = TypeDescriptor.ofMap(keyType, TypeDescriptor.ofList(inputType))
-    val windowStateDef = this.generateKeyedStateInterface(context, aggregateExpr, StateIdentifier.STREAM_STATE, types.Int, windowStateType)
-
     val fullKeyVal = ValName("fullKey")
     val getLocalKeyCode = this.generateGetLocalKeyCode(fullKeyVal, fullKeyType, keyType)
     val getOutputKeyCode = this.generateGetContextKeyCode(fullKeyVal, fullKeyType, contextKeyType)
 
+    val (stateKeyType, getStateKeyCode) =
+      if (contextKeyType == types.EmptyTuple) {
+        // There is no context key, but we still need a key for the keyed state interface, so use a constant integer.
+        (types.Int, qc"0")
+      }
+      else {
+        // There is a context key, which means we can use the same code we used to get the output key, which is just the
+        // context key.
+        (contextKeyType, getOutputKeyCode)
+      }
+
+    val windowStateType = TypeDescriptor.ofMap(keyType, TypeDescriptor.ofList(inputType))
+    val windowStateDef = this.generateKeyedStateInterface(context, aggregateExpr, StateIdentifier.STREAM_STATE, stateKeyType, windowStateType)
+
     qc"""
-        |${nameOf[KeyedSlidingRecordWindowApply[Any, Any, Any, Any, Any]]}[${inputType.toTerm}, ${fullKeyType.toTerm}, ${keyType.toTerm}, ${outputType.toTerm}, ${contextKeyType.toTerm}]($windowSize) {
+        |${nameOf[KeyedSlidingRecordWindowApply[Any, Any, Any, Any, Any, Any]]}[${inputType.toTerm}, ${fullKeyType.toTerm}, ${stateKeyType.toTerm}, ${keyType.toTerm}, ${outputType.toTerm}, ${contextKeyType.toTerm}]($windowSize) {
         |  private val scanOperation = new ${scanOperation.classDef.indentTail(1)}
         |
         |  private val foldOperation = $foldOperationInstanceDef
         |
-        |  protected val windowState: ${nameOf[KeyedStateInterface[Any, Any]]}[Int, Map[${keyType.toTerm}, List[${inputType.toTerm}]]] =
+        |  protected val windowState: ${nameOf[KeyedStateInterface[Any, Any]]}[${stateKeyType.toTerm}, Map[${keyType.toTerm}, List[${inputType.toTerm}]]] =
         |    $windowStateDef
         |
         |  protected override def getLocalKey($fullKeyVal: ${fullKeyType.toTerm}): ${keyType.toTerm} = {
         |    ${getLocalKeyCode.indentTail(2)}
+        |  }
+        |
+        |  protected override def getStateKey($fullKeyVal: ${fullKeyType.toTerm}): ${stateKeyType.toTerm} = {
+        |    ${getStateKeyCode.indentTail(2)}
         |  }
         |
         |  protected override def getOutputKey($fullKeyVal: ${fullKeyType.toTerm}): ${contextKeyType.toTerm} = {

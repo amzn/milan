@@ -159,9 +159,21 @@ class Stream[T](val expr: StreamExpression, val recordType: TypeDescriptor[T]) {
    *
    * @param f The map function.
    * @tparam TOut The type of the output objects.
-   * @return An [[Stream]]`[`[[TOut]]`]` representing the output mapped stream.
+   * @return A [[Stream]]`[`[[TOut]]`]` representing the output mapped stream.
    */
   def map[TOut](f: T => TOut): Stream[TOut] = macro StreamMacros.map[T, TOut]
+
+  /**
+   * Perform a scan operation on the stream.
+   * A running computation that maintains a state between invocations and computes an output at every step.
+   *
+   * @param initialState The initial state.
+   * @param step The function to execute with every input record.
+   * @tparam TState The type of scan state.
+   * @tparam TOut The output type.
+   * @return A [[Stream]]`[`[[TOut]]`]` representing the stream of scan outputs.
+   */
+  def scan[TState, TOut](initialState: TState, step: (TState, T) => (TState, TOut)): Stream[TOut] = macro StreamMacros.scan[T, TState, TOut]
 
   /**
    * Adds fields to the current stream.

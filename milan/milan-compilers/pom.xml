@@ -14,11 +14,32 @@
         <version>0.8-SNAPSHOT</version>
     </parent>
 
-    <modules>
-        <module>milan-flink-compiler</module>
-        <module>milan-scala-compiler</module>
-        <module>milan-aws-serverless</module>
-    </modules>
+    <profiles>
+        <profile>
+            <id>default</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <modules>
+                <module>milan-flink-compiler</module>
+                <module>milan-scala-compiler</module>
+                <module>milan-aws-serverless</module>
+            </modules>
+        </profile>
+        <profile>
+            <id>no_flink</id>
+            <activation>
+                <property>
+                    <name>noflink</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <modules>
+                <module>milan-scala-compiler</module>
+                <module>milan-aws-serverless</module>
+            </modules>
+        </profile>
+    </profiles>
 
     <build>
         <plugins>

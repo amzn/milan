@@ -48,6 +48,16 @@ class StreamCollection(val streams: List[StreamExpression]) {
   }
 
   /**
+   * Gets a stream with the specified ID, restoring the original graph structure.
+   */
+  @JsonIgnore
+  def getDereferencedStream(streamId: String): StreamExpression = {
+    val stream = this.getStream(streamId)
+    val streamsById = this.streams.map(stream => stream.nodeId -> stream).toMap
+    this.dereferenceStreamExpression(streamsById)(stream)
+  }
+
+  /**
    * Gets a [[DiGraph]] containing the streams in the collection.
    */
   def toDiGraph: DiGraph = {

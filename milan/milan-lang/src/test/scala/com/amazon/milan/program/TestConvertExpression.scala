@@ -2,6 +2,7 @@ package com.amazon.milan.program
 
 import com.amazon.milan.test.{IntRecord, KeyValueRecord}
 import com.amazon.milan.typeutil.{TypeDescriptor, types}
+import org.junit.Assert._
 import org.junit.Test
 
 object TestConvertExpression {
@@ -94,5 +95,30 @@ class TestConvertExpression {
   def test_ConvertExpression_StringToInt_ProducesConvertTypeExpression(): Unit = {
     val tree = Tree.fromFunction((s: String) => s.toInt)
     val FunctionDef(List(ValueDef("s", _)), ConvertType(SelectTerm("s"), types.Int)) = tree
+  }
+
+  @Test
+  def test_ConvertExpression_CreateTuple_ProducesCreateTupleExpression(): Unit = {
+    val tree = Tree.fromExpression((1, "a"))
+    val Tuple(List(ConstantValue(1, _), ConstantValue("a", _))) = tree
+  }
+
+  @Test
+  def test_ConvertExpression_None_ProducesConstantValueExpression(): Unit = {
+    val tree = Tree.fromExpression(Option.empty[String])
+    val EmptyOption(valueType) = tree
+    assertEquals(types.String, valueType)
+  }
+
+  @Test
+  def test_ConvertExpression_FunctionWithEqualsConstantVal(): Unit = {
+    val tree = Tree.fromFunction((x: String) => x == TestConvertExpression.ConstantValue)
+    val FunctionDef(_, Equals(SelectTerm("x"), ConstantValue("ConstantValue", _))) = tree
+  }
+
+  @Test
+  def test_ConvertExpression_FunctionWithOrEqualsConstantVal(): Unit = {
+    val tree = Tree.fromFunction((x: String) => x == TestConvertExpression.ConstantValue || x == TestConvertExpression.ConstantValue)
+    val FunctionDef(_, Or(Equals(SelectTerm("x"), ConstantValue("ConstantValue", _)), Equals(SelectTerm("x"), ConstantValue("ConstantValue", _)))) = tree
   }
 }

@@ -1,9 +1,8 @@
 package com.amazon.milan.compiler.scala
 
 import java.util.UUID
-
 import com.amazon.milan.compiler.scala.internal.AggregateFunctions
-import com.amazon.milan.program.{And, ApplyFunction, ConstantValue, ConvertType, CreateInstance, Equals, FunctionDef, FunctionReference, GreaterThan, GreaterThanOrEqual, IfThenElse, InvalidProgramException, IsNull, LessThan, LessThanOrEqual, Minus, NamedFields, Not, Plus, SelectExpression, SelectField, SelectTerm, Tree, TreeOperations, Tuple, TupleElement, TypeChecker, UnaryAggregateExpression, Unpack, ValueDef}
+import com.amazon.milan.program.{And, ApplyFunction, ConstantValue, ConvertType, CreateInstance, Equals, FunctionDef, FunctionReference, GreaterThan, GreaterThanOrEqual, IfThenElse, InvalidProgramException, IsNull, LessThan, LessThanOrEqual, Minus, NamedFields, Not, Or, Plus, SelectExpression, SelectField, SelectTerm, Tree, TreeOperations, Tuple, TupleElement, TypeChecker, UnaryAggregateExpression, Unpack, ValueDef}
 import com.amazon.milan.serialization.MilanObjectMapper
 import com.amazon.milan.typeutil.{TypeDescriptor, types}
 
@@ -135,6 +134,7 @@ class ScalarFunctionGenerator(typeEmitter: TypeEmitter,
         case NamedFields(fields) => this.generateTuple(fields.map(_.expr))
         case Minus(left, right) => scala"($left - $right)"
         case Not(expr) => scala"!$expr"
+        case Or(left, right) => scala"($left || $right)"
         case Plus(left, right) => scala"($left + $right)"
         case select: SelectExpression => this.generateSelectExpression(select)
         case Tuple(elements) => this.generateTuple(elements)

@@ -1,11 +1,12 @@
-package com.amazon.milan.compiler.scala.event
+package com.amazon.milan.compiler.scala.testing
 
 import com.amazon.milan.application.sinks.SingletonMemorySink
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
 import com.amazon.milan.compiler.scala.RuntimeEvaluator
-import com.amazon.milan.graph._
+import com.amazon.milan.compiler.scala.event.{EventHandlerClassGenerator, GeneratedStreams, RecordConsumer}
+import com.amazon.milan.graph.{StreamCollection, typeCheckGraph}
 import com.amazon.milan.lang
-
+import org.apache.commons.io.output.ByteArrayOutputStream
 
 object EventAppTester {
   def execute[TIn, TOut](outputStream: lang.Stream[TOut],
@@ -29,8 +30,6 @@ object EventAppTester {
   }
 
   def compile(streams: StreamCollection, config: ApplicationConfiguration): RecordConsumer = {
-    typeCheckGraph(streams.streams)
-
     val instance = new ApplicationInstance(new Application(streams), config)
     val className = "TestClass"
     val classDef = EventHandlerClassGenerator.generateClass(instance, className)
@@ -43,5 +42,12 @@ object EventAppTester {
          |""".stripMargin
 
     RuntimeEvaluator.default.eval[RecordConsumer](code)
+  }
+
+  def compileStreams(streams: StreamCollection, config: ApplicationConfiguration): GeneratedStreams = {
+    val instance = new ApplicationInstance(new Application(streams), config)
+    val className = "TestClass"
+    val output = new ByteArrayOutputStream()
+    EventHandlerClassGenerator.generateClass(instance, className, output)
   }
 }

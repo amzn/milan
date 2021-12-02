@@ -109,6 +109,9 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
         case q"$leftOperand && $rightOperand" =>
           q"new ${typeOf[And]}(${convert(leftOperand)}, ${convert(rightOperand)})"
 
+        case q"$leftOperand||$rightOperand" =>
+          q"new ${typeOf[Or]}(${convert(leftOperand)}, ${convert(rightOperand)})"
+
         case q"$leftOperand > $rightOperand" =>
           q"new ${typeOf[GreaterThan]}(${convert(leftOperand)}, ${convert(rightOperand)})"
 
@@ -138,6 +141,9 @@ trait ConvertExpressionHost extends TypeInfoHost with FunctionReferenceHost with
 
         case q"$arg.$method" if method.isInstanceOf[TermName] && method.toString().startsWith("to") && typeConversionTargetTypes.contains(method.toString().substring(2)) =>
           q"new ${typeOf[ConvertType]}(${this.getConvertTypeTarget(context, arg.asInstanceOf[c.universe.Tree])}, ${TypeDescriptor.forTypeName[Any](method.toString().substring(2))})"
+
+        case TypeApply(target, List(ty)) =>
+          q"new ${typeOf[EmptyOption]}(${convertTypeDescriptor(ty)})"
 
         case Apply(Select(qualifier, TermName(name)), _) if name.startsWith("to") && typeConversionTargetTypes.contains(name.substring(2)) =>
           q"new ${typeOf[ConvertType]}(${this.getConvertTypeTarget(context, qualifier)}, ${TypeDescriptor.forTypeName[Any](name.substring(2))})"

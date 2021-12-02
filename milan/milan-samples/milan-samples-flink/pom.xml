@@ -1,7 +1,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <artifactId>milan-samples</artifactId>
+    <artifactId>milan-samples-flink</artifactId>
     <version>0.8-SNAPSHOT</version>
     <name>${project.artifactId}</name>
     <description>Project Milan - language, infrastructure, and tools for data-first systems.</description>
@@ -10,32 +10,14 @@
 
     <parent>
         <groupId>com.amazon.milan</groupId>
-        <artifactId>milan-parent</artifactId>
+        <artifactId>milan-samples</artifactId>
         <version>0.8-SNAPSHOT</version>
     </parent>
 
-    <profiles>
-        <profile>
-            <id>default</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <modules>
-                <module>milan-samples-flink</module>
-            </modules>
-        </profile>
-        <profile>
-            <id>no_flink</id>
-            <activation>
-                <property>
-                    <name>noflink</name>
-                    <value>true</value>
-                </property>
-            </activation>
-            <modules>
-            </modules>
-        </profile>
-    </profiles>
+    <modules>
+        <module>milan-sample-gen</module>
+        <module>milan-sample-exec</module>
+    </modules>
 
     <build>
         <plugins>

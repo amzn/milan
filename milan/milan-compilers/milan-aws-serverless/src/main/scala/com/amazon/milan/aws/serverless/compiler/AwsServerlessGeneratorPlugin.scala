@@ -1,10 +1,10 @@
 package com.amazon.milan.aws.serverless.compiler
 
 import com.amazon.milan.application.StateStore
-import com.amazon.milan.aws.serverless.{DynamoDbObjectStore, ObjectStoreKeyedStateInterface}
+import com.amazon.milan.aws.serverless.DynamoDbObjectStore
 import com.amazon.milan.aws.serverless.application.DynamoDbStateStore
-import com.amazon.milan.compiler.scala.event.{EventHandlerGeneratorPlugin, GeneratorContext, GeneratorOutputs}
 import com.amazon.milan.compiler.scala._
+import com.amazon.milan.compiler.scala.event.{EventHandlerGeneratorPlugin, GeneratorContext, GeneratorOutputs}
 import com.amazon.milan.program.StreamExpression
 import com.amazon.milan.typeutil.TypeDescriptor
 

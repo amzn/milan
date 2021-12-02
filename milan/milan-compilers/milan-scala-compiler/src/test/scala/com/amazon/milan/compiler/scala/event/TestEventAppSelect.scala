@@ -1,7 +1,7 @@
 package com.amazon.milan.compiler.scala.event
 
 import com.amazon.milan.application.ApplicationConfiguration
-import com.amazon.milan.compiler.scala.testing.KeyValueRecord
+import com.amazon.milan.compiler.scala.testing.{EventAppTester, KeyValueRecord}
 import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import com.amazon.milan.lang.aggregation._
@@ -35,5 +35,35 @@ class TestEventAppSelect {
 
     target.consume("input", KeyValueRecord(2, 5))
     assertEquals(KeyValueRecord(2, 8), sink.getValues.last)
+  }
+
+  @Test
+  def test_EventAppSelectSumCount_OutputsRunningSumAndCountPerGroup(): Unit = {
+    val input = Stream.of[KeyValueRecord].withId("input")
+    val grouped = input.groupBy(r => r.key).withId("grouped")
+    val output = grouped.select((key, r) => fields(
+      field("key", key),
+      field("sum", sum(r.value)),
+      field("count", count()),
+    ))
+
+    val streams = StreamCollection.build(output)
+
+    val config = new ApplicationConfiguration()
+    val sink = config.addMemorySink(output)
+
+    val target = EventAppTester.compile(streams, config)
+
+    target.consume("input", KeyValueRecord(1, 1))
+    assertEquals((1, 1, 1), sink.getValues.last)
+
+    target.consume("input", KeyValueRecord(1, 2))
+    assertEquals((1, 3, 2), sink.getValues.last)
+
+    target.consume("input", KeyValueRecord(2, 3))
+    assertEquals((2, 3, 1), sink.getValues.last)
+
+    target.consume("input", KeyValueRecord(2, 5))
+    assertEquals((2, 8, 2), sink.getValues.last)
   }
 }

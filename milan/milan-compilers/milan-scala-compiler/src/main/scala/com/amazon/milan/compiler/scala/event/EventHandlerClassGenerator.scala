@@ -3,7 +3,7 @@ package com.amazon.milan.compiler.scala.event
 import com.amazon.milan.application.ApplicationInstance
 import com.amazon.milan.compiler.scala._
 import com.amazon.milan.graph._
-import com.amazon.milan.program.{Aggregate, ExternalStream, FlatMap, GroupBy, InvalidProgramException, JoinExpression, ScanExpression, SelectTerm, SingleInputStreamExpression, SlidingRecordWindow, StreamExpression, StreamMap, Tree, TwoInputStreamExpression, WindowApply}
+import com.amazon.milan.program.{Aggregate, ExternalStream, Filter, FlatMap, GroupBy, InvalidProgramException, JoinExpression, ScanExpression, SelectTerm, SingleInputStreamExpression, SlidingRecordWindow, StreamExpression, StreamMap, Tree, TwoInputStreamExpression, WindowApply}
 import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, GroupedStreamTypeDescriptor, JoinedStreamsTypeDescriptor}
 
 import java.io.{ByteArrayOutputStream, OutputStream}
@@ -49,7 +49,7 @@ object EventHandlerClassGenerator {
    */
   def generateClass(application: ApplicationInstance,
                     className: String,
-                    outputStream: OutputStream): Unit = {
+                    outputStream: OutputStream): GeneratedStreams = {
     val streams = application.application.streams.getDereferencedStreams
     typeCheckGraph(streams)
 
@@ -74,6 +74,8 @@ object EventHandlerClassGenerator {
     rootDataStreams.foreach(stream => this.getOrGenerateStream(context, stream.expr))
 
     outputs.generate(className, outputStream)
+
+    GeneratedStreams(outputs.getGeneratedStreams.toList)
   }
 
   /**
@@ -109,6 +111,9 @@ object EventHandlerClassGenerator {
                              streamExpr: StreamExpression): StreamInfo = {
     val outputStream =
       streamExpr match {
+        case filterExpr: Filter =>
+          this.generateFilter(context, filterExpr)
+
         case mapExpr: StreamMap =>
           this.generateMap(context, mapExpr)
 
@@ -142,6 +147,17 @@ object EventHandlerClassGenerator {
     outputStream
   }
 
+  /**
+   * Generates the implementation of a [[Filter]] expression.
+   */
+  private def generateFilter(context: GeneratorContext, filterExpr: Filter): StreamInfo = {
+    val inputStream = this.getOrGenerateStream(context, filterExpr.source)
+    this.componentGenerator.generateFilter(context.outputs, inputStream, filterExpr)
+  }
+
+  /**
+   * Generates the implementation of an [[Aggregate]] expression.
+   */
   private def generateAggregate(context: GeneratorContext, aggregateExpr: Aggregate): StreamInfo = {
     aggregateExpr.source match {
       case window: SlidingRecordWindow =>
@@ -159,6 +175,9 @@ object EventHandlerClassGenerator {
     }
   }
 
+  /**
+   * Generates the implementation of a [[WindowApply]] expression.
+   */
   private def generateWindowApply(context: GeneratorContext, applyExpr: WindowApply): StreamInfo = {
     applyExpr.source match {
       case windowExpr: SlidingRecordWindow =>

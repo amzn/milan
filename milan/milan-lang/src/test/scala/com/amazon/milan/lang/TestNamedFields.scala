@@ -18,4 +18,23 @@ class TestNamedFields {
     NamedField("y", ConstantValue("foo", _))
     )) = tree
   }
+
+  @Test
+  def test_NamedFields_WithFiveFieldsWithConstantValues_ProducesExpectedExpressionTree(): Unit = {
+    val tree = Tree.fromExpression(fields(
+      field("a", 1),
+      field("b", "foo"),
+      field("c", 3.0),
+      field("d", true),
+      field("e", "e")
+    ))
+
+    val NamedFields(List(
+    NamedField("a", ConstantValue(1, _)),
+    NamedField("b", ConstantValue("foo", _)),
+    NamedField("c", ConstantValue(3.0, _)),
+    NamedField("d", ConstantValue(true, _)),
+    NamedField("e", ConstantValue("e", _))
+    )) = tree
+  }
 }

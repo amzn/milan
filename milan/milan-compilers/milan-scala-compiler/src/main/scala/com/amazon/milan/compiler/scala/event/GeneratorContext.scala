@@ -80,6 +80,7 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
   private var fields: List[String] = List.empty
   private var fieldNames: Set[String] = Set.empty
   private var collectorNames: Set[String] = Set.empty
+  private var consumerIdentifiers: Set[String] = Set.empty
 
   private var externalStreamMethods: List[ExternalStreamConsumer] = List.empty
 
@@ -121,6 +122,12 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
   def getGeneratedStream(streamId: String): Option[StreamInfo] = {
     this.generatedStreams.get(streamId)
   }
+
+  /**
+   * Gets all generated streams.
+   */
+  def getGeneratedStreams: Iterable[StreamInfo] =
+    this.generatedStreams.values
 
   /**
    * Gets the name of the collector method that distributes records for a stream.
@@ -185,7 +192,7 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
    * @return True if the collector has already been added, otherwise false.
    */
   def collectorExists(collectorName: String): Boolean =
-    this.collectorNames.contains((collectorName))
+    this.collectorNames.contains(collectorName)
 
   /**
    * Adds a field to the generated class.
@@ -209,6 +216,20 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
     }
     else {
       this.fieldNames = this.fieldNames + name
+      name
+    }
+  }
+
+  /**
+   * Gets a unique consumer identifier with the specified prefix.
+   */
+  def newConsumerIdentifier(prefix: String): String = {
+    val name = this.cleanName(prefix + UUID.randomUUID().toString.substring(0, 4))
+    if (this.consumerIdentifiers.contains((name))) {
+      this.newConsumerIdentifier(prefix)
+    }
+    else {
+      this.consumerIdentifiers = this.consumerIdentifiers + name
       name
     }
   }
@@ -258,6 +279,6 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
       outputStream.writeUtf8("\n\n")
     })
 
-    outputStream.writeUtf8("}")
+    outputStream.writeUtf8("}\n")
   }
 }

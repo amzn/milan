@@ -3,11 +3,13 @@ package com.amazon.milan.compiler.scala.event
 import com.amazon.milan.application.DataSink
 import com.amazon.milan.application.sinks.{ConsoleDataSink, LogSink, SingletonMemorySink}
 import com.amazon.milan.compiler.scala._
-import com.amazon.milan.compiler.scala.event.operators.LeftEnrichmentJoin
+import com.amazon.milan.compiler.scala.event.operators.{FullOuterJoin, KeyedSlidingRecordWindowApply, LeftEnrichmentJoin}
 import com.amazon.milan.compiler.scala.trees.{JoinKeyExpressionExtractor, JoinPreconditionExtractor, KeySelectorExtractor, TreeArgumentSplitter}
 import com.amazon.milan.lang.StateIdentifier
-import com.amazon.milan.program.{ConstantValue, ExternalStream, FlatMap, FunctionDef, GroupBy, InvalidProgramException, JoinExpression, SlidingRecordWindow, StreamMap, Tree, TypeChecker, ValueDef, WindowApply}
+import com.amazon.milan.program.{ConstantValue, ExternalStream, Filter, FlatMap, FullJoin, FunctionDef, GroupBy, InvalidProgramException, JoinExpression, LeftJoin, SlidingRecordWindow, StreamMap, Tree, TypeChecker, ValueDef, WindowApply}
 import com.amazon.milan.typeutil.{TypeDescriptor, types}
+
+import scala.language.existentials
 
 
 class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
@@ -18,6 +20,36 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
     with ScanOperationGenerator {
 
   import typeLifter._
+
+  /**
+   * Generates the implementation of a [[Filter]] expression.
+   */
+  def generateFilter(outputs: GeneratorOutputs,
+                     inputStream: StreamInfo,
+                     filterExpr: Filter): StreamInfo = {
+
+    val recordArg = ValName("record")
+
+    val filterFunctionName = CodeBlock(outputs.cleanName(s"filter_${filterExpr.nodeName}"))
+    val filterMethodDef = outputs.scalaGenerator.getScalaFunctionDef(filterFunctionName.value, filterExpr.predicate)
+
+    outputs.addMethod("private " + filterMethodDef)
+
+    val collectorMethod = outputs.getCollectorName(filterExpr)
+
+    val methodBody =
+      qc"""
+          |if ($filterFunctionName($recordArg.value)) {
+          |  $collectorMethod($recordArg)
+          |}
+          |"""
+
+    val consumerInfo = StreamConsumerInfo(filterExpr.nodeName, "input")
+
+    this.generateConsumer(outputs, inputStream, consumerInfo, recordArg, methodBody)
+
+    inputStream.withExpression(filterExpr)
+  }
 
   /**
    * Generates the implementation of a [[StreamMap]] whose input is a standard data stream or a grouping.
@@ -144,7 +176,7 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
     val collectorMethod = outputs.getCollectorName(stream)
 
     val methodDef =
-      q"""def ${methodName}(value: ${recordType.toTerm}): Unit = {
+      q"""def $methodName(value: ${recordType.toTerm}): Unit = {
          |  val record = ${nameOf[RecordWrapper[Any, Any]]}.wrap(value)
          |  $collectorMethod(record)
          |}
@@ -163,6 +195,39 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
                    leftInputStream: StreamInfo,
                    rightInputStream: StreamInfo,
                    joinExpr: JoinExpression): StreamInfo = {
+    joinExpr match {
+      case leftJoin: LeftJoin =>
+        this.generateLeftJoin(context, leftInputStream, rightInputStream, leftJoin)
+
+      case fullJoin: FullJoin =>
+        this.generateFullJoin(context, leftInputStream, rightInputStream, fullJoin)
+    }
+  }
+
+  /**
+   * Generates the implementation of a [[FullJoin]].
+   */
+  def generateFullJoin(context: GeneratorContext,
+                       leftInputStream: StreamInfo,
+                       rightInputStream: StreamInfo,
+                       joinExpr: FullJoin): StreamInfo = {
+    // Add a field to the generated class that implements FullOuterJoin for this operation.
+    val joinerField = this.generateFullOuterJoinClass(context, leftInputStream, rightInputStream, joinExpr)
+
+    // Add the methods that consume the left and right records and send the pairs of joined records onwards.
+    this.generateJoinLeftConsumer(context.outputs, leftInputStream, joinerField, joinExpr)
+    this.generateJoinRightConsumer(context.outputs, rightInputStream, joinerField, joinExpr)
+
+    StreamInfo(joinExpr, leftInputStream.contextKeyType, leftInputStream.keyType)
+  }
+
+  /**
+   * Generates the implementation of a [[LeftJoin]].
+   */
+  def generateLeftJoin(context: GeneratorContext,
+                       leftInputStream: StreamInfo,
+                       rightInputStream: StreamInfo,
+                       joinExpr: LeftJoin): StreamInfo = {
     // Add a field to the generated class that implements LeftEnrichmentJoin for this operation.
     val joinerField = this.generateLeftEnrichmentJoinClass(context, leftInputStream, rightInputStream, joinExpr)
 
@@ -213,16 +278,30 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
 
     val mappedStream = EventHandlerClassGenerator.getOrGenerateStream(flatMapContext, flatMapExpr.expr.body)
 
-    // We need to generate the consumer method for the FlatMap, which won't do anything except forward records to its
-    // collector.
-    val consumerInfo = StreamConsumerInfo(flatMapExpr.nodeName, "input")
+    // We need to generate the consumer method for the FlatMap, which will strip the key off the records coming from the
+    // Map we generated above. FlatMap removes the current grouping.
     val recordArg = ValName("record")
+
+    val fullKeyType = mappedStream.fullKeyType
+    val outputKeyType = inputStream.contextKeyType
+    val getOutputKeyCode = this.generateGetContextKeyCode(ValName("key"), fullKeyType, outputKeyType)
+
+    val consumerInfo = StreamConsumerInfo(flatMapExpr.nodeName, "input")
     val collectorMethod = context.outputs.getCollectorName(flatMapExpr)
-    val consumerBody = qc"$collectorMethod($recordArg)"
+
+    val consumerBody =
+      qc"""
+          |def getOutputKey(key: ${fullKeyType.toTerm}): ${outputKeyType.toTerm} = {
+          |  ${getOutputKeyCode.indentTail(1)}
+          |}
+          |val outputKey = getOutputKey($recordArg.key)
+          |$collectorMethod($recordArg.withKey(outputKey))
+          |"""
+
     this.generateConsumer(context.outputs, mappedStream, consumerInfo, recordArg, consumerBody)
 
-    // The record and key types of the output stream are the same as the mapped stream from above.
-    mappedStream.withExpression(flatMapExpr)
+    // The record type of the output stream are the same as the mapped stream from above, but with the key removed.
+    mappedStream.withExpression(flatMapExpr).withContextKeyType(inputStream.contextKeyType).withKeyType(types.EmptyTuple)
   }
 
   /**
@@ -231,8 +310,27 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
   def generateApplyRecordWindowOfKeyedStream(context: GeneratorContext,
                                              inputStream: StreamInfo,
                                              applyExpr: WindowApply,
-                                             inputWindowExpr: SlidingRecordWindow): StreamInfo = {
-    throw new NotImplementedError()
+                                             sourceWindow: SlidingRecordWindow): StreamInfo = {
+    val applyClassDef = this.generateKeyedSlidingWindowApplyClass(context, inputStream, applyExpr, sourceWindow)
+    val applyField = ValName(context.outputs.newFieldName(s"slidingRecordWindowApply_${applyExpr.nodeName}_"))
+    val applyFieldDef = qc"private val $applyField = new ${applyClassDef.indentTail(1)}"
+
+    val collector = context.outputs.getCollectorName(applyExpr)
+
+    context.outputs.addField(applyFieldDef.value)
+
+    val recordArg = ValName("record")
+    val methodBody =
+      qc"""
+          |val output = $applyField.processRecord($recordArg)
+          |$collector(output)
+          |"""
+
+    val consumerInfo = StreamConsumerInfo(applyExpr.nodeName, "input")
+
+    this.generateConsumer(context.outputs, inputStream, consumerInfo, recordArg, methodBody)
+
+    inputStream.withExpression(applyExpr).withKeyType(types.EmptyTuple)
   }
 
   /**
@@ -259,7 +357,8 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
     val keyCombinerDef = this.getKeyCombinerFunction("getNewRecordKey", inputStream, newKeyType)
 
     val methodBody =
-      qc"""${code(keyFunctionDef)}
+      qc"""
+          |${code(keyFunctionDef)}
           |
           |$keyCombinerDef
           |
@@ -312,7 +411,7 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
 
       val combinedKeyElements = List.tabulate(contextKeyType.genericArguments.length)(i => qc"$currentKey._${i + 1}") :+ newElem
       val tupleCreationStatement = getTupleCreationStatement(combinedKeyElements)
-      qc"""def ${code(methodName)}(currentKey: ${inputKeyType.toTerm}, $newElem: ${newKeyType.toTerm}): ${outputKeyType.toTerm}) = {
+      qc"""def ${code(methodName)}(currentKey: ${inputKeyType.toTerm}, $newElem: ${newKeyType.toTerm}): ${outputKeyType.toTerm} = {
           |  $tupleCreationStatement
           |}
           |"""
@@ -327,7 +426,8 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
                                       sink: ConsoleDataSink[_]): StreamConsumerInfo = {
     val recordArg = ValName("record")
     val methodBody = qc"println($recordArg.value)"
-    val consumerInfo = StreamConsumerInfo("sink", "input")
+    val consumerIdentifier = outputs.newConsumerIdentifier(s"${stream.streamId}_sink")
+    val consumerInfo = StreamConsumerInfo(consumerIdentifier, "input")
     this.generateConsumer(outputs, stream, consumerInfo, recordArg, methodBody)
     consumerInfo
   }
@@ -340,7 +440,8 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
                               sink: LogSink[_]): StreamConsumerInfo = {
     val recordArg = ValName("record")
     val methodBody = qc"this.${outputs.loggerField}.info($recordArg.value.toString)"
-    val consumerInfo = StreamConsumerInfo("sink", "input")
+    val consumerIdentifier = outputs.newConsumerIdentifier(s"${stream.streamId}_sink")
+    val consumerInfo = StreamConsumerInfo(consumerIdentifier, "input")
     this.generateConsumer(outputs, stream, consumerInfo, recordArg, methodBody)
     consumerInfo
   }
@@ -353,9 +454,82 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
                                  sink: SingletonMemorySink[_]): StreamConsumerInfo = {
     val recordArg = ValName("record")
     val methodBody = qc"${nameOf[SingletonMemorySink[Any]]}.add(${sink.sinkId}, $recordArg.value)"
-    val consumerInfo = StreamConsumerInfo("sink", "input")
+    val consumerIdentifier = outputs.newConsumerIdentifier(s"${stream.streamId}_sink")
+    val consumerInfo = StreamConsumerInfo(consumerIdentifier, "input")
     this.generateConsumer(outputs, stream, consumerInfo, recordArg, methodBody)
     consumerInfo
+  }
+
+  /**
+   * Generates a class that implements [[FullOuterJoin]] for a [[JoinExpression]] and stores an instance of that
+   * class in a class field.
+   *
+   * @return A [[ValName]] containing the name of the class field where the generated class instance is assigned.
+   */
+  private def generateFullOuterJoinClass(context: GeneratorContext,
+                                         leftInputStream: StreamInfo,
+                                         rightInputStream: StreamInfo,
+                                         joinExpr: JoinExpression): ValName = {
+    val FunctionDef(List(ValueDef(leftArgName, _), ValueDef(rightArgName, _)), joinConditionBody) = joinExpr.condition
+    val leftArg = ValueDef(leftArgName, leftInputStream.recordType)
+    val rightArg = ValueDef(rightArgName, rightInputStream.recordType)
+
+    // Extract the portion of the join condition that can be applied as a pre-filter on the input streams.
+    val preConditionExtractionResult = JoinPreconditionExtractor.extractJoinPrecondition(joinConditionBody)
+    val keyExtractionResultOption = preConditionExtractionResult.remainder.map(JoinKeyExpressionExtractor.extractJoinKeyExpression)
+
+    val keyExtractionResult =
+      keyExtractionResultOption match {
+        case Some(result) if result.extracted.isDefined => result
+        case None => throw new InvalidProgramException("Join key could not be determined.")
+      }
+
+    // Create the functions that compute join keys from the input records.
+    val keyExpressionFunction = FunctionDef(List(leftArg, rightArg), keyExtractionResult.extracted.get)
+    val (leftKeySelector, rightKeySelector) = KeySelectorExtractor.getKeyTupleFunctions(keyExpressionFunction)
+
+    val keyType = leftKeySelector.tpe
+    val leftRecordType = leftInputStream.recordType
+    val rightRecordType = rightInputStream.recordType
+
+    // Create the keyed state interface used to store the right record for each join key.
+    val rightState = this.generateKeyedStateInterface(context, joinExpr, StateIdentifier.JOIN_RIGHT_STATE, keyType, rightRecordType)
+    val leftSTate = this.generateKeyedStateInterface(context, joinExpr, StateIdentifier.JOIN_LEFT_STATE, keyType, leftRecordType)
+
+    // Get the functions that apply pre-filters to the input streams.
+    val (leftPreCondition, rightPrecondition) =
+      this.getPreConditionFunctions(joinExpr.condition, preConditionExtractionResult.extracted)
+
+    // Get the function that applies a post-filter to pairs of joined records.
+    val postConditionFunction = this.getPostConditionFunction(joinExpr.condition, keyExtractionResult.remainder)
+
+    val joinerVal = ValName(s"joiner_${context.outputs.cleanName(joinExpr.nodeName)}")
+
+    val outputs = context.outputs
+
+    val joinerType = qc"${nameOf[FullOuterJoin[Any, Any, Any, Any, Any]]}[${leftInputStream.recordType.toTerm}, ${leftInputStream.fullKeyType.toTerm}, ${rightInputStream.recordType.toTerm}, ${rightInputStream.fullKeyType.toTerm}, ${keyType.toTerm}]"
+
+    val fieldDef =
+      q"""private val $joinerVal: $joinerType = new $joinerType {
+         |  protected override val rightState = ${rightState.indentTail(1)}
+         |
+         |  protected override val leftState = ${leftSTate.indentTail(1)}
+         |
+         |  protected override ${code(outputs.scalaGenerator.getScalaFunctionDef("getLeftJoinKey", leftKeySelector)).indentTail(1)}
+         |
+         |  protected override ${code(outputs.scalaGenerator.getScalaFunctionDef("getRightJoinKey", rightKeySelector)).indentTail(1)}
+         |
+         |  protected override ${code(outputs.scalaGenerator.getScalaFunctionDef("checkLeftPreCondition", leftPreCondition)).indentTail(1)}
+         |
+         |  protected override ${code(outputs.scalaGenerator.getScalaFunctionDef("checkRightPreCondition", rightPrecondition)).indentTail(1)}
+         |
+         |  protected override ${code(outputs.scalaGenerator.getScalaFunctionDef("checkPostCondition", postConditionFunction)).indentTail(1)}
+         |}
+         |""".codeStrip
+
+    outputs.addField(fieldDef)
+
+    joinerVal
   }
 
   /**
@@ -462,6 +636,66 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
           |"""
     val consumerInfo = StreamConsumerInfo(joinExpr.nodeName, "right")
     this.generateConsumer(outputs, rightInputStream, consumerInfo, recordArg, methodBody)
+  }
+
+  /**
+   * Generates the definition of a class that implements a [[WindowApply]] that is applied to a sliding record window.
+   */
+  private def generateKeyedSlidingWindowApplyClass(context: GeneratorContext,
+                                                   inputStream: StreamInfo,
+                                                   applyExpr: WindowApply,
+                                                   windowExpr: SlidingRecordWindow): CodeBlock = {
+    val inputType = inputStream.recordType
+    val fullKeyType = inputStream.fullKeyType
+    val contextKeyType = inputStream.contextKeyType
+    val keyType = inputStream.keyType
+    val outputType = applyExpr.recordType
+
+    val windowSize = windowExpr.windowSize
+
+    val fullKeyVal = ValName("fullKey")
+    val getLocalKeyCode = this.generateGetLocalKeyCode(fullKeyVal, fullKeyType, keyType)
+    val getOutputKeyCode = this.generateGetContextKeyCode(fullKeyVal, fullKeyType, contextKeyType)
+
+    val (stateKeyType, getStateKeyCode) =
+      if (contextKeyType == types.EmptyTuple) {
+        // There is no context key, but we still need a key for the keyed state interface, so use a constant integer.
+        (types.Int, qc"0")
+      }
+      else {
+        // There is a context key, which means we can use the same code we used to get the output key, which is just the
+        // context key.
+        (contextKeyType, getOutputKeyCode)
+      }
+
+    val applyDef = this.getScalaFunctionDef("apply", applyExpr.expr)
+
+    val windowStateType = TypeDescriptor.ofMap(keyType, TypeDescriptor.ofList(inputType))
+    val windowStateDef = this.generateKeyedStateInterface(context, applyExpr, StateIdentifier.STREAM_STATE, stateKeyType, windowStateType)
+
+    qc"""
+        |${nameOf[KeyedSlidingRecordWindowApply[Any, Any, Any, Any, Any, Any]]}[${inputType.toTerm}, ${fullKeyType.toTerm}, ${stateKeyType.toTerm}, ${keyType.toTerm}, ${outputType.toTerm}, ${contextKeyType.toTerm}]($windowSize) {
+        |  protected val windowState: ${nameOf[KeyedStateInterface[Any, Any]]}[${stateKeyType.toTerm}, Map[${keyType.toTerm}, List[${inputType.toTerm}]]] =
+        |    $windowStateDef
+        |
+        |  protected override def getLocalKey($fullKeyVal: ${fullKeyType.toTerm}): ${keyType.toTerm} = {
+        |    ${getLocalKeyCode.indentTail(2)}
+        |  }
+        |
+        |  protected override def getStateKey($fullKeyVal: ${fullKeyType.toTerm}): ${stateKeyType.toTerm} = {
+        |    ${getStateKeyCode.indentTail(2)}
+        |  }
+        |
+        |  protected override def getOutputKey($fullKeyVal: ${fullKeyType.toTerm}): ${contextKeyType.toTerm} = {
+        |    ${getOutputKeyCode.indentTail(2)}
+        |  }
+        |
+        |  protected override def applyWindow(items: Iterable[${inputType.toTerm}], key: ${keyType.toTerm}): ${outputType.toTerm} =
+        |    this.apply(items)
+        |
+        |  private ${code(applyDef).indentTail(2)}
+        |}
+        |"""
   }
 
   /**

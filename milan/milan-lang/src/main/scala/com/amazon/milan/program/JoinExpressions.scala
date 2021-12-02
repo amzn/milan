@@ -130,8 +130,11 @@ class FullJoin(val left: Tree,
       this.tpe)
 
   override def equals(obj: Any): Boolean = obj match {
-    case FullJoin(l, r, c) => this.left.equals(l) && this.right.equals(r) && this.condition.equals(c)
-    case _ => false
+    case FullJoin(l, r, c) =>
+      this.left.equals(l) && this.right.equals(r) && this.condition.equals(c)
+
+    case _ =>
+      false
   }
 }
 

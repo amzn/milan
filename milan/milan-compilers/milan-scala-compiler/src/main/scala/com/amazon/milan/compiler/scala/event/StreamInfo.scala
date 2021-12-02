@@ -51,6 +51,13 @@ case class StreamInfo(expr: StreamExpression,
   }
 
   /**
+   * Gets a new [[StreamInfo]] equivalent to this one with the specified context type.
+   */
+  def withContextKeyType(newContextKeyType: TupleTypeDescriptor[_]): StreamInfo = {
+    StreamInfo(this.expr, newContextKeyType, this.keyType)
+  }
+
+  /**
    * Gets a new [[StreamInfo]] that is equivalent to this [[StreamInfo]] with an additional element added to the
    * context key.
    */

@@ -12,9 +12,11 @@ object TestJoin {
 
   def getValue(r: KeyValueRecord): String = r.value
 
-  def joinRecords(left: KeyValueRecord, right: KeyValueRecord) = KeyValueRecord(left.key, left.value + ", " + right.value)
+  def joinRecords(left: KeyValueRecord, right: KeyValueRecord): KeyValueRecord =
+    KeyValueRecord(left.key, left.value + ", " + right.value)
 
-  def combineValues(key: String, leftValue: String, rightValue: String) = KeyValueRecord(key, leftValue + "." + rightValue)
+  def combineValues(key: String, leftValue: String, rightValue: String): KeyValueRecord =
+    KeyValueRecord(key, leftValue + "." + rightValue)
 }
 
 

@@ -13,6 +13,17 @@ package object lang {
                          field2: FieldExpression[T2],
                          field3: FieldExpression[T3]): (T1, T2, T3) = throw new NotImplementedError()
 
+  def fields[T1, T2, T3, T4](field1: FieldExpression[T1],
+                             field2: FieldExpression[T2],
+                             field3: FieldExpression[T3],
+                             field4: FieldExpression[T4]): (T1, T2, T3, T4) = throw new NotImplementedError()
+
+  def fields[T1, T2, T3, T4, T5](field1: FieldExpression[T1],
+                                 field2: FieldExpression[T2],
+                                 field3: FieldExpression[T3],
+                                 field4: FieldExpression[T4],
+                                 field5: FieldExpression[T5]): (T1, T2, T3, T4, T5) = throw new NotImplementedError()
+
   /**
    * Defines a named field with the specified value.
    */

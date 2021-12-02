@@ -4,8 +4,7 @@ import java.io.{ByteArrayOutputStream, OutputStream}
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.util.UUID
-
-import com.amazon.milan.graph.DependencyGraph
+import com.amazon.milan.graph.{DependencyGraph, StreamCollection}
 import com.amazon.milan.program.{ExternalStream, StreamExpression, Tree, ValueDef}
 import com.amazon.milan.typeutil.TypeDescriptor
 import com.amazon.milan.{graph, lang}
@@ -73,11 +72,43 @@ object ScalaStreamGenerator {
     output.writeUtf8("\n}")
   }
 
+  def generateFunction(functionName: String,
+                       streams: StreamCollection,
+                       outputStreamId: String,
+                       output: OutputStream): Unit = {
+    val returnStream = streams.getDereferencedStream(outputStreamId)
+
+    val bodyStream = new ByteArrayOutputStream()
+    val outputs = this.generateFunctionBody(returnStream, bodyStream, indentLevel = 2)
+
+    val externalStreamVals = outputs.getExternalStreams
+
+    val graph = DependencyGraph.build(returnStream)
+    val inputStreams = graph.rootNodes.map(_.expr)
+
+    val inputStreamArgs =
+      inputStreams.map(stream =>
+        externalStreamVals.get(stream.nodeId) match {
+          case Some(value) => value
+          case None => ValueDef(s"notused_${GeneratorOutputs.cleanName(stream.nodeName)}", stream.recordType)
+        }
+      )
+
+    val argsDef = inputStreamArgs.map(arg => s"${arg.name}: Stream[${outputs.scalaGenerator.typeEmitter.getTypeFullName(arg.tpe)}]").mkString("(", ", ", ")")
+
+    val returnTypeDef = s"Stream[${returnStream.recordType.toTerm.value}]"
+
+    output.writeUtf8(s"  def $functionName$argsDef: $returnTypeDef = {\n")
+    output.write(bodyStream.toByteArray)
+    output.writeUtf8("  }")
+  }
+
   private def generateFunctionBody(returnStream: StreamExpression,
-                                   outputStream: OutputStream): GeneratorOutputs = {
+                                   outputStream: OutputStream,
+                                   indentLevel: Int = 0): GeneratorOutputs = {
     val graph = DependencyGraph.build(returnStream)
     val outputs = this.generate(graph)
-    outputs.writeMainBlocks(outputStream)
+    outputs.writeMainBlocks(outputStream, indentLevel)
 
     val returnStreamVal = outputs.streamValNames(returnStream.nodeId)
 
@@ -172,9 +203,9 @@ object ScalaStreamGenerator {
 
     def newValName(prefix: String): ValName = ValName(this.newName(prefix))
 
-    def writeMainBlocks(outputStream: OutputStream): Unit = {
+    def writeMainBlocks(outputStream: OutputStream, indentLevel: Int = 0): Unit = {
       mainBlocks.foreach(block => {
-        outputStream.writeUtf8(block)
+        outputStream.writeUtf8(block.indent(indentLevel))
         outputStream.writeUtf8("\n")
       })
     }

@@ -376,8 +376,11 @@ class FunctionDef(val arguments: List[ValueDef], val body: Tree) extends Tree {
     FunctionDef(this.arguments.take(this.arguments.length), children.last)
 
   override def equals(obj: Any): Boolean = obj match {
-    case FunctionDef(a, e) => this.arguments.equals(a) && this.body.equals(e)
-    case _ => false
+    case FunctionDef(a, e) =>
+      this.arguments.equals(a) && this.body.equals(e)
+
+    case _ =>
+      false
   }
 }
 
@@ -474,6 +477,33 @@ object CreateInstance {
   def apply(ty: TypeDescriptor[_], args: List[Tree]): CreateInstance = new CreateInstance(ty, args)
 
   def unapply(arg: CreateInstance): Option[(TypeDescriptor[_], List[Tree])] = Some((arg.ty, arg.args))
+}
+
+
+/**
+ * An expression representing an empty option (None).
+ *
+ * @param valueType The type of value the option holds.
+ */
+@JsonSerialize
+@JsonDeserialize
+class EmptyOption(val valueType: TypeDescriptor[_]) extends Tree {
+  this.tpe = valueType.toOption
+
+  override def getChildren: Iterable[Tree] = List.empty
+
+  override def replaceChildren(children: List[Tree]): Tree = this
+
+  override def equals(obj: Any): Boolean = obj match {
+    case EmptyOption(t) => this.valueType.equals(t)
+    case _ => false
+  }
+}
+
+object EmptyOption {
+  def apply(valueType: TypeDescriptor[_]): EmptyOption = new EmptyOption(valueType)
+
+  def unapply(arg: EmptyOption): Option[TypeDescriptor[_]] = Some(arg.valueType)
 }
 
 
@@ -583,6 +613,28 @@ object And {
   def apply(left: Tree, right: Tree): And = new And(left, right)
 
   def unapply(arg: And): Option[(Tree, Tree)] = Some((arg.left, arg.right))
+}
+
+
+/**
+ * An expression representing a boolean OR of two boolean expressions.
+ *
+ * @param left  The first expression.
+ * @param right The second expression.
+ */
+class Or(val left: Tree, val right: Tree) extends BinaryLogicalOperator {
+  override def replaceChildren(children: List[Tree]): Tree = Or(children(0), children(1))
+
+  override def equals(obj: Any): Boolean = obj match {
+    case Or(l, r) => this.left.equals(l) && this.right.equals(r)
+    case _ => false
+  }
+}
+
+object Or {
+  def apply(left: Tree, right: Tree): Or = new Or(left, right)
+
+  def unapply(arg: Or): Option[(Tree, Tree)] = Some((arg.left, arg.right))
 }
 
 

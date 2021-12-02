@@ -78,10 +78,17 @@ class TypeDescriptorDeserializer extends TypedJsonDeserializer[TypeDescriptor[An
 
 
 object TypeDescriptor {
-  private val knownDescriptors: Map[String, TypeDescriptor[_]] =
-    Seq(types.Boolean, types.Double, types.Float, types.Int, types.Long, types.String, types.Instant, types.Duration)
-      .map(ty => ty.fullName -> ty)
-      .toMap
+  private val knownDescriptors: Map[String, TypeDescriptor[_]] = Map(
+    types.Boolean.fullName -> types.Boolean,
+    types.Double.fullName -> types.Double,
+    types.Float.fullName -> types.Float,
+    types.Int.fullName -> types.Int,
+    types.Long.fullName -> types.Long,
+    types.String.fullName -> types.String,
+    "java.lang.String" -> types.String,
+    types.Instant.fullName -> types.Instant,
+    types.Duration.fullName -> types.Duration,
+  )
 
   def typeName(t: String) = s"com.amazon.milan.typeutil.TypeDescriptor[$t]"
 

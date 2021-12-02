@@ -2,7 +2,7 @@ package com.amazon.milan.lang.internal
 
 import com.amazon.milan.lang.{GroupedStream, Stream, TimeWindowedStream}
 import com.amazon.milan.program.internal.{FilteredStreamHost, LiftableImpls}
-import com.amazon.milan.program.{ExternalStream, FunctionDef, GroupBy, NamedField, NamedFields, SelectField, SelectTerm, SlidingWindow, StreamArgMax, StreamArgMin, StreamMap, SumBy, TumblingWindow, ValueDef}
+import com.amazon.milan.program.{ExternalStream, FunctionDef, GroupBy, NamedField, NamedFields, Scan, SelectField, SelectTerm, SlidingWindow, StreamArgMax, StreamArgMin, StreamMap, SumBy, TumblingWindow, ValueDef}
 import com.amazon.milan.typeutil.{DataStreamTypeDescriptor, FieldDescriptor, GroupedStreamTypeDescriptor, TupleTypeDescriptor, TypeDescriptor, TypeJoiner}
 import com.amazon.milan.{Id, program}
 
@@ -115,6 +115,31 @@ class StreamMacros(val c: whitebox.Context)
     val tree =
       q"""
           val $exprVal = $exprTree
+          new ${weakTypeOf[Stream[TOut]]}($exprVal, $exprVal.recordType.asInstanceOf[${weakTypeOf[TypeDescriptor[TOut]]}])
+       """
+    c.Expr[Stream[TOut]](tree)
+  }
+
+  /**
+   * Creates a [[Stream]] from a scan expression.
+   */
+  def scan[TIn: c.WeakTypeTag, TState: c.WeakTypeTag, TOut: c.WeakTypeTag](initialState: c.Expr[TState], step: c.Expr[(TState, TIn) => (TState, TOut)]): c.Expr[Stream[TOut]] = {
+    this.warnIfNoRecordId[TOut]()
+
+    val initialStateExpr = this.getMilanExpression(initialState.tree)
+    val stepFunctionTree = this.getMilanFunction(step.tree)
+
+    val streamType = getStreamTypeExprFromTupleItem[TOut](stepFunctionTree, 1)
+    val outputNodeId = Id.newId()
+
+    val sourceExpressionVal = TermName(c.freshName("sourceExpr"))
+
+    val exprVal = TermName(c.freshName("expr"))
+
+    val tree =
+      q"""
+          val $sourceExpressionVal = ${c.prefix}.expr
+          val $exprVal = new ${typeOf[Scan]}($sourceExpressionVal, $initialStateExpr, $stepFunctionTree, $outputNodeId, $outputNodeId, $streamType)
           new ${weakTypeOf[Stream[TOut]]}($exprVal, $exprVal.recordType.asInstanceOf[${weakTypeOf[TypeDescriptor[TOut]]}])
        """
     c.Expr[Stream[TOut]](tree)

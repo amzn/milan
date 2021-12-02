@@ -301,8 +301,11 @@ class StreamMap(val source: Tree,
   override def toString: String = s"${this.expressionType}(${this.source}, ${this.expr})"
 
   override def equals(obj: Any): Boolean = obj match {
-    case StreamMap(s, e) => this.source.equals(s) && this.expr.equals(e)
-    case _ => false
+    case StreamMap(s, e) =>
+      this.source.equals(s) && this.expr.equals(e)
+
+    case _ =>
+      false
   }
 }
 
@@ -359,8 +362,11 @@ class FlatMap(val source: Tree,
   override def toString: String = s"${this.expressionType}(${this.source}, ${this.expr})"
 
   override def equals(obj: Any): Boolean = obj match {
-    case FlatMap(s, e) => this.source.equals(s) && this.expr.equals(e)
-    case _ => false
+    case FlatMap(s, e) =>
+      this.source.equals(s) && this.expr.equals(e)
+
+    case _ =>
+      false
   }
 }
 
@@ -491,6 +497,49 @@ trait ScanExpression extends SingleInputStreamExpression {
 
 object ScanExpression {
   def unapply(arg: ScanExpression): Option[Tree] = Some(arg.source)
+}
+
+
+@JsonSerialize
+@JsonDeserialize
+class Scan(val source: Tree,
+           val initialState: Tree,
+           val step: FunctionDef,
+           val nodeId: String,
+           val nodeName: String) extends ScanExpression {
+  def this(source: Tree, initialValue: Tree, step: FunctionDef, nodeId: String) {
+    this(source, initialValue, step, nodeId, nodeId)
+  }
+
+  def this(source: Tree, initialState: Tree, step: FunctionDef) {
+    this(source, initialState, step, Id.newId())
+  }
+
+  override def withNameAndId(name: String, id: String): StreamExpression =
+    new Scan(this.source, this.initialState, this.step, id, name, this.tpe)
+
+  def this(source: Tree, initialState: Tree, step: FunctionDef, nodeId: String, nodeName: String, resultType: TypeDescriptor[_]) {
+    this(source, initialState, step, nodeId, nodeName)
+    this.tpe = resultType
+  }
+
+  override def getChildren: Iterable[Tree] = Seq(this.source, this.initialState, this.step)
+
+  override def replaceChildren(children: List[Tree]): Tree =
+    new Scan(children(0), children(1), children(2).asInstanceOf[FunctionDef], this.nodeId, this.nodeName, this.tpe)
+
+  override def toString: String = s"${this.expressionType}(${this.source}, ${this.initialState}, ${this.step})"
+
+  override def equals(obj: Any): Boolean = obj match {
+    case Scan(s, is, st) => this.source.equals(s) && this.initialState.equals(is) && this.step.equals(st)
+    case _ => false
+  }
+}
+
+object Scan {
+  def apply(source: Tree, initialState: Tree, step: FunctionDef): Scan = new Scan(source, initialState, step)
+
+  def unapply(arg: Scan): Option[(Tree, Tree, FunctionDef)] = Some((arg.source, arg.initialState, arg.step))
 }
 
 

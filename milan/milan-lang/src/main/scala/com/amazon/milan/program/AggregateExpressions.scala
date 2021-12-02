@@ -45,7 +45,7 @@ class Max(val expr: Tree) extends UnaryAggregateExpression {
   override def replaceChildren(children: List[Tree]): Tree = Max(children.head)
 
   override def equals(obj: Any): Boolean = obj match {
-    case Sum(e) => this.expr.equals(e)
+    case Max(e) => this.expr.equals(e)
     case _ => false
   }
 }

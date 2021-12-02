@@ -49,8 +49,9 @@ class DependencyGraphBuilder extends GraphTraverser[NodeBuilder] {
   /**
    * Gets the [[DependencyGraph]] containing the expressions that have been added to the builder.
    */
-  def build: DependencyGraph = {
+  def build(): DependencyGraph = {
     var builtNodes = Map.empty[String, Node]
+    var visitedNodes = Set.empty[String]
 
     def getOrBuild(nodeBuilder: NodeBuilder): Node = {
       builtNodes.get(nodeBuilder.nodeId) match {
@@ -58,6 +59,11 @@ class DependencyGraphBuilder extends GraphTraverser[NodeBuilder] {
           node
 
         case None =>
+          if (visitedNodes.contains(nodeBuilder.nodeId)) {
+            throw new UnsupportedOperationException(s"Found a loop containing node ${nodeBuilder.nodeId}")
+          }
+
+          visitedNodes = visitedNodes + nodeBuilder.nodeId
           nodeBuilder.getChildren.foreach(getOrBuild)
           val node = nodeBuilder.build(builtNodes)
           builtNodes = builtNodes + (node.nodeId -> node)

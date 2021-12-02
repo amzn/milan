@@ -1,10 +1,10 @@
 package com.amazon.milan.compiler.scala
 
 import java.time.Duration
-
 import com.amazon.milan.SemanticVersion
 import com.amazon.milan.application.sources.FileDataSource
 import com.amazon.milan.dataformats._
+import com.amazon.milan.program.{ConstantValue, EmptyOption}
 import com.amazon.milan.serialization.DataFormatConfiguration
 import com.amazon.milan.typeutil.{BasicTypeDescriptor, CollectionTypeDescriptor, DataStreamTypeDescriptor, FieldDescriptor, GeneratedTypeDescriptor, GroupedStreamTypeDescriptor, JoinedStreamsTypeDescriptor, NumericTypeDescriptor, ObjectTypeDescriptor, TupleTypeDescriptor, TypeDescriptor}
 import org.apache.commons.lang.StringEscapeUtils
@@ -38,7 +38,7 @@ case class CodeBlock(value: String) extends Raw {
 }
 
 object CodeBlock {
-  val EMPTY = CodeBlock("")
+  val EMPTY: CodeBlock = CodeBlock("")
 }
 
 
@@ -180,10 +180,10 @@ class TypeLifter(val typeEmitter: TypeEmitter) {
    */
   def lift(o: Any): String = {
     o match {
-      case t: TypeDescriptor[_] => liftTypeDescriptor(t)
+      case t: TypeDescriptor[_] => this.liftTypeDescriptor(t)
       case t: FieldDescriptor[_] => q"new ${nameOf[FieldDescriptor[Any]]}[${t.fieldType.toTerm}](${t.name}, ${t.fieldType})"
-      case t: DataInputFormat[_] => liftDataInputFormat(t)
-      case t: DataOutputFormat[_] => liftDataOutputFormat(t)
+      case t: DataInputFormat[_] => this.liftDataInputFormat(t)
+      case t: DataOutputFormat[_] => this.liftDataOutputFormat(t)
       case t: DataFormatConfiguration => q"new ${nameOf[DataFormatConfiguration]}(${t.flags})"
       case t: Array[_] => s"Array(${t.map(lift).mkString(", ")})"
       case t: List[_] => s"List(${t.map(lift).mkString(", ")})"
@@ -198,11 +198,13 @@ class TypeLifter(val typeEmitter: TypeEmitter) {
       case t: Long => t.toString
       case t: FileDataSource.Configuration => q"${nameOf[FileDataSource.Configuration]}(${t.readMode})"
       case t if t == null => "null"
-      case t if t.getClass.getTypeName == "scala.Enumeration$Val" => liftEnumeration(t)
+      case t if t.getClass.getTypeName == "scala.Enumeration$Val" => this.liftEnumeration(t)
       case t: SemanticVersion => q"new ${nameOf[SemanticVersion]}(${t.major}, ${t.minor}, ${t.patch}, ${t.preRelease}, ${t.buildMetadata})"
       case t: Duration => q"${nameOf[Duration]}.ofSeconds(${t.getSeconds}, ${t.getNano})"
       case t: Option[_] => this.liftOption(t)
+      case EmptyOption(valueType) => q"Option.empty[${valueType.toTerm}]"
       case t: CsvDataOutputFormat.Configuration => q"new ${nameOf[CsvDataOutputFormat.Configuration]}(${t.schema}, ${t.writeHeader}, ${t.dateTimeFormats})"
+      case ConstantValue(v, _) => this.lift(v)
       case _ => throw new IllegalArgumentException(s"Can't lift object of type '${o.getClass.getTypeName}'.")
     }
   }

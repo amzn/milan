@@ -3,7 +3,9 @@ package com.amazon.milan.tools
 
 object KnownCompilers {
   private val knownCompilers = Map(
-    "flink" -> "com.amazon.milan.compiler.flink.Compiler"
+    "flink" -> "com.amazon.milan.compiler.flink.Compiler",
+    "scala_event" -> "com.amazon.milan.compiler.scala.ScalaEventCompiler",
+    "scala_stream" -> "com.amazon.milan.compiler.scala.ScalaStreamCompiler",
   )
 
   def convertFromKnownCompiler(compilerClassName: String): String = {

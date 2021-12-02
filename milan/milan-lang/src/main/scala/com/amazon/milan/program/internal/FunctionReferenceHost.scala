@@ -57,8 +57,11 @@ trait FunctionReferenceHost {
         // This is a reference to a static object, so the name is just the string representation of the reference.
         ref.toString()
 
+      case typeTree: c.universe.TypeTree =>
+        typeTree.tpe.typeSymbol.fullName
+
       case other =>
-        abort(s"Function expression not supported: '$other'.")
+        abort(s"Can't get type name from ${showRaw(ref)}.")
     }
   }
 

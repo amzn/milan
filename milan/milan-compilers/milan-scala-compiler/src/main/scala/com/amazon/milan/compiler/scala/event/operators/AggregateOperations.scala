@@ -76,7 +76,7 @@ abstract class SumScanOperation[TIn, TKey, T: Numeric](valueType: TypeDescriptor
 }
 
 
-abstract class CountScanOperation[TIn, TKey]
+class CountScanOperation[TIn, TKey]
   extends ScanOperationBase[TIn, TKey, Long, Long](types.Long, types.Long) {
 
   override val initialState: Long = 0L

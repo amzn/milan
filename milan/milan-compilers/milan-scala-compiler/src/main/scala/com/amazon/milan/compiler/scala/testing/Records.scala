@@ -47,8 +47,45 @@ class TwoIntRecord(val recordId: String, val a: Int, val b: Int) {
     this(Id.newId(), a, b)
   }
 
+  override def toString: String = s"(${this.a}, ${this.b})"
+
   override def equals(obj: Any): Boolean = obj match {
     case o: TwoIntRecord => this.a == o.a && this.b == o.b
+    case _ => false
+  }
+}
+
+object ThreeIntRecord {
+  def apply(a: Int, b: Int, c: Int): ThreeIntRecord = new ThreeIntRecord(a, b, c)
+}
+
+class ThreeIntRecord(val recordId: String, val a: Int, val b: Int, val c: Int) {
+  def this(a: Int, b: Int, c: Int) {
+    this(Id.newId(), a, b, c)
+  }
+
+  override def toString: String = s"(${this.a}, ${this.b}, ${this.c})"
+
+  override def equals(obj: Any): Boolean = obj match {
+    case o: ThreeIntRecord => this.a == o.a && this.b == o.b && this.c == o.c
+    case _ => false
+  }
+}
+
+
+object FourIntRecord {
+  def apply(a: Int, b: Int, c: Int, d: Int): FourIntRecord = new FourIntRecord(a, b, c, d)
+}
+
+class FourIntRecord(val recordId: String, val a: Int, val b: Int, val c: Int, val d: Int) {
+  def this(a: Int, b: Int, c: Int, d: Int) {
+    this(Id.newId(), a, b, c, d)
+  }
+
+  override def toString: String = s"(${this.a}, ${this.b}, ${this.c}, ${this.d})"
+
+  override def equals(obj: Any): Boolean = obj match {
+    case o: FourIntRecord => this.a == o.a && this.b == o.b && this.c == o.c && this.d == o.d
     case _ => false
   }
 }

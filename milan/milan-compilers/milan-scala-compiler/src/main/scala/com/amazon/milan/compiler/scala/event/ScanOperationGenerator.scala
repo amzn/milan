@@ -3,8 +3,8 @@ package com.amazon.milan.compiler.scala.event
 import com.amazon.milan.compiler.scala._
 import com.amazon.milan.compiler.scala.event.operators._
 import com.amazon.milan.lang.StateIdentifier
-import com.amazon.milan.program.{AggregateExpression, ArgCompareExpression, ArgScanExpression, Count, First, FunctionDef, Max, Min, ScanExpression, StreamArgMax, StreamArgMin, StreamExpression, Sum, SumBy}
-import com.amazon.milan.typeutil.TypeDescriptor
+import com.amazon.milan.program.{AggregateExpression, ArgCompareExpression, ArgScanExpression, Count, First, FunctionDef, Max, Min, Scan, ScanExpression, StreamArgMax, StreamArgMin, StreamExpression, Sum, SumBy}
+import com.amazon.milan.typeutil.{TypeDescriptor, types}
 
 
 case class ScanOperationInlineClassInfo(classDef: CodeBlock,
@@ -113,10 +113,16 @@ trait ScanOperationGenerator
 
     val stateType = aggregateExpression match {
       case _: Sum => valueType
+      case _: Count => types.Long
       case _ => valueType.toOption
     }
 
-    ScanOperationInlineClassInfo(classDef, classType, stateType, valueType)
+    val outputType = aggregateExpression match {
+      case _: Count => types.Long
+      case _ => valueType
+    }
+
+    ScanOperationInlineClassInfo(classDef, classType, stateType, outputType)
   }
 
   /**
@@ -211,6 +217,9 @@ trait ScanOperationGenerator
                                  inputStream: StreamInfo,
                                  scanExpr: ScanExpression): ScanOperationInlineClassInfo = {
     scanExpr match {
+      case scanExpr: Scan =>
+        this.generateScanOperation(outputs, inputStream, scanExpr)
+
       case argCompareExpr: ArgCompareExpression =>
         this.generateArgCompareScanOperation(outputs, inputStream, argCompareExpr)
 
@@ -279,6 +288,41 @@ trait ScanOperationGenerator
                                         scanExpr: ScanExpression): ValName = {
     val scanOperation = this.generateScanOperationClass(context.outputs, inputStream, scanExpr)
     this.generateScanOperationHost(context, inputStream, scanExpr, scanOperation)
+  }
+
+  /**
+   * Generates a [[ScanOperation]] implementation for a [[Scan]] expression.
+   */
+  private def generateScanOperation(outputs: GeneratorOutputs,
+                                    inputStream: StreamInfo,
+                                    scanExpr: Scan): ScanOperationInlineClassInfo = {
+    val stateType = scanExpr.initialState.tpe
+    val inputType = inputStream.recordType
+    val keyType = inputStream.keyType
+    val outputType = scanExpr.step.tpe.genericArguments(1)
+
+    val classType = qc"${nameOf[ScanOperation[Any, Any, Any, Any]]}[${inputType.toTerm}, ${keyType.toTerm}, ${stateType.toTerm}, ${outputType.toTerm}]"
+
+    val stepFunctionDef = CodeBlock(outputs.scalaGenerator.getScalaFunctionDef("step", scanExpr.step))
+
+    val classDef =
+      qc"""
+          |$classType {
+          |  override val initialState: ${stateType.toTerm} = ${scanExpr.initialState}
+          |
+          |  override val stateTypeDescriptor: ${nameOf[TypeDescriptor[Any]]}[${stateType.toTerm}] = $stateType
+          |
+          |  override val outputTypeDescriptor: ${nameOf[TypeDescriptor[Any]]}[${outputType.toTerm}] = $outputType
+          |
+          |  private ${stepFunctionDef.indentTail(2)}
+          |
+          |  override def process(state: ${stateType.toTerm}, input: ${inputType.toTerm}, key: ${keyType.toTerm}): (${stateType.toTerm}, ${outputType.toTerm}) = {
+          |    this.step(state, input)
+          |  }
+          |}
+          |"""
+
+    ScanOperationInlineClassInfo(classDef, classType, stateType, outputType)
   }
 
   /**
