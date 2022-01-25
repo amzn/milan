@@ -10,6 +10,10 @@ import java.io.{ByteArrayOutputStream, OutputStream}
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 
+
+case class EventHandlerGeneratedClass(classDefinition: String, generatedStreams: GeneratedStreams)
+
+
 /**
  * Generates a Scala class that implements a Milan application.
  *
@@ -32,13 +36,16 @@ object EventHandlerClassGenerator {
    * Generates a Scala class that implements a Milan application.
    *
    * @param application A Milan application instance.
-   * @return A string containing the definition of the generated class.
+   * @return An [[EventHandlerGeneratedClass]] object containing the class definition and the generated stream info.
    */
   def generateClass(application: ApplicationInstance,
-                    className: String): String = {
+                    className: String): EventHandlerGeneratedClass = {
     val outputStream = new ByteArrayOutputStream()
-    this.generateClass(application, className, outputStream)
-    StandardCharsets.UTF_8.decode(ByteBuffer.wrap(outputStream.toByteArray)).toString
+    val generatedStreams = this.generateClass(application, className, outputStream)
+    outputStream.flush()
+
+    val classDef = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(outputStream.toByteArray)).toString
+    EventHandlerGeneratedClass(classDef, generatedStreams)
   }
 
   /**
@@ -75,7 +82,7 @@ object EventHandlerClassGenerator {
 
     outputs.generate(className, outputStream)
 
-    GeneratedStreams(outputs.getGeneratedStreams.toList)
+    GeneratedStreams(outputs.getGeneratedStreams.toList, outputs.getExternalStreams.toList)
   }
 
   /**

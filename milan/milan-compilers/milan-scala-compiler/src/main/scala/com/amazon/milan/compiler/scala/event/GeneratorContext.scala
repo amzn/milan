@@ -69,7 +69,7 @@ case class ExpressionContext(streamTerms: Map[String, StreamInfo]) {
  * @param consumerMethodName The name of the consumer method.
  * @param recordType         The record type that the method consumes.
  */
-case class ExternalStreamConsumer(streamName: String, consumerMethodName: MethodName, recordType: TypeDescriptor[_])
+case class ExternalStreamConsumer(streamId: String, streamName: String, consumerMethodName: MethodName, recordType: TypeDescriptor[_])
 
 
 /**
@@ -93,14 +93,26 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
   /**
    * Registers a generated external stream with the output collector.
    *
+   * @param streamId             The ID of the stream.
    * @param streamName           The name of the stream.
    * @param streamConsumerMethod The method that consumes stream records.
    * @param recordType           The type of stream records.
    */
-  def addExternalStream(streamName: String, streamConsumerMethod: MethodName, recordType: TypeDescriptor[_]): Unit = {
+  def addExternalStream(streamId: String,
+                        streamName: String,
+                        streamConsumerMethod: MethodName,
+                        recordType: TypeDescriptor[_]): Unit = {
     this.externalStreamMethods = this.externalStreamMethods :+
-      ExternalStreamConsumer(streamName, streamConsumerMethod, recordType)
+      ExternalStreamConsumer(streamId, streamName, streamConsumerMethod, recordType)
   }
+
+  /**
+   * Gets information about the methods generated to consume records for external streams.
+   *
+   * @return A list of [[ExternalStreamConsumer]] objects that describe the external stream event handler methods.
+   */
+  def getExternalStreams: Iterable[ExternalStreamConsumer] =
+    this.externalStreamMethods
 
   /**
    * Registers a generated stream with the output collector.
@@ -137,7 +149,7 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
    *         records.
    */
   def getCollectorName(provider: StreamExpression): MethodName = {
-    MethodName(s"collect_${cleanName(provider.nodeName)}")
+    MethodName(toValidName(s"collect_${provider.nodeName}"))
   }
 
   /**
@@ -158,7 +170,7 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
    * @return The name of the consumer method corresponding to the stream consumer.
    */
   def getConsumerName(consumerIdentifier: String, inputIdentifier: String): MethodName = {
-    MethodName(s"consume_${cleanName(consumerIdentifier)}_${cleanName(inputIdentifier)}")
+    MethodName(toValidIdentifier(s"consume_${consumerIdentifier}_$inputIdentifier"))
   }
 
   /**
@@ -210,7 +222,7 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
    * @return A field name.
    */
   def newFieldName(prefix: String): String = {
-    val name = this.cleanName(prefix + UUID.randomUUID().toString.substring(0, 8))
+    val name = toValidIdentifier(prefix + UUID.randomUUID().toString.substring(0, 4))
     if (this.fieldNames.contains(name)) {
       this.newFieldName(prefix)
     }
@@ -224,8 +236,8 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
    * Gets a unique consumer identifier with the specified prefix.
    */
   def newConsumerIdentifier(prefix: String): String = {
-    val name = this.cleanName(prefix + UUID.randomUUID().toString.substring(0, 4))
-    if (this.consumerIdentifiers.contains((name))) {
+    val name = toValidIdentifier(prefix + UUID.randomUUID().toString.substring(0, 4))
+    if (this.consumerIdentifiers.contains(name)) {
       this.newConsumerIdentifier(prefix)
     }
     else {
@@ -233,12 +245,6 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
       name
     }
   }
-
-  /**
-   * Converts a string into a valid identifier.
-   */
-  def cleanName(name: String): String =
-    name.replace('-', '_')
 
   /**
    * Writes the definition of the generated class to an output stream.

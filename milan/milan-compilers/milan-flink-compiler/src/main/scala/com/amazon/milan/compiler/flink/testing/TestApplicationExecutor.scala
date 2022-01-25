@@ -294,7 +294,7 @@ class TestApplicationExecutor {
       case (stream, outputFile) =>
         val recordType = stream.recordType.asInstanceOf[TypeDescriptor[Any]]
         val format = new JsonDataOutputFormat[Any]()(recordType)
-        val sink = new FileDataSink[Any](outputFile.toString, format)(recordType)
+        val sink = new FileDataSink[Any]("writeOutput", outputFile.toString, format)(recordType)
         config.addSink(stream.asInstanceOf[Stream[Any]], sink)
     }
 

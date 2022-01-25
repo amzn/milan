@@ -2,9 +2,10 @@ package com.amazon.milan.compiler.scala
 
 import com.amazon.milan.application.ApplicationInstance
 import com.amazon.milan.compiler.scala.event.EventHandlerClassGenerator
-import com.amazon.milan.tools.ApplicationInstanceCompiler
+import com.amazon.milan.tools.{ApplicationInstanceCompiler, CompilerOutputs, InstanceParameters}
 
-import java.io.OutputStream
+import java.io.{FileOutputStream, OutputStream}
+import java.nio.file.Path
 
 
 object ScalaStreamCompiler {
@@ -16,15 +17,27 @@ object ScalaStreamCompiler {
 
 class ScalaStreamCompiler extends ApplicationInstanceCompiler {
   override def compile(applicationInstance: ApplicationInstance,
-                       params: List[(String, String)],
-                       output: OutputStream): Unit = {
-    val outputStreamId = params.find(_._1 == "output").map(_._2).get
-    val packageName = params.find(_._1 == "package").map(_._2).getOrElse(ScalaStreamCompiler.DEFAULT_PACKAGENAME)
-    val className = params.find(_._1 == "class").map(_._2).getOrElse(ScalaStreamCompiler.DEFAULT_CLASSNAME)
-    val functionName = params.find(_._1 == "function").map(_._2).getOrElse(ScalaStreamCompiler.DEFAULT_FUNCTIONNAME)
+                       params: InstanceParameters,
+                       outputs: CompilerOutputs): Unit = {
+    val output = new FileOutputStream(outputs.getOutput("scala").toFile)
+
+    try {
+      this.compile(applicationInstance, params, output)
+    }
+    finally {
+      output.close()
+    }
+  }
+
+  def compile(applicationInstance: ApplicationInstance,
+              params: InstanceParameters,
+              output: OutputStream): Unit = {
+    val outputStreamId = params.getValue("output")
+    val packageName = params.getValueOption("package").getOrElse(ScalaStreamCompiler.DEFAULT_PACKAGENAME)
+    val className = params.getValueOption("class").getOrElse(ScalaStreamCompiler.DEFAULT_CLASSNAME)
+    val functionName = params.getValueOption("function").getOrElse(ScalaStreamCompiler.DEFAULT_FUNCTIONNAME)
 
     output.writeUtf8(s"package $packageName\n\n")
-
     ScalaStreamGenerator.generateFunction(functionName, applicationInstance.application.streams, outputStreamId, output)
     EventHandlerClassGenerator.generateClass(applicationInstance, className, output)
   }

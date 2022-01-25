@@ -1,16 +1,15 @@
 package com.amazon.milan.compiler.flink.generator
 
-import java.util.UUID
-
-import com.amazon.milan.compiler.scala._
 import com.amazon.milan.compiler.flink.internal.{FlinkScalarFunctionGenerator, FlinkTypeEmitter}
 import com.amazon.milan.compiler.flink.runtime.MilanApplicationBase
+import com.amazon.milan.compiler.scala._
 import com.amazon.milan.program.StreamExpression
 import com.amazon.milan.types.LineageRecord
 import com.amazon.milan.typeutil.TypeDescriptor
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.util.OutputTag
 
+import java.util.UUID
 import scala.annotation.tailrec
 import scala.collection.mutable
 
@@ -36,7 +35,7 @@ class GeneratorOutputs(val typeLifter: FlinkTypeLifter) {
    */
   val recordIdExtractorClasses = new mutable.HashMap[String, ClassName]()
 
-  val streamEnvVal = ValName("env")
+  val streamEnvVal: ValName = ValName("env")
   val lineageOutputTag = qc"new ${nameOf[OutputTag[Any]]}[${nameOf[LineageRecord]}](${"lineage"}, org.apache.flink.api.scala.createTypeInformation[${nameOf[LineageRecord]}])"
 
   private var mainBlocks = List.empty[String]
@@ -132,26 +131,23 @@ class GeneratorOutputs(val typeLifter: FlinkTypeLifter) {
     this.dataStreams(streamId).recordType
 
   def newClassName(expr: StreamExpression, prefix: String): ClassName =
-    ClassName(s"${prefix}_${cleanName(expr.nodeName)}")
+    ClassName(s"${prefix}_${toValidName(expr.nodeName)}")
 
   def newStreamValName(streamIdentifier: String): ValName =
-    ValName(s"stream_${cleanName(streamIdentifier)}")
+    ValName(s"stream_${toValidName(streamIdentifier)}")
 
   def newStreamValName(expr: StreamExpression): ValName =
     this.newStreamValName(expr.nodeName)
 
   def newValName(expr: StreamExpression, prefix: String): ValName =
-    ValName(s"${prefix}_${cleanName(expr.nodeName)}")
-
-    def cleanName(name: String): String =
-      name.replace('-', '_')
+    ValName(s"${prefix}_${toValidName(expr.nodeName)}")
 
   def setHasCyclesTrue(): Unit =
     this.hasCycles = true
 
   @tailrec
   private def newName(prefix: String): String = {
-    val name = this.cleanName(prefix + UUID.randomUUID().toString.substring(0, 8))
+    val name = toValidName(prefix + UUID.randomUUID().toString.substring(0, 8))
     if (this.valNames.contains(name)) {
       newName(prefix)
     }

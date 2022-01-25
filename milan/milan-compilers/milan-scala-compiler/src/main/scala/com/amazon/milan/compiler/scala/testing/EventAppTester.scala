@@ -32,7 +32,8 @@ object EventAppTester {
   def compile(streams: StreamCollection, config: ApplicationConfiguration): RecordConsumer = {
     val instance = new ApplicationInstance(new Application(streams), config)
     val className = "TestClass"
-    val classDef = EventHandlerClassGenerator.generateClass(instance, className)
+    val generatedClassInfo = EventHandlerClassGenerator.generateClass(instance, className)
+    val classDef = generatedClassInfo.classDefinition
 
     val code =
       s"""

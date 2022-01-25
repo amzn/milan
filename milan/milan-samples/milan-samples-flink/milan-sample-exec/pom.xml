@@ -34,7 +34,7 @@
 
     <parent>
         <groupId>com.amazon.milan</groupId>
-        <artifactId>milan-samples</artifactId>
+        <artifactId>milan-samples-flink</artifactId>
         <version>0.8-SNAPSHOT</version>
     </parent>
 
@@ -171,7 +171,7 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.13</version>
+            <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -205,8 +205,7 @@
                                 <argument>flink</argument>
                                 <argument>-Cpackage=com.amazon.milan.samples.exec</argument>
                                 <argument>-Cclass=GroupByFlatMap</argument>
-                                <argument>--output</argument>
-                                <argument>${project.basedir}/src/main/scala/generated/GroupByThenFlatMap.scala</argument>
+                                <argument>-Oscala=${project.basedir}/src/main/scala/generated/GroupByThenFlatMap.scala</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -225,8 +224,7 @@
                                 <argument>flink</argument>
                                 <argument>-Cpackage=com.amazon.milan.samples.exec</argument>
                                 <argument>-Cclass=GroupBySelect</argument>
-                                <argument>--output</argument>
-                                <argument>${project.basedir}/src/main/scala/generated/GroupByThenSelect.scala</argument>
+                                <argument>-Oscala=${project.basedir}/src/main/scala/generated/GroupByThenSelect.scala</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -245,8 +243,7 @@
                                 <argument>flink</argument>
                                 <argument>-Cpackage=com.amazon.milan.samples.exec</argument>
                                 <argument>-Cclass=FullJoin</argument>
-                                <argument>--output</argument>
-                                <argument>${project.basedir}/src/main/scala/generated/FullJoin.scala</argument>
+                                <argument>-Oscala=${project.basedir}/src/main/scala/generated/FullJoin.scala</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -265,8 +262,7 @@
                                 <argument>flink</argument>
                                 <argument>-Cpackage=com.amazon.milan.samples.exec</argument>
                                 <argument>-Cclass=TimeWindow</argument>
-                                <argument>--output</argument>
-                                <argument>${project.basedir}/src/main/scala/generated/TimeWindow.scala</argument>
+                                <argument>-Oscala=${project.basedir}/src/main/scala/generated/TimeWindow.scala</argument>
                             </arguments>
                         </configuration>
                     </execution>

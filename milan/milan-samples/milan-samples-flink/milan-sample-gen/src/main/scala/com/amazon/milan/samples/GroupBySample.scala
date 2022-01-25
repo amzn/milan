@@ -7,11 +7,11 @@ import com.amazon.milan.application.{Application, ApplicationConfiguration, Appl
 import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import com.amazon.milan.lang.aggregation._
-import com.amazon.milan.tools.ApplicationInstanceProvider
+import com.amazon.milan.tools.{ApplicationInstanceProvider, InstanceParameters}
 
 
 class GroupByFlatMapSample extends ApplicationInstanceProvider {
-  override def getApplicationInstance(params: List[(String, String)]): ApplicationInstance = {
+  override def getApplicationInstance(params: InstanceParameters): ApplicationInstance = {
     val input = Stream.of[KeyValueRecord].withName("input")
 
     // Group by the "key" field and output a stream with the sum of the "value" field for each key.
@@ -34,7 +34,7 @@ class GroupByFlatMapSample extends ApplicationInstanceProvider {
     val inputRecords = List((1, 1), (1, 2), (2, 5), (3, 6), (2, 3), (3, 1)).map(t => KeyValueRecord(t._1, t._2))
     config.setSource(input, new ListDataSource(inputRecords))
 
-    val outputSink = new LogSink[output.RecordType]()
+    val outputSink = new LogSink[output.RecordType]("printOutput")
     config.addSink(output, outputSink)
 
     new ApplicationInstance(
@@ -45,7 +45,7 @@ class GroupByFlatMapSample extends ApplicationInstanceProvider {
 
 
 class GroupBySelectSample extends ApplicationInstanceProvider {
-  override def getApplicationInstance(params: List[(String, String)]): ApplicationInstance = {
+  override def getApplicationInstance(params: InstanceParameters): ApplicationInstance = {
     val input = Stream.of[KeyValueRecord].withName("input")
 
     // Group by the "key" field and output a tuple stream with two fields.
@@ -64,7 +64,7 @@ class GroupBySelectSample extends ApplicationInstanceProvider {
     val inputRecords = List((1, 1), (1, 2), (2, 5), (3, 6), (2, 3), (3, 1)).map(t => KeyValueRecord(t._1, t._2))
     config.setSource(input, new ListDataSource(inputRecords))
 
-    val outputSink = new LogSink[output.RecordType]()
+    val outputSink = new LogSink[output.RecordType]("printOutput")
     config.addSink(output, outputSink)
 
     new ApplicationInstance(

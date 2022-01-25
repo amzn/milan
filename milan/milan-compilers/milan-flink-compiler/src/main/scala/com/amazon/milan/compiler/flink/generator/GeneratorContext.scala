@@ -221,7 +221,7 @@ class GeneratorContext(val applicationInstanceId: String,
 
   private def generateExternalStream(streamExpr: ExternalStream): GeneratedUnkeyedDataStream = {
     val streamVal = this.output.newStreamValName(streamExpr)
-    val source = this.appConfig.dataSources(streamExpr.nodeId)
+    val source = this.appConfig.getSource(streamExpr.nodeId)
     this.components.addDataSource(this.output, source, streamVal, streamExpr.nodeId)
   }
 

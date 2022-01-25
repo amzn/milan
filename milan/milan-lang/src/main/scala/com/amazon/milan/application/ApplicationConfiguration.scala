@@ -7,9 +7,13 @@ import com.amazon.milan.types.LineageRecord
 
 object ApplicationConfiguration {
 
+  case class StreamDataSource(streamId: String, source: DataSource[_])
+
   case class StreamSink(streamId: String, sink: DataSink[_])
 
   case class StreamMetric(streamId: String, metric: MetricDefinition[_])
+
+  case class OperationStateStore(operationId: String, stateId: String, stateStore: StateStore)
 
 }
 
@@ -18,16 +22,19 @@ import com.amazon.milan.application.ApplicationConfiguration._
 
 /**
  * Contains the configuration of the data sources and sinks for an application.
+ *
+ * @param dataSources A map of stream IDs to data sources.
+ * @param dataSinks   A list of stream data sinks.
  */
-class ApplicationConfiguration(var dataSources: Map[String, DataSource[_]],
+class ApplicationConfiguration(var dataSources: List[StreamDataSource],
                                var dataSinks: List[StreamSink],
                                var lineageSinks: List[DataSink[LineageRecord]],
                                var metrics: List[StreamMetric],
-                               var stateStores: Map[String, Map[String, StateStore]]) {
+                               var stateStores: List[OperationStateStore]) {
   private var metricPrefix: String = ""
 
   def this() {
-    this(Map.empty, List.empty, List.empty, List.empty, Map.empty)
+    this(List.empty, List.empty, List.empty, List.empty, List.empty)
   }
 
   /**
@@ -45,8 +52,27 @@ class ApplicationConfiguration(var dataSources: Map[String, DataSource[_]],
    * @param streamId The ID of a stream.
    * @param source   A DataSource representing the source of the data.
    */
-  def setSource(streamId: String, source: DataSource[_]): Unit =
-    this.dataSources = this.dataSources + (streamId -> source)
+  def setSource(streamId: String, source: DataSource[_]): Unit = {
+    if (dataSources.exists(_.streamId == streamId)) {
+      throw new IllegalArgumentException(s"Stream $streamId already has a source.")
+    }
+    this.dataSources = StreamDataSource(streamId, source) +: this.dataSources
+  }
+
+  /**
+   * Gets the data source configured for a stream.
+   * @param streamId The ID of a stream.
+   * @return The [[DataSource]] object that defines the data source for that stream.
+   */
+  def getSource(streamId: String): DataSource[_] = {
+    this.dataSources.find(_.streamId == streamId) match {
+      case Some(source) =>
+        source.source
+
+      case None =>
+        throw new IllegalArgumentException(s"Stream $streamId does not have a data source.")
+    }
+  }
 
   /**
    * Adds a sink for stream data.
@@ -92,8 +118,11 @@ class ApplicationConfiguration(var dataSources: Map[String, DataSource[_]],
    * @param store       A [[StateStore]] configuring the state storage for the operation.
    */
   def setStateStore(operationId: String, stateId: String, store: StateStore): Unit = {
-    this.stateStores = this.stateStores +
-      (operationId -> (this.stateStores.getOrElse(operationId, Map.empty) + (stateId -> store)))
+    if (this.stateStores.exists(s => s.operationId == operationId && s.stateId == stateId)) {
+      throw new IllegalArgumentException(s"State store for operation $operationId state $stateId already configured.")
+    }
+
+    this.stateStores = OperationStateStore(operationId, stateId, store) +: this.stateStores
   }
 
   /**
@@ -104,8 +133,13 @@ class ApplicationConfiguration(var dataSources: Map[String, DataSource[_]],
    * @return A [[StateStore]] object describing the state store configuration for the stream.
    */
   def getStateStore(operationId: String, stateId: String): StateStore = {
-    this.stateStores.getOrElse(operationId, Map.empty)
-      .getOrElse(stateId, new DefaultStateStore)
+    this.stateStores.find(s => s.operationId == operationId && s.stateId == stateId) match {
+      case Some(store) =>
+        store.stateStore
+
+      case None =>
+        new DefaultStateStore
+    }
   }
 
   /**

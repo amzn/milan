@@ -15,7 +15,9 @@ import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize
  */
 @JsonSerialize
 @JsonDeserialize
-class FileDataSink[T: TypeDescriptor](val path: String, val outputFormat: DataOutputFormat[T]) extends DataSink[T] {
+class FileDataSink[T: TypeDescriptor](val sinkId: String,
+                                      val path: String,
+                                      val outputFormat: DataOutputFormat[T]) extends DataSink[T] {
   private var recordTypeDescriptor = implicitly[TypeDescriptor[T]]
 
   override def getGenericArguments: List[TypeDescriptor[_]] = List(this.recordTypeDescriptor)

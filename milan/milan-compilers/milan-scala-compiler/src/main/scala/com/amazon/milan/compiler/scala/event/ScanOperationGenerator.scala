@@ -249,7 +249,7 @@ trait ScanOperationGenerator
     val outputRecordType = scanOperation.outputType
     val stateStore = this.generateKeyedStateInterface(context, streamExpr, StateIdentifier.STREAM_STATE, fullKeyType, stateType)
 
-    val fieldName = ValName(context.outputs.cleanName(s"scanOperationHost_${streamExpr.nodeName}"))
+    val fieldName = ValName(toValidName(s"scanOperationHost_${streamExpr.nodeName}"))
     val fieldType = qc"${nameOf[ScanOperationHost[Any, Any, Any, Any, Any]]}[${inputRecordType.toTerm}, ${fullKeyType.toTerm}, ${keyType.toTerm}, ${stateType.toTerm}, ${outputRecordType.toTerm}]"
 
     val fullKeyValName = ValName("fullKey")

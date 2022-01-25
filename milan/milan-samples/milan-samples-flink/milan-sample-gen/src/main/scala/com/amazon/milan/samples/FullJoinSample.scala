@@ -6,11 +6,11 @@ import com.amazon.milan.application.sources.ListDataSource
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
 import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
-import com.amazon.milan.tools.ApplicationInstanceProvider
+import com.amazon.milan.tools.{ApplicationInstanceProvider, InstanceParameters}
 
 
 class FullJoinSample extends ApplicationInstanceProvider {
-  override def getApplicationInstance(params: List[(String, String)]): ApplicationInstance = {
+  override def getApplicationInstance(params: InstanceParameters): ApplicationInstance = {
     val left = Stream.of[KeyValueRecord].withName("left")
     val right = Stream.of[KeyValueRecord].withName("right")
 
@@ -41,7 +41,7 @@ class FullJoinSample extends ApplicationInstanceProvider {
     val rightRecords = List((2, 1), (1, 3), (2, 2), (1, 5)).map(t => KeyValueRecord(t._1, t._2))
     config.setSource(right, new ListDataSource(rightRecords))
 
-    val outputSink = new LogSink[output.RecordType]()
+    val outputSink = new LogSink[output.RecordType]("printOutput")
     config.addSink(output, outputSink)
 
     new ApplicationInstance(

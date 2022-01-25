@@ -41,7 +41,8 @@ object S3DataSink {
  */
 @JsonSerialize
 @JsonDeserialize
-class S3DataSink[T: TypeDescriptor](val bucket: String,
+class S3DataSink[T: TypeDescriptor](val sinkId: String,
+                                    val bucket: String,
                                     val prefix: String,
                                     val partitionExtractor: FunctionDef,
                                     val dataFormat: DataOutputFormat[T]) extends DataSink[T] {

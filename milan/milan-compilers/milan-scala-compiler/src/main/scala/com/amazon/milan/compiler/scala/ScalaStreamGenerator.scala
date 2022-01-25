@@ -61,7 +61,7 @@ object ScalaStreamGenerator {
       inputStreams.map(stream =>
         externalStreamVals.get(stream.nodeId) match {
           case Some(value) => value
-          case None => ValueDef(s"notused_${GeneratorOutputs.cleanName(stream.nodeName)}", stream.recordType)
+          case None => ValueDef(toValidName(s"notused_${stream.nodeName}"), stream.recordType)
         }
       )
 
@@ -90,7 +90,7 @@ object ScalaStreamGenerator {
       inputStreams.map(stream =>
         externalStreamVals.get(stream.nodeId) match {
           case Some(value) => value
-          case None => ValueDef(s"notused_${GeneratorOutputs.cleanName(stream.nodeName)}", stream.recordType)
+          case None => ValueDef(s"notused_${toValidIdentifier(stream.nodeName)}", stream.recordType)
         }
       )
 
@@ -125,7 +125,7 @@ object ScalaStreamGenerator {
     // First we generate ValNames for every stream, so that we can reference them later when generating code.
     val valNames =
       sortedStreams
-        .map(stream => stream.nodeId -> ValName(GeneratorOutputs.cleanName(s"stream_${stream.nodeName}")))
+        .map(stream => stream.nodeId -> ValName(toValidName(s"stream_${stream.nodeName}")))
         .toMap
 
     val outputs = new GeneratorOutputs(valNames)
@@ -169,13 +169,6 @@ object ScalaStreamGenerator {
     }
   }
 
-  object GeneratorOutputs {
-    def cleanName(name: String): String =
-      name.replace('-', '_')
-  }
-
-  import GeneratorOutputs._
-
   class GeneratorOutputs(val streamValNames: Map[String, ValName]) {
     val generatedStreams = new mutable.HashMap[String, ValName]()
     val generatedGroupedStreams = new mutable.HashMap[String, ValName]()
@@ -212,7 +205,7 @@ object ScalaStreamGenerator {
 
     @tailrec
     private def newName(prefix: String): String = {
-      val name = cleanName(prefix + UUID.randomUUID().toString.substring(0, 8))
+      val name = toValidIdentifier(prefix + UUID.randomUUID().toString.substring(0, 4))
       if (this.valNames.contains(name)) {
         newName(prefix)
       }

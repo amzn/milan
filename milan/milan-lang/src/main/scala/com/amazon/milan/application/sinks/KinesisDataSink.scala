@@ -16,7 +16,8 @@ import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize
  */
 @JsonSerialize
 @JsonDeserialize
-class KinesisDataSink[T: TypeDescriptor](val streamName: String,
+class KinesisDataSink[T: TypeDescriptor](val sinkId: String,
+                                         val streamName: String,
                                          val region: String,
                                          val queueLimit: Option[Int] = None)
   extends DataSink[T] {

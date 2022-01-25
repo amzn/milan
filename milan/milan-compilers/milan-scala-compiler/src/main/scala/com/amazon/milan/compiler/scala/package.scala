@@ -2,7 +2,6 @@ package com.amazon.milan.compiler
 
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
-
 import com.amazon.milan.typeutil.TypeDescriptor
 
 import _root_.scala.language.implicitConversions
@@ -55,5 +54,28 @@ package object scala {
       this.outputStream.write(s.getUtf8Bytes)
     }
   }
+
+  private val validIdentifierStartChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_".toSet
+  private val validIdentifierChars = validIdentifierStartChars ++ "0123456789".toSet
+
+  /**
+   * Gets a valid identifier name based on the specified name.
+   */
+  def toValidIdentifier(name: String): String = {
+    val validName = toValidName(name)
+
+    if (this.validIdentifierStartChars.contains(validName.head)) {
+      validName
+    }
+    else {
+      "_" + validName
+    }
+  }
+
+  /**
+   * Converts a string to one containing only valid identifier characters.
+   */
+  def toValidName(name: String): String =
+    name.map(c => if (!validIdentifierChars.contains(c)) '_' else c)
 
 }

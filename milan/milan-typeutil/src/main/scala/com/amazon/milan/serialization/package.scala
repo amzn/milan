@@ -13,4 +13,14 @@ package object serialization {
     }
   }
 
+  implicit class MapExtensions[TKey, TValue](map: Map[TKey, TValue]) {
+    def toJavaMap: java.util.Map[TKey, TValue] = {
+      val hashMap = new java.util.HashMap[TKey, TValue]()
+      this.map.foreach {
+        case (key, value) => hashMap.put(key, value)
+      }
+      hashMap
+    }
+  }
+
 }

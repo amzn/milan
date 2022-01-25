@@ -24,15 +24,39 @@
         <scala.logging.version>3.9.2</scala.logging.version>
         <milan.version>0.8-SNAPSHOT</milan.version>
         <maven.surefire.version>2.22.2</maven.surefire.version>
+        <junit.version>4.13.1</junit.version>
     </properties>
 
-    <modules>
-        <module>milan-typeutil</module>
-        <module>milan-lang</module>
-        <module>milan-tools</module>
-        <module>milan-compilers</module>
-        <module>milan-samples</module>
-    </modules>
+    <profiles>
+        <profile>
+            <id>default</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <modules>
+                <module>milan-typeutil</module>
+                <module>milan-lang</module>
+                <module>milan-tools</module>
+                <module>milan-compilers</module>
+                <module>milan-samples</module>
+            </modules>
+        </profile>
+        <profile>
+            <id>no_samples</id>
+            <activation>
+                <property>
+                    <name>nosamples</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <modules>
+                <module>milan-typeutil</module>
+                <module>milan-lang</module>
+                <module>milan-tools</module>
+                <module>milan-compilers</module>
+            </modules>
+        </profile>
+    </profiles>
 
     <build>
         <plugins>

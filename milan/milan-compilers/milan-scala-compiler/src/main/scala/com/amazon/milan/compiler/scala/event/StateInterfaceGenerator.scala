@@ -28,7 +28,15 @@ trait StateInterfaceGenerator {
                                   keyType: TypeDescriptor[_],
                                   stateType: TypeDescriptor[_]): CodeBlock = {
     val stateConfig = context.application.config.getStateStore(expr.nodeId, stateIdentifier)
-    this.generateKeyedStateInterface(context.outputs, stateConfig, keyType, stateType)
+
+    // Try the plugin first, then fall back to the known state store types.
+    context.plugin.generateKeyedStateStore(context, expr, keyType, stateType, stateConfig) match {
+      case Some(code) =>
+        code
+
+      case None =>
+        this.generateKeyedStateInterface(context.outputs, stateConfig, keyType, stateType)
+    }
   }
 
   /**

@@ -1,10 +1,10 @@
 package com.amazon.milan.compiler.flink
 
-import java.io.OutputStream
-
 import com.amazon.milan.application.ApplicationInstance
 import com.amazon.milan.compiler.flink.generator.FlinkGenerator
-import com.amazon.milan.tools.ApplicationInstanceCompiler
+import com.amazon.milan.tools.{ApplicationInstanceCompiler, CompilerOutputs, InstanceParameters}
+
+import java.io.FileOutputStream
 
 
 object Compiler {
@@ -18,12 +18,18 @@ object Compiler {
  */
 class Compiler extends ApplicationInstanceCompiler {
   override def compile(applicationInstance: ApplicationInstance,
-                       params: List[(String, String)],
-                       output: OutputStream): Unit = {
+                       params: InstanceParameters,
+                       outputs: CompilerOutputs): Unit = {
 
-    val packageName = params.find(_._1 == "package").map(_._2).getOrElse(Compiler.DEFAULT_PACKAGENAME)
-    val className = params.find(_._1 == "class").map(_._2).getOrElse(Compiler.DEFAULT_CLASSNAME)
+    val packageName = params.getValueOption("package").getOrElse(Compiler.DEFAULT_PACKAGENAME)
+    val className = params.getValueOption("class").getOrElse(Compiler.DEFAULT_CLASSNAME)
 
-    FlinkGenerator.default.generateScala(applicationInstance, output, packageName, className)
+    val outputStream = new FileOutputStream(outputs.getOutput("scala").toFile)
+    try {
+      FlinkGenerator.default.generateScala(applicationInstance, outputStream, packageName, className)
+    }
+    finally {
+      outputStream.close()
+    }
   }
 }

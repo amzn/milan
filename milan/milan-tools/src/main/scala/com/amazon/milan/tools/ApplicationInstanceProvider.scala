@@ -10,5 +10,5 @@ trait ApplicationInstanceProvider {
    * @param params User-supplied parameters.
    * @return An [[ApplicationInstance]].
    */
-  def getApplicationInstance(params: List[(String, String)]): ApplicationInstance
+  def getApplicationInstance(params: InstanceParameters): ApplicationInstance
 }

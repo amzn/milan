@@ -37,8 +37,8 @@ object ApplicationPartitioner {
     val streamIds = streams.map(_.nodeId).toSet
 
     val partitionSinks = config.dataSinks.filter(sink => streamIds.contains(sink.streamId))
-    val partitionSources = config.dataSources.filter { case (streamId, _) => streamIds.contains(streamId) }
-    val partitionStateStores = config.stateStores.filter { case (operationId, _) => streamIds.contains(operationId) }
+    val partitionSources = config.dataSources.filter(source => streamIds.contains(source.streamId))
+    val partitionStateStores = config.stateStores.filter(store => streamIds.contains(store.operationId))
 
     new ApplicationConfiguration(partitionSources, partitionSinks, config.lineageSinks, config.metrics, partitionStateStores)
   }

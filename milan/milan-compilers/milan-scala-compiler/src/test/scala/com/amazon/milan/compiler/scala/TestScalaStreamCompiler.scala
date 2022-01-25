@@ -6,6 +6,7 @@ import com.amazon.milan.application.{Application, ApplicationConfiguration, Appl
 import com.amazon.milan.compiler.scala.testing.IntRecord
 import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
+import com.amazon.milan.tools.ParameterListInstanceParameters
 import org.junit.Assert._
 import org.junit.Test
 
@@ -22,10 +23,12 @@ class TestScalaStreamCompiler {
     val streams = StreamCollection.build(output)
     val app = new Application("app", streams, SemanticVersion.ZERO)
     val config = new ApplicationConfiguration()
-    config.addSink(output, new ConsoleDataSink[IntRecord])
+    config.addSink(output, new ConsoleDataSink[IntRecord]("printOutput"))
     val instance = new ApplicationInstance("instance", app, config)
 
-    val params = List(("package", "testPackage"), ("class", "TestClass"), ("output", "output"), ("function", "testMethod"))
+    val params = new ParameterListInstanceParameters(
+      List(("package", "testPackage"), ("class", "TestClass"), ("output", "output"), ("function", "testMethod"))
+    )
 
     val compiler = new ScalaStreamCompiler
 

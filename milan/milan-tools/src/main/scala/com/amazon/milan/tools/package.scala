@@ -1,11 +1,10 @@
 package com.amazon.milan
 
-import java.io.{File, FileOutputStream}
-import java.net.URL
-import java.nio.file.{Files, Path}
-
 import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
+
+import java.net.URL
+import java.nio.file.{Files, Path}
 
 
 package object tools {
@@ -28,14 +27,13 @@ package object tools {
    * @param providerParameters Additional parameters to pass to the provider when creating the application instance.
    * @param compilerClassName  The name of a class that implements [[ApplicationInstanceCompiler]].
    * @param compilerParameters Additional parameters to pass to the compiler when compiling the application instance.
-   * @param outputFile         The path to the file where the compiler output will be written.
-   * @return A [[File]] pointing to the output file that was written.
+   * @param compilerOutputs    Output types and their associated paths.
    */
   def compileApplicationInstance(providerClassName: String,
                                  providerParameters: List[(String, String)],
                                  compilerClassName: String,
                                  compilerParameters: List[(String, String)],
-                                 outputFile: Path): File = {
+                                 compilerOutputs: List[(String, String)]): Unit = {
     val providerClass = ClassHelper.loadClass(providerClassName)
 
     val provider =
@@ -47,7 +45,8 @@ package object tools {
           constructor.newInstance().asInstanceOf[ApplicationInstanceProvider]
       }
 
-    val instance = provider.getApplicationInstance(providerParameters)
+    val instanceParams = new ParameterListInstanceParameters(providerParameters)
+    val instance = provider.getApplicationInstance(instanceParams)
 
     val actualCompilerClassName = KnownCompilers.convertFromKnownCompiler(compilerClassName)
     val compilerClass = ClassHelper.loadClass(actualCompilerClassName)
@@ -60,18 +59,14 @@ package object tools {
         constructor.newInstance().asInstanceOf[ApplicationInstanceCompiler]
     }
 
-    println(s"Writing generated code to output file '$outputFile'.")
+    val outputs = new NameValueListCompilerOutputs(compilerOutputs)
 
-    Files.createDirectories(outputFile.getParent)
-
-    val outputStream = new FileOutputStream(outputFile.toFile)
-
-    try {
-      compiler.compile(instance, compilerParameters, outputStream)
-      outputFile.toFile
+    outputs.getAllOutputs.foreach { case (name, path) =>
+      println(s"Ensuring parent directory exists for output '$name'='$path'")
+      Files.createDirectories(path.getParent)
     }
-    finally {
-      outputStream.close()
-    }
+
+    val compilerInstanceParams = new ParameterListInstanceParameters(compilerParameters)
+    compiler.compile(instance, compilerInstanceParams, outputs)
   }
 }

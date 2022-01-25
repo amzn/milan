@@ -11,7 +11,12 @@ import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize
  */
 @JsonSerialize(using = classOf[DataSinkSerializer])
 @JsonDeserialize(using = classOf[DataSinkDeserializer])
-trait DataSink[T] extends GenericTypeInfoProvider with SetGenericTypeInfo
+trait DataSink[T] extends GenericTypeInfoProvider with SetGenericTypeInfo {
+  /**
+   * The ID of the sink.
+   */
+  val sinkId: String
+}
 
 
 class DataSinkDeserializer extends GenericTypedJsonDeserializer[DataSink[_]]("com.amazon.milan.application.sinks")

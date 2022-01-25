@@ -1,7 +1,5 @@
 package com.amazon.milan.compiler.scala.event
 
-import java.util.Properties
-
 import com.amazon.milan.application.{DataSink, StateStore}
 import com.amazon.milan.compiler.scala.CodeBlock
 import com.amazon.milan.program.StreamExpression

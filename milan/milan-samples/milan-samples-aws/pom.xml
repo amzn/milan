@@ -1,0 +1,31 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>milan-samples-aws</artifactId>
+    <version>0.8-SNAPSHOT</version>
+    <name>${project.artifactId}</name>
+    <description>Project Milan - language, infrastructure, and tools for data-first systems.</description>
+    <inceptionYear>2021</inceptionYear>
+    <packaging>pom</packaging>
+
+    <parent>
+        <groupId>com.amazon.milan</groupId>
+        <artifactId>milan-samples</artifactId>
+        <version>0.8-SNAPSHOT</version>
+    </parent>
+
+    <modules>
+        <module>milan-sample-aws-exec</module>
+        <module>milan-sample-aws-gen</module>
+    </modules>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.0</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

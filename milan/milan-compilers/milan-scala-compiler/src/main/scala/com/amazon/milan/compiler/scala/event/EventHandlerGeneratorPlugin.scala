@@ -1,13 +1,12 @@
 package com.amazon.milan.compiler.scala.event
 
-import java.io.InputStream
-import java.util.Properties
-
 import com.amazon.milan.application.{DataSink, StateStore}
 import com.amazon.milan.compiler.scala.{CodeBlock, TypeLifter}
 import com.amazon.milan.program.StreamExpression
 import com.amazon.milan.typeutil.TypeDescriptor
 
+import java.io.InputStream
+import java.util.Properties
 import scala.collection.JavaConverters._
 
 
@@ -58,6 +57,11 @@ object EventHandlerGeneratorPlugin {
   val PLUGIN_CLASS_PROPERTY_PREFIX = "generator.eventhandlerplugin."
 
   /**
+   * An empty plugin.
+   */
+  val EMPTY: EventHandlerGeneratorPlugin = new EmptyEventHandlerGeneratorPlugin
+
+  /**
    * Gets a [[ConsolidatedEventHandlerGeneratorPlugin]] that includes all [[EventHandlerGeneratorPlugin]] classes
    * that were found in milan.properties files in the classpath.
    */
@@ -68,10 +72,13 @@ object EventHandlerGeneratorPlugin {
     val pluginClassNames =
       propertiesFiles.asScala
         .flatMap(url => {
-          this.loadProperties(url.openStream())
+          val properties = this.loadProperties(url.openStream())
+
+          properties
             .propertyNames().asScala
             .map(_.toString)
             .filter(_.startsWith(PLUGIN_CLASS_PROPERTY_PREFIX))
+            .map(properties.getProperty)
         })
         .toList
 

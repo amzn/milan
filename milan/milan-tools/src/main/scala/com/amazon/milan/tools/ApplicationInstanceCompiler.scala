@@ -1,7 +1,5 @@
 package com.amazon.milan.tools
 
-import java.io.OutputStream
-
 import com.amazon.milan.application.ApplicationInstance
 
 
@@ -9,7 +7,14 @@ import com.amazon.milan.application.ApplicationInstance
  * Interface for compiling application instances.
  */
 trait ApplicationInstanceCompiler {
+  /**
+   * Compiles an application instance.
+   *
+   * @param applicationInstance The application instance to compile.
+   * @param params              User-provided compiler parameters.
+   * @param outputs             User-provided named output paths.
+   */
   def compile(applicationInstance: ApplicationInstance,
-              params: List[(String, String)],
-              output: OutputStream): Unit
+              params: InstanceParameters,
+              outputs: CompilerOutputs): Unit
 }

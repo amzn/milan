@@ -30,7 +30,7 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
 
     val recordArg = ValName("record")
 
-    val filterFunctionName = CodeBlock(outputs.cleanName(s"filter_${filterExpr.nodeName}"))
+    val filterFunctionName = CodeBlock(toValidName(s"filter_${filterExpr.nodeName}"))
     val filterMethodDef = outputs.scalaGenerator.getScalaFunctionDef(filterFunctionName.value, filterExpr.predicate)
 
     outputs.addMethod("private " + filterMethodDef)
@@ -59,7 +59,7 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
                         inputStream: StreamInfo,
                         mapExpr: StreamMap): StreamInfo = {
     val mapFunction = mapExpr.expr
-    val mapFunctionName = CodeBlock(outputs.cleanName(s"mapfunction_${mapExpr.nodeName}"))
+    val mapFunctionName = CodeBlock(toValidName(s"mapfunction_${mapExpr.nodeName}"))
     val mapFunctionDef = outputs.scalaGenerator.getScalaFunctionDef(mapFunctionName.value, mapFunction)
 
     outputs.addMethod("private " + mapFunctionDef)
@@ -117,15 +117,22 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
   def generateDataSink(context: GeneratorContext,
                        stream: StreamInfo,
                        sink: DataSink[_]): StreamConsumerInfo = {
-    sink match {
-      case consoleSink: ConsoleDataSink[_] =>
-        this.generateConsoleDataSink(context.outputs, stream, consoleSink)
+    // First try the plugin, then fall back to the known data sinks.
+    context.plugin.generateDataSink(context, stream, sink) match {
+      case Some(consumer) =>
+        consumer
 
-      case logSink: LogSink[_] =>
-        this.generateLogSink(context.outputs, stream, logSink)
+      case None =>
+        sink match {
+          case consoleSink: ConsoleDataSink[_] =>
+            this.generateConsoleDataSink(context.outputs, stream, consoleSink)
 
-      case memorySink: SingletonMemorySink[_] =>
-        this.generateMemorySink(context.outputs, stream, memorySink)
+          case logSink: LogSink[_] =>
+            this.generateLogSink(context.outputs, stream, logSink)
+
+          case memorySink: SingletonMemorySink[_] =>
+            this.generateMemorySink(context.outputs, stream, memorySink)
+        }
     }
   }
 
@@ -170,7 +177,7 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
    */
   def generateExternalStream(outputs: GeneratorOutputs,
                              stream: ExternalStream): StreamInfo = {
-    val methodName = MethodName(outputs.cleanName(s"consume${stream.nodeName}"))
+    val methodName = MethodName(toValidName(s"consume${stream.nodeName}"))
 
     val recordType = stream.recordType
     val collectorMethod = outputs.getCollectorName(stream)
@@ -183,7 +190,7 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
          |""".codeStrip
 
     outputs.addMethod(methodDef)
-    outputs.addExternalStream(stream.nodeName, methodName, stream.recordType)
+    outputs.addExternalStream(stream.nodeId, stream.nodeName, methodName, stream.recordType)
 
     StreamInfo(stream, types.EmptyTuple, types.EmptyTuple)
   }
@@ -246,7 +253,7 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
                       groupExpr: GroupBy): StreamInfo = {
     val keyFunction = groupExpr.expr
 
-    val setKeyMethodName = context.outputs.cleanName(s"setRecordKey_${groupExpr.nodeName}")
+    val setKeyMethodName = toValidName(s"setRecordKey_${groupExpr.nodeName}")
     val keyedStream = this.generateSetRecordKeyMethod(context.outputs, inputStream, setKeyMethodName, keyFunction)
 
     val consumerInfo = StreamConsumerInfo(groupExpr.nodeName, "input")
@@ -503,7 +510,7 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
     // Get the function that applies a post-filter to pairs of joined records.
     val postConditionFunction = this.getPostConditionFunction(joinExpr.condition, keyExtractionResult.remainder)
 
-    val joinerVal = ValName(s"joiner_${context.outputs.cleanName(joinExpr.nodeName)}")
+    val joinerVal = ValName(s"joiner_${toValidName(joinExpr.nodeName)}")
 
     val outputs = context.outputs
 
@@ -573,7 +580,7 @@ class EventHandlerFunctionGenerator(val typeLifter: TypeLifter)
     // Get the function that applies a post-filter to pairs of joined records.
     val postConditionFunction = this.getPostConditionFunction(joinExpr.condition, keyExtractionResult.remainder)
 
-    val joinerVal = ValName(s"joiner_${context.outputs.cleanName(joinExpr.nodeName)}")
+    val joinerVal = ValName(s"joiner_${toValidName(joinExpr.nodeName)}")
 
     val outputs = context.outputs
 

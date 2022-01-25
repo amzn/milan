@@ -42,6 +42,16 @@ object CodeBlock {
 }
 
 
+object TypeLifter {
+  /**
+   * Creates a new [[TypeLifter]] using the default type emitter.
+   */
+  def createDefault(): TypeLifter = {
+    new TypeLifter(new DefaultTypeEmitter)
+  }
+}
+
+
 /**
  * Provides methods for lifting objects from runtime to compile-time.
  * Essentially, converting objects into the Scala code that constructs those objects.
