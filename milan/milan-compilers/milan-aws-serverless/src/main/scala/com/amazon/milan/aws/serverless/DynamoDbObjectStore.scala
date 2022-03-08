@@ -1,7 +1,5 @@
 package com.amazon.milan.aws.serverless
 
-import java.util
-
 import com.amazon.milan.compiler.scala.event.KeyedStateInterface
 import com.amazon.milan.serialization.{JavaTypeFactory, MilanObjectMapper}
 import com.amazon.milan.typeutil.TypeDescriptor
@@ -10,6 +8,8 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient
 import software.amazon.awssdk.services.dynamodb.model.{AttributeValue, GetItemRequest, PutItemRequest}
+
+import java.util
 
 
 object DynamoDbObjectStore {
@@ -24,33 +24,47 @@ object DynamoDbObjectStore {
   def open[TKey, TValue](tableName: String,
                          keyType: TypeDescriptor[TKey],
                          valueType: TypeDescriptor[TValue]): DynamoDbObjectStore[TKey, TValue] = {
-    val typeFactory = new JavaTypeFactory(MilanObjectMapper.getTypeFactory)
-    val valueJavaType = typeFactory.makeJavaType(valueType)
-    val valueReader = MilanObjectMapper.readerFor(valueJavaType)
-    val valueWriter = MilanObjectMapper.writerFor(valueJavaType)
     val client =
       DynamoDbClient.builder()
         .credentialsProvider(DefaultCredentialsProvider.create())
         .region(new DefaultAwsRegionProviderChain().getRegion)
         .build()
+    create(client, tableName, keyType, valueType)
+  }
+
+  /**
+   * Creates a DynamoDbObjectStore for the given key and value types.
+   *
+   * @param client    The dynamodb client used by the store.
+   * @param tableName The name of the DynamoDb table.
+   * @param keyType   A [[TypeDescriptor]] describing the key type.
+   * @param valueType A [[TypeDescriptor]] describing the value type.
+   * @return A [[DynamoDbObjectStore]] object that provides the interface to the table.
+   */
+  def create[TKey, TValue](client: DynamoDbClient,
+                           tableName: String,
+                           keyType: TypeDescriptor[TKey],
+                           valueType: TypeDescriptor[TValue]): DynamoDbObjectStore[TKey, TValue] = {
+    val typeFactory = new JavaTypeFactory(MilanObjectMapper.getTypeFactory)
+    val valueTypeReference = typeFactory.makeTypeReference(valueType)
+    val valueReader = MilanObjectMapper.readerFor(valueTypeReference)
+    val valueWriter = MilanObjectMapper.writerFor(valueTypeReference)
     new DynamoDbObjectStore(client, tableName, valueReader, valueWriter)
   }
 
   /**
    * Creates a [[KeyedStateInterface]] using a DynamoDb table for state storage.
    *
-   * @param tableName    The name of the DynamoDb table.
-   * @param keyType      A [[TypeDescriptor]] describing the key type.
-   * @param stateType    A [[TypeDescriptor]] describing the state type.
-   * @param defaultValue The default value to return when no state exists for a key.
+   * @param tableName The name of the DynamoDb table.
+   * @param keyType   A [[TypeDescriptor]] describing the key type.
+   * @param stateType A [[TypeDescriptor]] describing the state type.
    * @return A [[KeyedStateInterface]] instance.
    */
   def createKeyedStateInterface[TKey, TState](tableName: String,
                                               keyType: TypeDescriptor[TKey],
-                                              stateType: TypeDescriptor[TState],
-                                              defaultValue: TState): KeyedStateInterface[TKey, TState] = {
+                                              stateType: TypeDescriptor[TState]): KeyedStateInterface[TKey, TState] = {
     val objectStore = DynamoDbObjectStore.open[TKey, TState](tableName, keyType, stateType)
-    new ObjectStoreKeyedStateInterface(objectStore, defaultValue)
+    new ObjectStoreKeyedStateInterface(objectStore)
   }
 }
 
@@ -60,7 +74,7 @@ object DynamoDbObjectStore {
  *
  * @param client      A DynamoDb client.
  * @param tableName   The name of the DynamoDb table.
- * @param valueReader An [[ObjectReader]] that deserialized values.
+ * @param valueReader An [[ObjectReader]] that deserializes values.
  * @param valueWriter An [[ObjectWriter]] that serializes values.
  */
 class DynamoDbObjectStore[TKey, TValue](client: DynamoDbClient,

@@ -17,6 +17,11 @@ trait Raw {
   val value: String
 
   override def toString: String = this.value
+
+  override def equals(obj: Any): Boolean = obj match {
+    case CodeBlock(codeValue) => this.value == codeValue
+    case _ => false
+  }
 }
 
 object Raw {
@@ -27,20 +32,30 @@ case class RawList(l: List[String])
 
 case class ClassName(value: String) extends Raw
 
-case class ValName(value: String) extends Raw
+object CodeBlock {
+  val EMPTY: CodeBlock = CodeBlock("")
 
-case class MethodName(value: String) extends Raw
+  def apply(value: String): CodeBlock = new CodeBlock(value)
 
-case class CodeBlock(value: String) extends Raw {
+  def unapply(value: CodeBlock): Option[String] = Some(value.value)
+}
+
+class CodeBlock(val value: String) extends Raw {
   def indentTail(level: Int): CodeBlock = {
     CodeBlock(value.indentTail(level))
   }
 }
 
-object CodeBlock {
-  val EMPTY: CodeBlock = CodeBlock("")
+
+object ValName {
+  def apply(value: String): ValName = new ValName(value)
+
+  def unapply(value: ValName): Option[String] = Some(value.value)
 }
 
+class ValName(value: String) extends CodeBlock(value)
+
+case class MethodName(value: String) extends Raw
 
 object TypeLifter {
   /**

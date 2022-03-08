@@ -9,6 +9,10 @@ import com.amazon.milan.typeutil.TypeDescriptor
 class ConsolidatedEventHandlerGeneratorPlugin(plugins: List[EventHandlerGeneratorPlugin])
   extends EventHandlerGeneratorPlugin {
 
+  override def describe(): String = {
+    plugins.map(_.describe()).mkString("[", ", ", "]")
+  }
+
   override def generateDataSink(context: GeneratorContext,
                                 stream: StreamInfo,
                                 sink: DataSink[_]): Option[StreamConsumerInfo] = {
@@ -18,14 +22,22 @@ class ConsolidatedEventHandlerGeneratorPlugin(plugins: List[EventHandlerGenerato
     }
   }
 
-  override def generateKeyedStateStore(context: GeneratorContext,
-                                       streamExpr: StreamExpression,
-                                       keyType: TypeDescriptor[_],
-                                       stateType: TypeDescriptor[_],
-                                       stateConfig: StateStore): Option[CodeBlock] = {
-    this.plugins.map(_.generateKeyedStateStore(context, streamExpr, keyType, stateType, stateConfig)).find(_.nonEmpty) match {
-      case Some(value) => value
-      case None => None
-    }
+  override def generateKeyedStateInterface(context: GeneratorContext,
+                                           streamExpr: StreamExpression,
+                                           stateIdentifier: String,
+                                           keyType: TypeDescriptor[_],
+                                           stateType: TypeDescriptor[_],
+                                           stateConfig: StateStore): Option[CodeBlock] = {
+    this.plugins.map(_.generateKeyedStateInterface(context, streamExpr, stateIdentifier, keyType, stateType, stateConfig))
+      .filter(_.isDefined)
+      .map(_.get)
+      .headOption
+  }
+
+  override def getDefaultStateStore(streamExpr: StreamExpression, stateIdentifier: String): Option[StateStore] = {
+    this.plugins.map(_.getDefaultStateStore(streamExpr, stateIdentifier))
+      .filter(_.isDefined)
+      .map(_.get)
+      .headOption
   }
 }

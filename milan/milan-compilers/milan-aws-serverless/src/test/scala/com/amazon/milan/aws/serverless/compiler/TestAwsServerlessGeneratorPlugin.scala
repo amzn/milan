@@ -7,6 +7,7 @@ import com.amazon.milan.compiler.scala.event._
 import com.amazon.milan.compiler.scala.testing.KeyValueRecord
 import com.amazon.milan.graph.{DependencyGraph, FlowGraph, StreamCollection}
 import com.amazon.milan.program.ExternalStream
+import com.amazon.milan.tools.InstanceParameters
 import com.amazon.milan.typeutil.{TypeDescriptor, types}
 import org.junit.Test
 
@@ -17,7 +18,7 @@ import java.io.ByteArrayOutputStream
 class TestAwsServerlessGeneratorPlugin {
   @Test
   def test_AwsServerlessGeneratorPlugin_GenerateDataSink_WithDynamoDbTableSink_ProducesCode(): Unit = {
-    val plugin = new AwsServerlessGeneratorPlugin(TypeLifter.createDefault())
+    val plugin = new AwsServerlessGeneratorPlugin(TypeLifter.createDefault(), InstanceParameters.empty)
 
     val streams = new StreamCollection(List.empty)
     val config = new ApplicationConfiguration()
@@ -25,7 +26,7 @@ class TestAwsServerlessGeneratorPlugin {
     val dependencyGraph = DependencyGraph.build(streams.getDereferencedStreams)
     val flowGraph = FlowGraph.build(streams.getDereferencedStreams)
     val outputs = new GeneratorOutputs(plugin.typeLifter.typeEmitter)
-    val plugins = EventHandlerGeneratorPlugin.EMPTY
+    val plugins = EventHandlerGeneratorPlugin.empty
 
     val context =
       GeneratorContext(

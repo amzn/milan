@@ -3,6 +3,7 @@ package com.amazon.milan.compiler.scala.event
 import com.amazon.milan.application.{DataSink, StateStore}
 import com.amazon.milan.compiler.scala.{CodeBlock, TypeLifter}
 import com.amazon.milan.program.StreamExpression
+import com.amazon.milan.tools.InstanceParameters
 import com.amazon.milan.typeutil.TypeDescriptor
 
 import java.io.InputStream
@@ -12,8 +13,14 @@ import scala.collection.JavaConverters._
 
 /**
  * Interface for classes that provide plugins for the event handler generator.
+ * All plugin classes must provide a constructor that takes a TypeLifter and an InstanceParameters.
  */
 trait EventHandlerGeneratorPlugin {
+  /**
+   * Gets a short description of the plugin.
+   */
+  def describe(): String = this.getClass.getName
+
   /**
    * Generates a method in the output collector that implements a data sink.
    *
@@ -30,19 +37,31 @@ trait EventHandlerGeneratorPlugin {
   /**
    * Gets code block that instantiates a keyed state store interface.
    *
-   * @param context     The generator context.
-   * @param streamExpr  The operation whose state store is being generated.
-   * @param keyType     A [[TypeDescriptor]] describing the type of keys for the objects that will be stored.
-   * @param stateType   A [[TypeDescriptor]] describing the type of object that will be stored.
-   * @param stateConfig A [[StateStore]] containing the state store configuration.
+   * @param context         The generator context.
+   * @param streamExpr      The operation whose state store is being generated.
+   * @param stateIdentifier Identifies which of the operation's state stores is being generated.
+   * @param keyType         A [[TypeDescriptor]] describing the type of keys for the objects that will be stored.
+   * @param stateType       A [[TypeDescriptor]] describing the type of object that will be stored.
+   * @param stateConfig     A [[StateStore]] containing the state store configuration.
    * @return A [[CodeBlock]] that instantiates the keyed state store interface instance, or None if this plugin does not
    *         generate the given state store type.
    */
-  def generateKeyedStateStore(context: GeneratorContext,
-                              streamExpr: StreamExpression,
-                              keyType: TypeDescriptor[_],
-                              stateType: TypeDescriptor[_],
-                              stateConfig: StateStore): Option[CodeBlock] = None
+  def generateKeyedStateInterface(context: GeneratorContext,
+                                  streamExpr: StreamExpression,
+                                  stateIdentifier: String,
+                                  keyType: TypeDescriptor[_],
+                                  stateType: TypeDescriptor[_],
+                                  stateConfig: StateStore): Option[CodeBlock] = None
+
+  /**
+   * Gets the default state store for a stream.
+   *
+   * @param streamExpr      The stream to get the state store for.
+   * @param stateIdentifier Identifies which of the operation's state stores is being generated.
+   * @return A [[StateStore]] for the stream.
+   */
+  def getDefaultStateStore(streamExpr: StreamExpression, stateIdentifier: String): Option[StateStore] =
+    None
 }
 
 
@@ -59,13 +78,14 @@ object EventHandlerGeneratorPlugin {
   /**
    * An empty plugin.
    */
-  val EMPTY: EventHandlerGeneratorPlugin = new EmptyEventHandlerGeneratorPlugin
+  def empty: EventHandlerGeneratorPlugin = new EmptyEventHandlerGeneratorPlugin
 
   /**
    * Gets a [[ConsolidatedEventHandlerGeneratorPlugin]] that includes all [[EventHandlerGeneratorPlugin]] classes
    * that were found in milan.properties files in the classpath.
    */
-  def loadAllPlugins(typeLifter: TypeLifter): ConsolidatedEventHandlerGeneratorPlugin = {
+  def loadAllPlugins(typeLifter: TypeLifter,
+                     compilerParameters: InstanceParameters): ConsolidatedEventHandlerGeneratorPlugin = {
     val classLoader = getClass.getClassLoader
     val propertiesFiles = classLoader.getResources("milan.properties")
 
@@ -80,13 +100,14 @@ object EventHandlerGeneratorPlugin {
             .filter(_.startsWith(PLUGIN_CLASS_PROPERTY_PREFIX))
             .map(properties.getProperty)
         })
+        .toSet
         .toList
 
     val plugins =
       pluginClassNames
         .map(classLoader.loadClass)
-        .map(_.getConstructor(classOf[TypeLifter]))
-        .map(_.newInstance(typeLifter))
+        .map(_.getConstructor(classOf[TypeLifter], classOf[InstanceParameters]))
+        .map(_.newInstance(typeLifter, compilerParameters))
         .map(_.asInstanceOf[EventHandlerGeneratorPlugin])
 
     new ConsolidatedEventHandlerGeneratorPlugin(plugins)

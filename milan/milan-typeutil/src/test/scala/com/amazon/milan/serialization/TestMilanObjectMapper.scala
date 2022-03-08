@@ -1,6 +1,7 @@
 package com.amazon.milan.serialization
 
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
+import com.fasterxml.jackson.module.scala.ScalaObjectMapper
 import org.junit.Assert._
 import org.junit.Test
 
@@ -31,5 +32,22 @@ class TestMilanObjectMapper {
     val mapper = new MilanObjectMapper(DataFormatConfiguration.withFlags(DataFormatFlags.FailOnUnknownProperties))
     val json = mapper.writeValueAsString(Record2(2, "foo"))
     val o = mapper.readValue[Record](json, classOf[Record])
+  }
+
+  @Test
+  def test_MilanObjectMapper_WithOptionType_WithSomeValue_CopiesObject(): Unit = {
+    val original = Some("test")
+    val json = MilanObjectMapper.writerFor(classOf[Option[String]]).writeValueAsString(original)
+    val reader = MilanObjectMapper.readerFor(classOf[Option[String]])
+    val copy = reader.readValue[Option[String]](json)
+    assertEquals(original, copy)
+  }
+
+  @Test
+  def test_MilanObjectMapper_WithTupleType_CopiesObject(): Unit = {
+    val original = (5, "test")
+    val json = MilanObjectMapper.writerFor(classOf[(Int, String)]).writeValueAsString(original)
+    val copy = MilanObjectMapper.readValue[(Int, String)](json)
+    assertEquals(original, copy)
   }
 }

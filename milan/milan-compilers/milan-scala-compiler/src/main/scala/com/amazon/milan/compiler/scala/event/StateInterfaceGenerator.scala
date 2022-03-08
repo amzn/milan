@@ -1,14 +1,18 @@
 package com.amazon.milan.compiler.scala.event
 
 import com.amazon.milan.application.StateStore
-import com.amazon.milan.application.state.DefaultStateStore
+import com.amazon.milan.application.state.{DefaultStateStore, MemoryStateStore}
 import com.amazon.milan.compiler.scala._
 import com.amazon.milan.program.StreamExpression
 import com.amazon.milan.typeutil.TypeDescriptor
+import com.typesafe.scalalogging.Logger
+import org.slf4j.LoggerFactory
 
 
 trait StateInterfaceGenerator {
   val typeLifter: TypeLifter
+
+  private val logger = Logger(LoggerFactory.getLogger(this.getClass))
 
   import typeLifter._
 
@@ -29,14 +33,29 @@ trait StateInterfaceGenerator {
                                   stateType: TypeDescriptor[_]): CodeBlock = {
     val stateConfig = context.application.config.getStateStore(expr.nodeId, stateIdentifier)
 
-    // Try the plugin first, then fall back to the known state store types.
-    context.plugin.generateKeyedStateStore(context, expr, keyType, stateType, stateConfig) match {
-      case Some(code) =>
-        code
+    val finalStateConfig = stateConfig match {
+      case _: DefaultStateStore =>
+        this.getDefaultStateStore(context, expr, stateIdentifier)
 
-      case None =>
-        this.generateKeyedStateInterface(context.outputs, stateConfig, keyType, stateType)
+      case _ =>
+        stateConfig
     }
+
+    this.logger.info(s"State interface for stream '${expr.nodeId}' state '$stateIdentifier' = ${stateConfig.getClass.getName}")
+
+    context.outputs.addGeneratedStateStore(GeneratedStateStore(expr.nodeId, stateIdentifier, finalStateConfig))
+
+    val stateInterface =
+    // Try the plugin first, then fall back to the known state store types.
+      context.plugin.generateKeyedStateInterface(context, expr, stateIdentifier, keyType, stateType, finalStateConfig) match {
+        case Some(code) =>
+          code
+
+        case None =>
+          this.generateKeyedStateInterface(context.outputs, finalStateConfig, keyType, stateType)
+      }
+
+    stateInterface
   }
 
   /**
@@ -53,8 +72,20 @@ trait StateInterfaceGenerator {
                                   keyType: TypeDescriptor[_],
                                   stateType: TypeDescriptor[_]): CodeBlock = {
     stateConfig match {
-      case _: DefaultStateStore =>
+      case _: MemoryStateStore =>
         qc"new ${nameOf[MemoryKeyedState[Any, Any]]}[${keyType.toTerm}, ${stateType.toTerm}]"
+    }
+  }
+
+  private def getDefaultStateStore(context: GeneratorContext,
+                                   stream: StreamExpression,
+                                   stateId: String): StateStore = {
+    context.plugin.getDefaultStateStore(stream, stateId) match {
+      case Some(store) =>
+        store
+
+      case None =>
+        new MemoryStateStore
     }
   }
 }

@@ -61,6 +61,7 @@ class ApplicationConfiguration(var dataSources: List[StreamDataSource],
 
   /**
    * Gets the data source configured for a stream.
+   *
    * @param streamId The ID of a stream.
    * @return The [[DataSource]] object that defines the data source for that stream.
    */
@@ -91,6 +92,16 @@ class ApplicationConfiguration(var dataSources: List[StreamDataSource],
    */
   def addSink(streamId: String, sink: DataSink[_]): Unit =
     this.dataSinks = this.dataSinks :+ StreamSink(streamId, sink)
+
+  /**
+   * Gets all of the sinks attached to a data stream.
+   *
+   * @param streamId The ID of a data stream.
+   * @return A list of data sinks for the stream.
+   */
+  def getSinks(streamId: String): List[DataSink[_]] = {
+    this.dataSinks.filter(_.streamId == streamId).map(_.sink)
+  }
 
   /**
    * Adds a sink for record lineage data.

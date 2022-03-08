@@ -261,7 +261,8 @@ trait ScanOperationGenerator
           |    protected override val scanOperation: ${scanOperation.classType} =
           |      new ${scanOperation.classDef.indentTail(2)}
           |
-          |    protected override val state = ${stateStore.indentTail(1)}
+          |    protected override val state: ${nameOf[KeyedStateInterface[Any, Any]]}[${fullKeyType.toTerm}, ${stateType.toTerm}] =
+          |      ${stateStore.indentTail(3)}
           |
           |    protected override def getLocalKey($fullKeyValName: ${fullKeyType.toTerm}): ${keyType.toTerm} = {
           |      ${getLocalKeyCode.indentTail(3)}

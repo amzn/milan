@@ -32,9 +32,15 @@ class DynamoDbItemGenerator(typeLifter: TypeLifter) {
     val serializerFieldDef = s"private val $serializerFieldName = new $serializerClassDef"
     context.outputs.addField(serializerFieldDef)
 
+    // The table name can be set via the class properties.
+    val tableNameDefaultValue = sink.tableName.map(name => qc"$name")
+    val tableNameValue = context.outputs.addSinkProperty(
+      stream.streamId, sink.sinkId, "TableName", types.String, tableNameDefaultValue
+    )
+
     // Add a field to the output that is the writer, which uses the serializer we generated above.
     val writerFieldName = context.outputs.newFieldName(s"recordWriter_${stream.streamId}_")
-    val writerInstance = this.generateDynamoDbRecordWriterInstance(sink.tableName, serializerFieldName)
+    val writerInstance = this.generateDynamoDbRecordWriterInstance(tableNameValue, serializerFieldName)
     val writerFieldDef = s"private val $writerFieldName = $writerInstance"
     context.outputs.addField(writerFieldDef)
 
@@ -71,9 +77,9 @@ class DynamoDbItemGenerator(typeLifter: TypeLifter) {
         |"""
   }
 
-  private def generateDynamoDbRecordWriterInstance(tableName: String,
+  private def generateDynamoDbRecordWriterInstance(tableNameValue: CodeBlock,
                                                    serializerFieldName: String): CodeBlock = {
-    qc"""${nameOf[DynamoDbRecordWriter[Any]]}.open($tableName, ${code(serializerFieldName)})"""
+    qc"""${nameOf[DynamoDbRecordWriter[Any]]}.open($tableNameValue, ${code(serializerFieldName)})"""
   }
 
   private def generateSetFieldInMap(mapVal: ValName, objectVal: ValName, field: FieldDescriptor[_]): CodeBlock = {

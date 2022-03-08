@@ -1,7 +1,8 @@
 package com.amazon.milan.compiler.scala.event
 
-import com.amazon.milan.application.ApplicationInstance
+import com.amazon.milan.application.{ApplicationInstance, StateStore}
 import com.amazon.milan.compiler.scala._
+import com.amazon.milan.compiler.scala.event.ClassPropertySourceType.ClassPropertySourceType
 import com.amazon.milan.graph.{DependencyGraph, FlowGraph}
 import com.amazon.milan.program.StreamExpression
 import com.amazon.milan.typeutil.TypeDescriptor
@@ -72,6 +73,53 @@ case class ExpressionContext(streamTerms: Map[String, StreamInfo]) {
 case class ExternalStreamConsumer(streamId: String, streamName: String, consumerMethodName: MethodName, recordType: TypeDescriptor[_])
 
 
+object ClassPropertySourceType extends Enumeration {
+  type ClassPropertySourceType = Value
+
+  val StreamSource, StreamSink, StateStore = Value
+}
+
+
+/**
+ * Describes the source of a property value.
+ *
+ * @param sourceType     The type of the property source.
+ * @param sourceId       The ID of the source. For stream sources this will be the stream ID.
+ *                       For sinks, it will be the "streamId:sinkId".
+ * @param sourceProperty The property of the source that maps to this property value.
+ *                       The values this can take depend on the specific type of the source or sink.
+ */
+case class ClassPropertySource(sourceType: ClassPropertySourceType, sourceId: String, sourceProperty: String)
+
+/**
+ * Describes a field of the Properties class required by the generated code.
+ * The generated class will have a Properties class that allows callers to specify many of the properties of the
+ * data sinks and sources.
+ *
+ * @param propertyName The name of the property, which must be a valid field name.
+ * @param propertyType The type of the property.
+ * @param defaultValue The default value which is used when the property is not supplied.
+ *                     None means no default value and the property must be supplied when the generated code is invoked.
+ */
+case class ClassProperty(propertyName: String,
+                         propertyType: TypeDescriptor[_],
+                         defaultValue: Option[CodeBlock],
+                         propertySource: ClassPropertySource)
+
+
+/**
+ * Describes a state store that is used by the compiled application.
+ *
+ * @param streamId   The ID of the stream the state store is used by.
+ * @param stateId    The ID of the state, which is used to distinguish between different state stores for a single
+ *                   stream.
+ * @param stateStore The state store used.
+ */
+case class GeneratedStateStore(streamId: String,
+                               stateId: String,
+                               stateStore: StateStore)
+
+
 /**
  * Collects the outputs from code generation.
  */
@@ -82,11 +130,21 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
   private var collectorNames: Set[String] = Set.empty
   private var consumerIdentifiers: Set[String] = Set.empty
 
+  /**
+   * Properties that generated code requires to be set.
+   * The generated code assumes these properties are fields in the properties field of the generated class.
+   */
+  private var properties: List[ClassProperty] = List.empty
+
   private var externalStreamMethods: List[ExternalStreamConsumer] = List.empty
 
   private var generatedStreams: Map[String, StreamInfo] = Map.empty
 
+  private var generatedStateStores: List[GeneratedStateStore] = List.empty
+
   val loggerField: ValName = ValName("logger")
+
+  val propertiesField: ValName = ValName("props")
 
   val scalaGenerator = new ScalarFunctionGenerator(this.typeEmitter, new IdentityTreeTransformer)
 
@@ -140,6 +198,21 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
    */
   def getGeneratedStreams: Iterable[StreamInfo] =
     this.generatedStreams.values
+
+  /**
+   * Adds generated state store information to the output.
+   *
+   * @param store The generated store.
+   */
+  def addGeneratedStateStore(store: GeneratedStateStore): Unit = {
+    this.generatedStateStores = store +: this.generatedStateStores
+  }
+
+  /**
+   * Gets information about the state stores that have been generated.
+   */
+  def getGeneratedStateStores: List[GeneratedStateStore] =
+    this.generatedStateStores
 
   /**
    * Gets the name of the collector method that distributes records for a stream.
@@ -247,13 +320,97 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
   }
 
   /**
+   * Add a property that is required by the generated code.
+   *
+   * @param propertyName The name of the property, which must be a valid field name.
+   * @param propertyType The type of the property.
+   */
+  def addProperty(propertyName: String,
+                  propertyType: TypeDescriptor[_],
+                  defaultValue: Option[CodeBlock],
+                  propertySource: ClassPropertySource): Unit = {
+    if (!this.properties.exists(_.propertyName == propertyName)) {
+      this.properties = ClassProperty(propertyName, propertyType, defaultValue, propertySource) +: this.properties
+    }
+  }
+
+  /**
+   * Gets the class properties.
+   * These are fields in the Properties class that is passed to the constructor of the generated class.
+   *
+   * @return
+   */
+  def getProperties: List[ClassProperty] = this.properties
+
+  /**
+   * Adds a required property that is a property of a data sink, returning a [[CodeBlock]] that resolves to the
+   * property value at runtime.
+   *
+   * @param streamId     The ID of the stream the sink is attached to.
+   * @param sinkId       The ID of the sink.
+   * @param propertyName The name of the sink property.
+   * @param propertyType The type of the property.
+   * @param defaultValue The default value of the property, if there is one.
+   * @return A [[CodeBlock]] that resolves to the property value at runtime.
+   */
+  def addSinkProperty(streamId: String,
+                      sinkId: String,
+                      propertyName: String,
+                      propertyType: TypeDescriptor[_],
+                      defaultValue: Option[CodeBlock]): CodeBlock = {
+    val fieldName = toValidIdentifier(s"${streamId}_sink_${sinkId}_$propertyName")
+    val source = ClassPropertySource(ClassPropertySourceType.StreamSink, s"$streamId:$sinkId", propertyName)
+    this.addProperty(fieldName, propertyType, defaultValue, source)
+    CodeBlock(s"${this.propertiesField}.$fieldName")
+  }
+
+  /**
+   * Adds a class property used by a state store.
+   *
+   * @param streamId     The ID of the stream the state store is being used for.
+   * @param stateId      The ID of the state. Some streams use multiple state stores.
+   * @param propertyName The name of the property of the state store.
+   * @param propertyType The type of the property.
+   * @param defaultValue The default value of the property, if there is one.
+   * @return A [[CodeBlock]] that resolves to the property value at runtime.
+   */
+  def addStateStoreProperty(streamId: String,
+                            stateId: String,
+                            propertyName: String,
+                            propertyType: TypeDescriptor[_],
+                            defaultValue: Option[CodeBlock]): CodeBlock = {
+    val fieldName = toValidIdentifier(s"${streamId}_${stateId}_$propertyName")
+    val source = ClassPropertySource(ClassPropertySourceType.StateStore, s"$streamId:$stateId", propertyName)
+    this.addProperty(fieldName, propertyType, defaultValue, source)
+    CodeBlock(s"${this.propertiesField}.$fieldName")
+  }
+
+  /**
    * Writes the definition of the generated class to an output stream.
    *
    * @param className    The name of the class to generate.
    * @param outputStream The output stream where the class definition will be written.
    */
-  def generate(className: String, outputStream: OutputStream): Unit = {
-    outputStream.writeUtf8(s"class $className extends com.amazon.milan.compiler.scala.event.RecordConsumer {\n")
+  def generate(className: String, outputStream: OutputStream): GeneratorOutputInfo = {
+    val propertiesClassDef = this.generatePropertiesClass()
+
+    val propertiesClassName = s"$className.Properties"
+    val defaultConstructor = this.generateOptionalDefaultConstructor(propertiesClassName)
+
+    val classDefStart =
+      s"""object $className {
+         |  ${propertiesClassDef.indentTail(1)}
+         |}
+         |
+         |class $className(protected val ${this.propertiesField}: $propertiesClassName)
+         |  extends com.amazon.milan.compiler.scala.event.RecordConsumer {
+         |
+         |  ${defaultConstructor.indentTail(1)}
+         |
+         |""".stripMargin
+
+    outputStream.writeUtf8(classDefStart)
+
 
     this.fields.foreach(field => {
       outputStream.writeUtf8(field.indent(1))
@@ -286,5 +443,47 @@ class GeneratorOutputs(typeEmitter: TypeEmitter) {
     })
 
     outputStream.writeUtf8("}\n")
+
+    GeneratorOutputInfo(
+      className,
+      s"$className.Properties",
+      this.properties,
+      this.getGeneratedStreams.toList,
+      this.getExternalStreams.toList,
+      this.getGeneratedStateStores
+    )
+  }
+
+  private def generateOptionalDefaultConstructor(propertiesClass: String): String = {
+    val allPropertiesHaveDefaultValues = this.properties.forall(_.defaultValue.isDefined)
+
+    // If all properties have default values then we can generate a default constructor for the event handler.
+    if (!allPropertiesHaveDefaultValues) {
+      ""
+    }
+    else {
+      s"""def this() {
+         |  this(new $propertiesClass)
+         |}
+         |""".stripMargin
+    }
+  }
+
+  private def generatePropertiesClass(): String = {
+    val propertyVals = this.properties.map(
+      prop => {
+        prop.defaultValue match {
+          case Some(value) =>
+            s"val ${prop.propertyName}: ${prop.propertyType.toTerm} = $value"
+
+          case None =>
+            s"val ${prop.propertyName}: ${prop.propertyType.toTerm}"
+        }
+      }
+    )
+
+    val propertyList = propertyVals.mkString(",\n                 ")
+
+    s"class Properties($propertyList)"
   }
 }

@@ -1,13 +1,17 @@
 package com.amazon.milan.aws.serverless.compiler
 
+import com.amazon.milan.application.ApplicationConfiguration.StreamDataSource
 import com.amazon.milan.application.ApplicationInstance
 import com.amazon.milan.application.sources.{DynamoDbStreamSource, SqsDataSource}
-import com.amazon.milan.aws.serverless.runtime.{EventSourceArnAccessor, MilanLambdaHandler, EnvironmentEventSourceArnAccessor}
+import com.amazon.milan.aws.serverless.runtime.{EnvironmentAccessor, MilanLambdaHandler, SystemEnvironmentAccessor}
 import com.amazon.milan.compiler.scala._
-import com.amazon.milan.compiler.scala.event.{EventHandlerClassGenerator, GeneratedStreams}
+import com.amazon.milan.compiler.scala.event.{ClassProperty, EventHandlerClassGenerator, EventHandlerGeneratorPlugin, GeneratorOutputInfo}
 import com.amazon.milan.graph.{FlowGraph, StreamCollection}
 import com.amazon.milan.program.StreamExpression
 import com.amazon.milan.serialization.MilanObjectMapper
+
+
+case class GeneratedLambdaHandlerClass(classDef: String, handlerGeneratorOutput: GeneratorOutputInfo)
 
 
 /**
@@ -23,23 +27,28 @@ class LambdaHandlerGenerator {
    * to an event handler class.
    *
    * @param application            The Milan application instance to compile.
+   * @param plugin                 The plugin for the code generator.
    * @param lambdaHandlerClassName The name of the lambda handler class to generate.
    * @return A string containing the definition of the lambda handler class and the Milan application.
    */
   def generateLambdaHandlerClass(application: ApplicationInstance,
-                                 lambdaHandlerClassName: String = "EventHandler"): String = {
-    val eventHandlerClassName = "ApplicationEventHandler"
-    val eventHandlerClass = EventHandlerClassGenerator.generateClass(application, eventHandlerClassName)
+                                 plugin: EventHandlerGeneratorPlugin,
+                                 lambdaHandlerClassName: String = "EventHandler"): GeneratedLambdaHandlerClass = {
+    val eventHandlerClassName = toValidIdentifier(s"${application.application.applicationId}EventHandler")
+    val eventHandlerClass = EventHandlerClassGenerator.generateClass(application, eventHandlerClassName, Some(plugin))
 
-    val context = this.createGeneratorContext(application, eventHandlerClass.generatedStreams)
+    val context = this.createGeneratorContext(application, eventHandlerClass.generatorOutputInfo)
 
     val streams = application.application.streams
     val lambdaHandlerClassDef = this.generateLambdaHandlerClass(context, lambdaHandlerClassName, streams, eventHandlerClassName)
 
-    s"""$lambdaHandlerClassDef
-       |
-       |${eventHandlerClass.classDefinition}
-       |""".stripMargin
+    val classDef =
+      s"""$lambdaHandlerClassDef
+         |
+         |${eventHandlerClass.classDefinition}
+         |""".stripMargin
+
+    GeneratedLambdaHandlerClass(classDef, context.eventHandlerGeneratorOutputInfo)
   }
 
   /**
@@ -64,14 +73,24 @@ class LambdaHandlerGenerator {
     val handleDynamoDbNewImageMethod = this.generateHandleNewImageMethod(context, eventHandlerClassVal, inputStreams)
     val handleSqsBodyMethod = this.generateHandleSqsBodyMethod(context, eventHandlerClassVal, inputStreams)
 
+    val environmentVal = ValName("environment")
+
+    val handlerPropertiesVal = ValName("eventHandlerProperties")
+    val createPropertiesInstance = this.generatePropertiesInstanceFromEnvironment(
+      context.eventHandlerGeneratorOutputInfo,
+      environmentVal
+    )
+
     qc"""
-        |class ${code(className)}(environment: ${nameOf[EventSourceArnAccessor]}) extends ${nameOf[MilanLambdaHandler]}(environment) {
+        |class ${code(className)}($environmentVal: ${nameOf[EnvironmentAccessor]}) extends ${nameOf[MilanLambdaHandler]}(environment) {
         |  ${inputEventSourceArnPrefixVals.indentTail(1)}
         |
-        |  private val $eventHandlerClassVal = new ${code(eventHandlerClassName)}
+        |  private val $handlerPropertiesVal = ${createPropertiesInstance.indentTail(1)}
+        |
+        |  private val $eventHandlerClassVal = new ${code(eventHandlerClassName)}($handlerPropertiesVal)
         |
         |  def this() {
-        |    this(new ${nameOf[EnvironmentEventSourceArnAccessor]})
+        |    this(new ${nameOf[SystemEnvironmentAccessor]})
         |  }
         |
         |  ${handleDynamoDbNewImageMethod.indentTail(1)}
@@ -84,25 +103,33 @@ class LambdaHandlerGenerator {
   /**
    * Creates the [[AwsGeneratorContext]] for an application instance.
    *
-   * @param application                  An application instance.
-   * @param eventHandlerGeneratedStreams The [[GeneratedStreams]] object containing information about the compiled
-   *                                     application.
+   * @param application                     An application instance.
+   * @param eventHandlerGeneratorOutputInfo The [[GeneratorOutputInfo]] object containing information about the compiled
+   *                                        application.
    * @return The [[AwsGeneratorContext]] for the application.
    */
   private def createGeneratorContext(application: ApplicationInstance,
-                                     eventHandlerGeneratedStreams: GeneratedStreams): AwsGeneratorContext = {
-    val eventSources =
-      application.config.dataSources.map(source => {
-        source.source match {
-          case ddb: DynamoDbStreamSource[_] =>
-            StreamEventSource("aws:dynamodb", source.streamId, ddb.tableName)
+                                     eventHandlerGeneratorOutputInfo: GeneratorOutputInfo): AwsGeneratorContext = {
+    val eventSources = application.config.dataSources.map(this.createEventSource)
+    AwsGeneratorContext(application, eventSources, eventHandlerGeneratorOutputInfo)
+  }
 
-          case sqs: SqsDataSource[_] =>
-            StreamEventSource("aws:sqs", source.streamId, sqs.queueArn)
-        }
-      })
+  /**
+   * Creates a [[StreamEventSource]] corresponding to a [[StreamDataSource]].
+   *
+   * @param streamSource A [[StreamDataSource]] instance.
+   * @return A [[StreamEventSource]] that describes the source of stream events.
+   */
+  private def createEventSource(streamSource: StreamDataSource): StreamEventSource = {
+    val actualSource = toConcreteDataSource(streamSource.source)
 
-    AwsGeneratorContext(application, eventSources, eventHandlerGeneratedStreams)
+    actualSource match {
+      case _: DynamoDbStreamSource[_] =>
+        StreamEventSource("aws:dynamodb", streamSource.streamId)
+
+      case _: SqsDataSource[_] =>
+        StreamEventSource("aws:sqs", streamSource.streamId)
+    }
   }
 
   /**
@@ -187,27 +214,29 @@ class LambdaHandlerGenerator {
                                         recordJsonVal: ValName): CodeBlock = {
     val streamEventHandlerMethodNames =
       inputStreams
-        .map(stream => stream.nodeId -> context.eventHandlerGeneratedStreams.getExternalStreamConsumer(stream.nodeId).consumerMethodName)
+        .map(stream => stream.nodeId -> context.eventHandlerGeneratorOutputInfo.getExternalStreamConsumer(stream.nodeId).consumerMethodName)
         .toMap
 
     val eventSources = context.eventSources.filter(_.eventSource == eventSource)
 
     val streamsById = inputStreams.map(s => s.nodeId -> s).toMap
 
-    val dispatchers =
-      eventSources.map(eventSource => {
-        val methodName = streamEventHandlerMethodNames(eventSource.streamId)
-        val stream = streamsById(eventSource.streamId)
-        val recordType = stream.recordType
-        val eventSourceArnPrefixField = this.getEventSourceArnPrefixFieldName(eventSource.streamId)
+    // Gets the code that checks for a specific stream event source and calls the appropriate handler.
+    def getDispatcherCode(eventSource: StreamEventSource): CodeBlock = {
+      val methodName = streamEventHandlerMethodNames(eventSource.streamId)
+      val stream = streamsById(eventSource.streamId)
+      val recordType = stream.recordType
+      val eventSourceArnPrefixField = this.getEventSourceArnPrefixFieldName(eventSource.streamId)
 
-        qc"""
-            |($eventSourceArnVal.startsWith(this.$eventSourceArnPrefixField)) {
-            |  val record = ${nameOf[MilanObjectMapper]}.readValue[${recordType.toTerm}]($recordJsonVal, classOf[${recordType.toTerm}])
-            |  $eventHandlerClassVal.$methodName(record)
-            |}
-            |"""
-      })
+      qc"""
+          |($eventSourceArnVal.startsWith(this.$eventSourceArnPrefixField)) {
+          |  val record = ${nameOf[MilanObjectMapper]}.readValue[${recordType.toTerm}]($recordJsonVal, classOf[${recordType.toTerm}])
+          |  $eventHandlerClassVal.$methodName(record)
+          |}
+          |"""
+    }
+
+    val dispatchers = eventSources.map(getDispatcherCode)
 
     if (dispatchers.isEmpty) {
       CodeBlock.EMPTY
@@ -225,4 +254,18 @@ class LambdaHandlerGenerator {
 
   private def getEventSourceArnPrefixFieldName(streamId: String): ValName =
     ValName(toValidName(s"eventSourceArnPrefix$streamId"))
+
+  private def generatePropertiesInstanceFromEnvironment(eventHandlerGeneratorOutputInfo: GeneratorOutputInfo,
+                                                        environmentVal: ValName): CodeBlock = {
+    val propertyValues = eventHandlerGeneratorOutputInfo.properties.map(prop =>
+      this.generatePropertyValueFromEnvironment(prop, environmentVal)
+    )
+
+    val propertiesList = qc"./$propertyValues"
+    qc"new ${code(eventHandlerGeneratorOutputInfo.propertiesClassName)}($propertiesList)"
+  }
+
+  private def generatePropertyValueFromEnvironment(property: ClassProperty, environmentVal: ValName): CodeBlock = {
+    qc"${code(property.propertyName)} = $environmentVal.getEnv(${property.propertyName})"
+  }
 }

@@ -3,7 +3,7 @@ package com.amazon.milan.serialization
 import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper, SerializationFeature}
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import com.fasterxml.jackson.module.scala.{DefaultScalaModule, ScalaObjectMapper}
 
 import scala.reflect.{ClassTag, classTag}
 
@@ -13,7 +13,7 @@ import scala.reflect.{ClassTag, classTag}
  *
  * @param config A [[DataFormatConfiguration]] that controls some of the mapper behavior.
  */
-class MilanObjectMapper(config: DataFormatConfiguration) extends ObjectMapper {
+class MilanObjectMapper(config: DataFormatConfiguration) extends ObjectMapper with ScalaObjectMapper {
   this.registerModule(DefaultScalaModule)
   this.registerModule(new JavaTimeModule())
 

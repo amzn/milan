@@ -1,6 +1,10 @@
 package com.amazon.milan.aws.serverless.compiler
 
+import com.amazon.milan.SemanticVersion
+import com.amazon.milan.application.sinks.SqsDataSink
+import com.amazon.milan.application.sources.SqsDataSource
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
+import com.amazon.milan.aws.serverless.application.StreamPointerDataSource
 import com.amazon.milan.compiler.scala.testing.IntRecord
 import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
@@ -23,7 +27,7 @@ class TestApplicationPartitioner {
 
     val instance = new ApplicationInstance(new Application(streams), config)
 
-    val partitioned = ApplicationPartitioner.partitionApplication(instance)
+    val partitioned = ApplicationPartitioner.partitionApplication(instance, new NoOpPartitionInputOutputProcessor)
 
     assertEquals(1, partitioned.size)
     assertEquals(instance.application.streams, partitioned.head.application.streams)
@@ -44,7 +48,7 @@ class TestApplicationPartitioner {
 
     val instance = new ApplicationInstance(new Application(streams), config)
 
-    val partitioned = ApplicationPartitioner.partitionApplication(instance)
+    val partitioned = ApplicationPartitioner.partitionApplication(instance, new NoOpPartitionInputOutputProcessor)
 
     assertEquals(1, partitioned.size)
     assertEquals(instance.application.streams, partitioned.head.application.streams)
@@ -68,10 +72,42 @@ class TestApplicationPartitioner {
 
     val instance = new ApplicationInstance(new Application(streams), config)
 
-    val partitioned = ApplicationPartitioner.partitionApplication(instance)
+    val partitioned = ApplicationPartitioner.partitionApplication(instance, new NoOpPartitionInputOutputProcessor)
 
     assertEquals(2, partitioned.size)
     assertAtMostOneStatefulOperationPerPartition(partitioned)
+  }
+
+  @Test
+  def test_ApplicationPartitioner_WithTwoPartitionsAndSqsMapper_AddsExpectedSourcesAndSinks(): Unit = {
+    val input = Stream.of[IntRecord].withId("input")
+    val maxBy = input.maxBy(r => r.i).withId("max")
+    val output = maxBy.sumBy(r => r.i, (_, s) => IntRecord(s)).withId("sum")
+
+    val application = new Application("App", StreamCollection.build(output), SemanticVersion.ZERO)
+    val config = new ApplicationConfiguration()
+    val inputSource = new SqsDataSource[IntRecord]()
+    config.setSource(input, inputSource)
+    val outputSink = new SqsDataSink[IntRecord]("OutputQueue")
+    config.addSink(output, outputSink)
+    val instance = new ApplicationInstance(application, config)
+
+    val partitions = ApplicationPartitioner.partitionApplication(instance, new SqsInputOutputMappingProcessor)
+
+    assertEquals(2, partitions.size)
+
+    val maxPartition = partitions.find(_.application.applicationId.contains("max")).get
+    val maxSinks = maxPartition.config.getSinks("max")
+    assertEquals(1, maxSinks.size)
+
+    val maxSink = maxSinks.head
+    assertTrue(maxSink.isInstanceOf[SqsDataSink[_]])
+
+    val sumPartition = partitions.find(_.application.applicationId.contains("sum")).get
+    val maxSource = sumPartition.config.getSource("max").asInstanceOf[StreamPointerDataSource[_]]
+    assertSame(maxPartition, maxSource.sourceInstance)
+    assertSame(maxSink, maxSource.sourceSink)
+    assertEquals("max", maxSource.sourceStreamId)
   }
 
   private def assertAtMostOneStatefulOperationPerPartition(partitions: List[ApplicationInstance]): Unit = {

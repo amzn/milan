@@ -13,11 +13,11 @@ class EmptyObjectStore extends ObjectStore[Int, Int] {
 @Test
 class TestObjectStoreKeyedStateInterface {
   @Test
-  def test_ObjectStoreKeyedStateInterface_GetState_WithMissingItem_ReturnsDefaultValue(): Unit = {
+  def test_ObjectStoreKeyedStateInterface_GetState_WithMissingItem_ReturnsNone(): Unit = {
     val objectStore = new EmptyObjectStore()
-    val stateInterface = new ObjectStoreKeyedStateInterface[Int, Int](objectStore, -1)
+    val stateInterface = new ObjectStoreKeyedStateInterface[Int, Int](objectStore)
 
     assertEquals(None, objectStore.getItem(1))
-    assertEquals(Some(-1), stateInterface.getState(1))
+    assertEquals(None, stateInterface.getState(1))
   }
 }

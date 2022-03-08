@@ -22,6 +22,8 @@ class IntRecord(val recordId: String, val i: Int)
     case o: IntRecord => this.i == o.i
     case _ => false
   }
+
+  override def toString: String = s"""IntRecord("$recordId", $i)"""
 }
 
 object StringRecord {

@@ -1,6 +1,8 @@
 package com.amazon.milan.aws.serverless
 
 import com.amazon.milan.compiler.scala.event.KeyedStateInterface
+import com.typesafe.scalalogging.Logger
+import org.slf4j.LoggerFactory
 
 
 /**
@@ -10,18 +12,18 @@ import com.amazon.milan.compiler.scala.event.KeyedStateInterface
  * @tparam TKey   The key type.
  * @tparam TState The state type.
  */
-class ObjectStoreKeyedStateInterface[TKey, TState](objectStore: ObjectStore[TKey, TState],
-                                                   defaultValue: TState)
+class ObjectStoreKeyedStateInterface[TKey, TState](objectStore: ObjectStore[TKey, TState])
   extends KeyedStateInterface[TKey, TState] {
 
+  private lazy val logger = Logger(LoggerFactory.getLogger(this.getClass))
+
   override def getState(key: TKey): Option[TState] = {
-    this.objectStore.getItem(key) match {
-      case Some(item) => Some(item)
-      case None => Some(defaultValue)
-    }
+    this.logger.info(s"Getting state for key '$key'.")
+    this.objectStore.getItem(key)
   }
 
   override def setState(key: TKey, state: TState): Unit = {
+    this.logger.info(s"Setting state for key '$key'.")
     this.objectStore.putItem(key, state)
   }
 }

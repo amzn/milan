@@ -1,15 +1,15 @@
 package com.amazon.milan.samples.aws
 
-import com.amazon.milan.application.sinks.DynamoDbTableSink
-import com.amazon.milan.application.sources.DynamoDbStreamSource
-import com.amazon.milan.{Id, SemanticVersion}
+import com.amazon.milan.application.sinks.SqsDataSink
+import com.amazon.milan.application.sources.SqsDataSource
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
 import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import com.amazon.milan.tools.{ApplicationInstanceProvider, InstanceParameters}
+import com.amazon.milan.{Id, SemanticVersion}
 
 
-class InputRecord(val recordId: String, val value: Int) {
+class SqsInputRecord(val recordId: String, val value: Int) {
   override def toString: String = s"${this.value}"
 
   def this(value: Int) {
@@ -17,38 +17,38 @@ class InputRecord(val recordId: String, val value: Int) {
   }
 
   override def equals(obj: Any): Boolean = obj match {
-    case i: InputRecord => this.value == i.value
+    case i: SqsInputRecord => this.value == i.value
     case _ => false
   }
 }
 
 
-class OutputRecord(val recordId: String, val value: Int) {
+class SqsOutputRecord(val recordId: String, val value: Int) {
   def this(value: Int) {
     this(Id.newId(), value)
   }
 
   override def equals(obj: Any): Boolean = obj match {
-    case o: OutputRecord => this.value == o.value
+    case o: SqsOutputRecord => this.value == o.value
     case _ => false
   }
 }
 
-class StatelessSample extends ApplicationInstanceProvider {
+class SqsSample extends ApplicationInstanceProvider {
   override def getApplicationInstance(params: InstanceParameters): ApplicationInstance = {
-    val input = Stream.of[InputRecord].withId("input")
-    val output = input.map(r => new OutputRecord(r.value + 10)).withId("output")
+    val input = Stream.of[SqsInputRecord].withId("input")
+    val output = input.map(r => new SqsOutputRecord(r.value + 10)).withId("output")
 
     val streams = StreamCollection.build(output)
 
-    val application = new Application("StatelessSample", streams, SemanticVersion.ZERO)
+    val application = new Application("SqsSample", streams, SemanticVersion.ZERO)
 
     val config = new ApplicationConfiguration()
 
     // By not specifying the table names here, we require they be read from the environment variables set
     // in the generated CDK construct.
-    config.setSource(input, new DynamoDbStreamSource[InputRecord]())
-    config.addSink(output, new DynamoDbTableSink[OutputRecord]("outputTableSink"))
+    config.setSource(input, new SqsDataSource[SqsInputRecord]())
+    config.addSink(output, new SqsDataSink[SqsOutputRecord]("Output"))
 
     val instance = new ApplicationInstance(application, config)
 

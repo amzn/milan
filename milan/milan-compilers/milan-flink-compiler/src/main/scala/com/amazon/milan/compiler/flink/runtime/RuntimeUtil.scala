@@ -19,7 +19,7 @@ object RuntimeUtil {
   }
 
   def loadJsonArrayList[TElement: ClassTag](listJson: String): util.ArrayList[TElement] = {
-    val typeFactory = TypeFactory.defaultInstance()
+    val typeFactory = MilanObjectMapper.getTypeFactory
     val itemClass = classTag[TElement].runtimeClass.asInstanceOf[Class[TElement]]
     val javaType = typeFactory.constructCollectionType(classOf[util.ArrayList[TElement]], itemClass)
     MilanObjectMapper.readValue[util.ArrayList[TElement]](listJson, javaType)

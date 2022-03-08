@@ -1,15 +1,18 @@
 package com.amazon.milan.aws.serverless.compiler
 
-import com.amazon.milan.application.sinks.SingletonMemorySink
+import com.amazon.milan.SemanticVersion
+import com.amazon.milan.application.sinks.{SingletonMemorySink, SqsDataSink}
 import com.amazon.milan.application.sources.{DynamoDbStreamSource, SqsDataSource}
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
 import com.amazon.milan.aws.serverless.compiler.TestLambdaHandlerGenerator.HandlerFactory
-import com.amazon.milan.aws.serverless.runtime.{EventSourceArnAccessor, MapEventSourceArnAccessor, MilanLambdaHandler}
+import com.amazon.milan.aws.serverless.runtime.{EnvironmentAccessor, MapEnvironmentAccessor, MilanLambdaHandler}
 import com.amazon.milan.compiler.scala._
+import com.amazon.milan.compiler.scala.event.EventHandlerGeneratorPlugin
 import com.amazon.milan.compiler.scala.testing.IntRecord
 import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang._
 import com.amazon.milan.serialization.MilanObjectMapper
+import com.amazon.milan.tools.InstanceParameters
 import org.apache.commons.io.output.ByteArrayOutputStream
 import org.junit.Assert._
 import org.junit.Test
@@ -18,7 +21,7 @@ import java.io.{ByteArrayInputStream, InputStream, OutputStreamWriter}
 
 object TestLambdaHandlerGenerator {
   trait HandlerFactory {
-    def createHandler(arns: EventSourceArnAccessor): MilanLambdaHandler
+    def createHandler(environment: EnvironmentAccessor): MilanLambdaHandler
   }
 }
 
@@ -74,26 +77,53 @@ class TestLambdaHandlerGenerator {
     assertEquals(IntRecord(3), sink.getValues.last)
   }
 
+  @Test
+  def test_LambdaHandlerGenerator_GenerateLambdaHandlerClass_WithSqsInputWithNoArnSpecified_GeneratesEventHandlerWithoutDefaultConstructor(): Unit = {
+    val input = Stream.of[IntRecord].withId("input")
+    val output = input.map(r => IntRecord(r.i + 1)).withId("output")
+
+    val streams = StreamCollection.build(output)
+    val app = new Application("AppId", streams, SemanticVersion.ZERO)
+
+    val config = new ApplicationConfiguration()
+    config.setSource(input, new SqsDataSource[IntRecord]())
+    config.addSink(output, new SqsDataSink[IntRecord]("OutputQueue"))
+
+    val instance = new ApplicationInstance(app, config)
+
+    val generator = new LambdaHandlerGenerator
+    val plugin = new AwsServerlessGeneratorPlugin(TypeLifter.createDefault(), InstanceParameters.empty)
+    val classDef = generator.generateLambdaHandlerClass(instance, plugin).classDef
+
+    // The generated code shouldn't contain a default constructor for the event handler class.
+    val eventHandlerClassLocation = classDef.indexOf("class AppIdEventHandler(")
+    assertFalse(classDef.substring(eventHandlerClassLocation).contains("def this()"))
+  }
+
   private def createHandlerInstance(applicationInstance: ApplicationInstance,
                                     inputEventSourceArns: (String, String)*): MilanLambdaHandler = {
     val generator = new LambdaHandlerGenerator()
     val handlerClassName = "EventHandler"
-    val generatedCode = generator.generateLambdaHandlerClass(applicationInstance, handlerClassName)
+    val generatorOutput = generator.generateLambdaHandlerClass(applicationInstance, EventHandlerGeneratorPlugin.empty, handlerClassName)
 
     val codeToEval =
       s"""
-         |$generatedCode
+         |${generatorOutput.classDef}
          |
          |new com.amazon.milan.aws.serverless.compiler.TestLambdaHandlerGenerator.HandlerFactory {
-         |  override def createHandler(arns: com.amazon.milan.aws.serverless.runtime.EventSourceArnAccessor): com.amazon.milan.aws.serverless.runtime.MilanLambdaHandler = {
-         |    new $handlerClassName(arns)
+         |  override def createHandler(environment: com.amazon.milan.aws.serverless.runtime.EnvironmentAccessor): com.amazon.milan.aws.serverless.runtime.MilanLambdaHandler = {
+         |    new $handlerClassName(environment)
          |  }
          |}
          |""".stripMargin
 
     val handlerFactory = RuntimeEvaluator.default.eval[HandlerFactory](codeToEval)
 
-    handlerFactory.createHandler(new MapEventSourceArnAccessor(inputEventSourceArns: _*))
+    val environment = inputEventSourceArns.map { case (inputName, arn) =>
+      MilanLambdaHandler.getEventSourceArnPrefixEnvironmentVariable(inputName) -> arn
+    }
+
+    handlerFactory.createHandler(new MapEnvironmentAccessor(environment: _*))
   }
 
   private def createSqsLambdaInputStream(eventSourceArn: String, body: String): InputStream = {

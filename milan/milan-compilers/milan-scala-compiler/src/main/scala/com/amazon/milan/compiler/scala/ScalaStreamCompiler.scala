@@ -39,6 +39,6 @@ class ScalaStreamCompiler extends ApplicationInstanceCompiler {
 
     output.writeUtf8(s"package $packageName\n\n")
     ScalaStreamGenerator.generateFunction(functionName, applicationInstance.application.streams, outputStreamId, output)
-    EventHandlerClassGenerator.generateClass(applicationInstance, className, output)
+    EventHandlerClassGenerator.generateClass(applicationInstance, className, output, plugin = None)
   }
 }

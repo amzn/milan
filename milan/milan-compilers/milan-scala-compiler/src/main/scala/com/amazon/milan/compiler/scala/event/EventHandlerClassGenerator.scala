@@ -11,7 +11,8 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 
 
-case class EventHandlerGeneratedClass(classDefinition: String, generatedStreams: GeneratedStreams)
+case class EventHandlerGeneratedClass(classDefinition: String,
+                                      generatorOutputInfo: GeneratorOutputInfo)
 
 
 /**
@@ -39,13 +40,14 @@ object EventHandlerClassGenerator {
    * @return An [[EventHandlerGeneratedClass]] object containing the class definition and the generated stream info.
    */
   def generateClass(application: ApplicationInstance,
-                    className: String): EventHandlerGeneratedClass = {
+                    className: String,
+                    plugin: Option[EventHandlerGeneratorPlugin]): EventHandlerGeneratedClass = {
     val outputStream = new ByteArrayOutputStream()
-    val generatedStreams = this.generateClass(application, className, outputStream)
+    val generatorOutputInfo = this.generateClass(application, className, outputStream, plugin)
     outputStream.flush()
 
     val classDef = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(outputStream.toByteArray)).toString
-    EventHandlerGeneratedClass(classDef, generatedStreams)
+    EventHandlerGeneratedClass(classDef, generatorOutputInfo)
   }
 
   /**
@@ -56,14 +58,19 @@ object EventHandlerClassGenerator {
    */
   def generateClass(application: ApplicationInstance,
                     className: String,
-                    outputStream: OutputStream): GeneratedStreams = {
+                    outputStream: OutputStream,
+                    plugin: Option[EventHandlerGeneratorPlugin]): GeneratorOutputInfo = {
     val streams = application.application.streams.getDereferencedStreams
     typeCheckGraph(streams)
 
     val dependencyGraph = DependencyGraph.build(streams)
     val flowGraph = FlowGraph.build(streams)
     val outputs = new GeneratorOutputs(this.typeLifter.typeEmitter)
-    val plugins = EventHandlerGeneratorPlugin.loadAllPlugins(this.typeLifter)
+
+    val plugins = plugin match {
+      case Some(p) => p
+      case None => new EmptyEventHandlerGeneratorPlugin
+    }
 
     val context =
       GeneratorContext(
@@ -81,8 +88,6 @@ object EventHandlerClassGenerator {
     rootDataStreams.foreach(stream => this.getOrGenerateStream(context, stream.expr))
 
     outputs.generate(className, outputStream)
-
-    GeneratedStreams(outputs.getGeneratedStreams.toList, outputs.getExternalStreams.toList)
   }
 
   /**

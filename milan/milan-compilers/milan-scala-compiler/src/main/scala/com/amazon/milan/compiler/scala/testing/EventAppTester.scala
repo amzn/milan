@@ -3,8 +3,8 @@ package com.amazon.milan.compiler.scala.testing
 import com.amazon.milan.application.sinks.SingletonMemorySink
 import com.amazon.milan.application.{Application, ApplicationConfiguration, ApplicationInstance}
 import com.amazon.milan.compiler.scala.RuntimeEvaluator
-import com.amazon.milan.compiler.scala.event.{EventHandlerClassGenerator, GeneratedStreams, RecordConsumer}
-import com.amazon.milan.graph.{StreamCollection, typeCheckGraph}
+import com.amazon.milan.compiler.scala.event.{EventHandlerClassGenerator, GeneratorOutputInfo, RecordConsumer}
+import com.amazon.milan.graph.StreamCollection
 import com.amazon.milan.lang
 import org.apache.commons.io.output.ByteArrayOutputStream
 
@@ -32,7 +32,7 @@ object EventAppTester {
   def compile(streams: StreamCollection, config: ApplicationConfiguration): RecordConsumer = {
     val instance = new ApplicationInstance(new Application(streams), config)
     val className = "TestClass"
-    val generatedClassInfo = EventHandlerClassGenerator.generateClass(instance, className)
+    val generatedClassInfo = EventHandlerClassGenerator.generateClass(instance, className, plugin = None)
     val classDef = generatedClassInfo.classDefinition
 
     val code =
@@ -45,10 +45,10 @@ object EventAppTester {
     RuntimeEvaluator.default.eval[RecordConsumer](code)
   }
 
-  def compileStreams(streams: StreamCollection, config: ApplicationConfiguration): GeneratedStreams = {
+  def compileStreams(streams: StreamCollection, config: ApplicationConfiguration): GeneratorOutputInfo = {
     val instance = new ApplicationInstance(new Application(streams), config)
     val className = "TestClass"
     val output = new ByteArrayOutputStream()
-    EventHandlerClassGenerator.generateClass(instance, className, output)
+    EventHandlerClassGenerator.generateClass(instance, className, output, plugin = None)
   }
 }

@@ -1,6 +1,6 @@
 package com.amazon.milan.aws.serverless.runtime
 
-import com.amazon.milan.compiler.scala.CodeBlock
+import com.amazon.milan.compiler.scala.{CodeBlock, toValidName}
 import com.amazon.milan.serialization.MilanObjectMapper
 import com.amazonaws.services.lambda.runtime.{Context, RequestStreamHandler}
 import com.typesafe.scalalogging.Logger
@@ -12,10 +12,14 @@ object MilanLambdaHandler {
   val handleDynamoDbNewImageMethodName: CodeBlock = CodeBlock("handleDynamoDbNewImage")
 
   val handleSqsBodyMethodName: CodeBlock = CodeBlock("handleSqsBody")
+
+  def getEventSourceArnPrefixEnvironmentVariable(inputName: String): String = {
+    toValidName(s"EventSourceArnPrefix_$inputName")
+  }
 }
 
 
-abstract class MilanLambdaHandler(inputEventSourceArns: EventSourceArnAccessor) extends RequestStreamHandler {
+abstract class MilanLambdaHandler(environment: EnvironmentAccessor) extends RequestStreamHandler {
   protected val logger: Logger = Logger(LoggerFactory.getLogger(this.getClass))
 
   protected def handleDynamoDbNewImage(eventSourceArn: String, newImageJson: String): Unit
@@ -55,6 +59,6 @@ abstract class MilanLambdaHandler(inputEventSourceArns: EventSourceArnAccessor) 
   }
 
   protected def getEventSourceArnPrefix(inputName: String): String = {
-    this.inputEventSourceArns.getEventSourceArn(inputName)
+    this.environment.getEnv(MilanLambdaHandler.getEventSourceArnPrefixEnvironmentVariable(inputName))
   }
 }

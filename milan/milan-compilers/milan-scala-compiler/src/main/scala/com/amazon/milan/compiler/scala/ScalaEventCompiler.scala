@@ -36,6 +36,6 @@ class ScalaEventCompiler extends ApplicationInstanceCompiler {
     val className = params.getValueOption("class").getOrElse(ScalaEventCompiler.DEFAULT_CLASSNAME)
 
     output.writeUtf8(s"package $packageName\n\n")
-    EventHandlerClassGenerator.generateClass(applicationInstance, className, output)
+    EventHandlerClassGenerator.generateClass(applicationInstance, className, output, plugin = None)
   }
 }

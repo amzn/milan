@@ -29,7 +29,7 @@ class TestPartitionedApplication {
     val fullGraphFunc = compile[IntRecord, IntRecord](input.expr, min.expr)
 
     // Partition the application and compile each partition into a separate function.
-    val partitioned = ApplicationPartitioner.partitionApplication(instance)
+    val partitioned = ApplicationPartitioner.partitionApplication(instance, new NoOpPartitionInputOutputProcessor)
 
     assertEquals(2, partitioned.length)
 
